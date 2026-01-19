@@ -5,6 +5,11 @@ from database import (get_pending_admins, update_validation_status, delete_admin
                       update_item_details, delete_item, get_pending_stock_modifications,
                       approve_stock_modification, refuse_stock_modification)
 import emoji
+from product_info import get_product_info_from_openfoodfacts
+from streamlit_webrtc import webrtc_streamer
+import cv2
+import av
+import threading
 
 def get_emoji_list():
     emoji_list = []
@@ -23,8 +28,36 @@ def item_added_dialog(item_name):
     if st.button("OK"):
         st.rerun()
 
+# --- Logique du Scanner avec OpenCV ---
+lock = threading.Lock()
+scanned_barcode_container = {"barcode": None}
+barcode_detector = cv2.barcode.BarcodeDetector()
+
+def video_frame_callback(frame: av.VideoFrame):
+    img = frame.to_ndarray(format="bgr24")
+    
+    ok, decoded_info, _, _ = barcode_detector.detectAndDecode(img)
+    
+    if ok and decoded_info:
+        with lock:
+            if scanned_barcode_container["barcode"] is None:
+                scanned_barcode_container["barcode"] = decoded_info[0]
+            
+    return frame
+
 def display_admin_page(user_id, user_role):
     st.header("Panneau d'Administration")
+
+    if 'barcode_scanned' in st.session_state and st.session_state.barcode_scanned:
+        barcode = st.session_state.barcode_scanned
+        del st.session_state.barcode_scanned
+        with st.spinner("Recherche des informations du produit..."):
+            product_info = get_product_info_from_openfoodfacts(barcode)
+            if product_info:
+                st.session_state.prefill_data = product_info
+            else:
+                st.warning("Produit non trouvé. Veuillez saisir les informations manuellement.")
+        st.rerun()
 
     if user_role == 'Super Admin':
         st.subheader("Validation des nouveaux comptes")
@@ -93,27 +126,66 @@ def display_admin_page(user_id, user_role):
         st.markdown("---")
 
         st.subheader("Gestion des articles du stock")
-        # Utiliser st.session_state pour gérer la soumission et l'affichage du dialogue
-        if 'item_to_add' not in st.session_state:
-            st.session_state.item_to_add = None
+
+        st.write("#### Ajouter un article")
+        
+        col1, col2 = st.columns([2, 1])
+        with col1:
+            barcode_input = st.text_input("Entrez un code-barres (EAN)", key="barcode_manual_input")
+            if st.button("Rechercher manuellement"):
+                if barcode_input:
+                    st.session_state.barcode_scanned = barcode_input
+                    st.rerun()
+                else:
+                    st.error("Veuillez entrer un code-barres.")
+        
+        with col2:
+            st.write("ou")
+            if st.button("📷 Scanner un code-barres"):
+                st.session_state.show_scanner = not st.session_state.get("show_scanner", False)
+                scanned_barcode_container["barcode"] = None
+
+        if st.session_state.get("show_scanner", False):
+            webrtc_ctx = webrtc_streamer(
+                key="barcode-scanner",
+                video_frame_callback=video_frame_callback,
+                media_stream_constraints={"video": {"facingMode": "environment"}},
+                async_processing=True,
+            )
+
+            if webrtc_ctx.state.playing:
+                with lock:
+                    if scanned_barcode_container["barcode"]:
+                        st.session_state.barcode_scanned = scanned_barcode_container["barcode"]
+                        scanned_barcode_container["barcode"] = None
+                        st.session_state.show_scanner = False
+                        st.rerun()
+
+        prefill_name = ""
+        if 'prefill_data' in st.session_state and st.session_state.prefill_data:
+            prefill_name = st.session_state.prefill_data.get("name", "")
 
         with st.form("add_item_form", clear_on_submit=True):
-            new_nom = st.text_input("Nom de l'article")
+            st.write("---")
+            new_nom = st.text_input("Nom de l'article", value=prefill_name)
             new_emoji = st.selectbox("Emoji", options=EMOJI_LIST, index=None, placeholder="Sélectionnez un emoji...", help="Tapez pour rechercher")
             new_categorie = st.selectbox("Catégorie", ["Nourriture", "Fournitures", "Intendance", "Bibliothèque"])
             new_quantite = st.number_input("Quantité initiale", min_value=0, value=0)
             new_seuil_alerte = st.number_input("Seuil d'alerte", min_value=0, value=5)
+            
             add_submitted = st.form_submit_button("Ajouter l'article")
             if add_submitted:
                 if new_nom and new_emoji:
                     if add_item(new_nom, new_categorie, new_quantite, new_seuil_alerte, new_emoji):
                         st.session_state.item_to_add = new_nom
+                        if 'prefill_data' in st.session_state:
+                            del st.session_state.prefill_data
                 else:
                     st.error("Le nom de l'article et l'emoji sont obligatoires.")
         
-        if st.session_state.item_to_add:
+        if 'item_to_add' in st.session_state and st.session_state.item_to_add:
             item_added_dialog(st.session_state.item_to_add)
-            st.session_state.item_to_add = None # Réinitialiser après affichage
+            st.session_state.item_to_add = None
 
         st.markdown("---")
         st.subheader("Gérer les articles existants")
@@ -140,4 +212,4 @@ def display_admin_page(user_id, user_role):
         else:
             st.info("Aucun article à gérer.")
     elif user_role not in ['Super Admin']:
-         st.info("Cette section est réservée aux administrateurs du stock et au Super Admin.")
+         st.info("Cette section est réservée aux administrateurs.")
