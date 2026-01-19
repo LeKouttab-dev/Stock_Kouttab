@@ -6,10 +6,7 @@ from database import (get_pending_admins, update_validation_status, delete_admin
                       approve_stock_modification, refuse_stock_modification)
 import emoji
 from product_info import get_product_info_from_openfoodfacts
-from streamlit_webrtc import webrtc_streamer
-import av
-import threading
-import cv2
+from barcode_scanner_component import barcode_scanner_component, get_barcode_result, should_close_scanner
 
 def get_emoji_list():
     emoji_list = []
@@ -28,61 +25,24 @@ def item_added_dialog(item_name):
     if st.button("OK"):
         st.rerun()
 
-# --- Logique du Scanner avec OpenCV ---
-lock = threading.Lock()
-scanned_barcode_container = {"barcode": None}
-barcode_detector = cv2.barcode.BarcodeDetector()
-
-def video_frame_callback(frame: av.VideoFrame):
-    img = frame.to_ndarray(format="bgr24")
-    
-    h, w, _ = img.shape
-    rect_width = int(w * 0.8)
-    rect_height = int(h * 0.3)
-    x1 = (w - rect_width) // 2
-    y1 = (h - rect_height) // 2
-    x2 = x1 + rect_width
-    y2 = y1 + rect_height
-    cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
-
-    ok, decoded_info, decoded_type, points = barcode_detector.detectAndDecode(img)
-
-    if ok and decoded_info:
-        barcode_data = decoded_info[0]
-        # Dessiner un polygone autour du code-barres détecté
-        if points is not None:
-            pts = points[0].astype(int)
-            cv2.polylines(img, [pts], isClosed=True, color=(0, 0, 255), thickness=2)
-        
-        with lock:
-            if scanned_barcode_container["barcode"] is None:
-                scanned_barcode_container["barcode"] = barcode_data
-            
-    return av.VideoFrame.from_ndarray(img, format="bgr24")
-
-@st.dialog("Scanner un code-barres")
-def scanner_dialog():
-    st.info("Visez le code-barres avec le rectangle vert. Le scan s'arrêtera automatiquement.")
-    scanned_barcode_container["barcode"] = None
-
-    webrtc_ctx = webrtc_streamer(
-        key="barcode-scanner-dialog",
-        video_frame_callback=video_frame_callback,
-        media_stream_constraints={"video": {"facingMode": "environment"}},
-        async_processing=True,
-    )
-
-    if webrtc_ctx.state.playing:
-        while True:
-            with lock:
-                if scanned_barcode_container["barcode"]:
-                    st.session_state.barcode_scanned = scanned_barcode_container["barcode"]
-                    scanned_barcode_container["barcode"] = None
-                    st.rerun()
-            threading.Event().wait(0.1)
-
 def display_admin_page(user_id, user_role):
     st.header("Panneau d'Administration")
+
+    # Vérifier si un code barres a été scanné
+    barcode_result = get_barcode_result()
+    if barcode_result:
+        st.session_state.barcode_scanned = barcode_result
+        # Nettoyer le résultat
+        if 'barcode_result' in st.session_state:
+            del st.session_state.barcode_result
+        st.rerun()
+
+    # Vérifier si le scanner doit être fermé
+    if should_close_scanner():
+        st.session_state.show_scanner = False
+        if 'close_scanner' in st.session_state:
+            del st.session_state.close_scanner
+        st.rerun()
 
     if 'barcode_scanned' in st.session_state and st.session_state.barcode_scanned:
         barcode = st.session_state.barcode_scanned
@@ -178,7 +138,20 @@ def display_admin_page(user_id, user_role):
         with col2:
             st.write("ou")
             if st.button("📷 Scanner un code-barres"):
-                scanner_dialog()
+                st.session_state.show_scanner = not st.session_state.get("show_scanner", False)
+
+        if st.session_state.get("show_scanner", False):
+            # Afficher le scanner professionnel
+            st.markdown("### 📷 Scanner Professionnel de Codes Barres")
+            st.markdown("Scanner de type Yuka - précision et fiabilité optimales")
+            
+            # Afficher le composant de scanner
+            barcode_scanner_component()
+            
+            # Bouton pour fermer manuellement
+            if st.button("❌ Fermer le scanner", key="close_professional_scanner"):
+                st.session_state.show_scanner = False
+                st.rerun()
 
         prefill_name = ""
         if 'prefill_data' in st.session_state and st.session_state.prefill_data:

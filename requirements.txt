@@ -2,5 +2,6 @@ streamlit
 pandas
 emoji
 requests
-streamlit-webrtc
 opencv-python-headless
+pillow
+numpy
