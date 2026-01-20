@@ -1,4 +1,3 @@
 streamlit
 pandas
 emoji
-sqlite3
