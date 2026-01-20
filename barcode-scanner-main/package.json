@@ -1,0 +1,74 @@
+{
+  "name": "barcode-scanner",
+  "version": "1.0.0",
+  "description": "A Progressive Web Application (PWA) that scans barcodes of various formats, using the Barcode Detection API.",
+  "source": "src/index.html",
+  "scripts": {
+    "lint": "eslint src/js/**",
+    "format": "prettier --ignore-unknown --write .",
+    "clean": "rimraf dist .parcel-cache",
+    "generateSW": "workbox generateSW",
+    "start": "parcel",
+    "build:parcel": "parcel build --dist-dir=dist --public-url=./",
+    "build": "npm-run-all clean build:parcel",
+    "postbuild": "npm run generateSW",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d dist"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/georapbox/barcode-scanner.git"
+  },
+  "keywords": [
+    "aztec",
+    "code_128",
+    "code_39",
+    "code_93",
+    "codabar",
+    "data_matrix",
+    "ean_13",
+    "ean_8",
+    "itf",
+    "pdf417",
+    "qr_code",
+    "upc_a",
+    "upc_e",
+    "scanner"
+  ],
+  "author": {
+    "name": "George Raptis",
+    "email": "georapbox@gmail.com"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/georapbox/barcode-scanner/issues"
+  },
+  "homepage": "https://github.com/georapbox/barcode-scanner#readme",
+  "devDependencies": {
+    "@eslint/js": "~9.39.2",
+    "@parcel/packager-raw-url": "~2.16.3",
+    "@parcel/transformer-webmanifest": "~2.16.3",
+    "eslint": "~9.39.2",
+    "gh-pages": "~6.3.0",
+    "globals": "~16.5.0",
+    "npm-run-all": "~4.1.5",
+    "parcel": "~2.16.3",
+    "prettier": "~3.7.4",
+    "process": "~0.11.10",
+    "rimraf": "~6.1.2",
+    "svgo": "~4.0.0",
+    "workbox-cli": "~7.4.0"
+  },
+  "dependencies": {
+    "@georapbox/a-tab-group": "~2.4.1",
+    "@georapbox/alert-element": "~1.2.2",
+    "@georapbox/clipboard-copy-element": "~3.0.2",
+    "@georapbox/files-dropzone-element": "~2.1.1",
+    "@georapbox/modal-element": "~1.10.0",
+    "@georapbox/resize-observer-element": "~2.0.1",
+    "@georapbox/web-share-element": "~3.1.1",
+    "barcode-detector": "~3.0.8",
+    "idb-keyval": "~6.2.2"
+  },
+  "browserslist": "> 0.5%, last 2 versions, not dead"
+}

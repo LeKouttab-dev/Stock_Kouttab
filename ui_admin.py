@@ -6,7 +6,7 @@ from database import (get_pending_admins, update_validation_status, delete_admin
                       approve_stock_modification, refuse_stock_modification)
 import emoji
 from product_info import get_product_info_from_openfoodfacts
-from barcode_scanner_component import barcode_scanner_component, get_barcode_result, should_close_scanner
+from barcode_scanner_component import barcode_scanner
 
 def get_emoji_list():
     emoji_list = []
@@ -28,31 +28,19 @@ def item_added_dialog(item_name):
 def display_admin_page(user_id, user_role):
     st.header("Panneau d'Administration")
 
-    # Vérifier si un code barres a été scanné
-    barcode_result = get_barcode_result()
-    if barcode_result:
-        st.session_state.barcode_scanned = barcode_result
-        # Nettoyer le résultat
-        if 'barcode_result' in st.session_state:
-            del st.session_state.barcode_result
-        st.rerun()
-
-    # Vérifier si le scanner doit être fermé
-    if should_close_scanner():
-        st.session_state.show_scanner = False
-        if 'close_scanner' in st.session_state:
-            del st.session_state.close_scanner
-        st.rerun()
-
-    if 'barcode_scanned' in st.session_state and st.session_state.barcode_scanned:
-        barcode = st.session_state.barcode_scanned
-        del st.session_state.barcode_scanned
+    if 'barcode_to_process' in st.session_state:
+        barcode = st.session_state.barcode_to_process
+        del st.session_state.barcode_to_process
+        
         with st.spinner("Recherche des informations du produit..."):
             product_info = get_product_info_from_openfoodfacts(barcode)
-            if product_info:
+            
+            if product_info and product_info.get("name"):
                 st.session_state.prefill_data = product_info
             else:
                 st.warning("Produit non trouvé. Veuillez saisir les informations manuellement.")
+                if 'prefill_data' in st.session_state:
+                    del st.session_state.prefill_data
         st.rerun()
 
     if user_role == 'Super Admin':
@@ -122,7 +110,6 @@ def display_admin_page(user_id, user_role):
         st.markdown("---")
 
         st.subheader("Gestion des articles du stock")
-
         st.write("#### Ajouter un article")
         
         col1, col2 = st.columns([2, 1])
@@ -130,7 +117,7 @@ def display_admin_page(user_id, user_role):
             barcode_input = st.text_input("Entrez un code-barres (EAN)", key="barcode_manual_input")
             if st.button("Rechercher manuellement"):
                 if barcode_input:
-                    st.session_state.barcode_scanned = barcode_input
+                    st.session_state.barcode_to_process = barcode_input
                     st.rerun()
                 else:
                     st.error("Veuillez entrer un code-barres.")
@@ -141,25 +128,20 @@ def display_admin_page(user_id, user_role):
                 st.session_state.show_scanner = not st.session_state.get("show_scanner", False)
 
         if st.session_state.get("show_scanner", False):
-            # Afficher le scanner professionnel
-            st.markdown("### 📷 Scanner Professionnel de Codes Barres")
-            st.markdown("Scanner de type Yuka - précision et fiabilité optimales")
-            
-            # Afficher le composant de scanner
-            barcode_scanner_component()
-            
-            # Bouton pour fermer manuellement
-            if st.button("❌ Fermer le scanner", key="close_professional_scanner"):
+            st.write("---")
+            st.subheader("Scanner de Code-barres")
+            scanned_value = barcode_scanner(key="scanner")
+            if scanned_value:
+                st.session_state.barcode_to_process = scanned_value
                 st.session_state.show_scanner = False
                 st.rerun()
+            st.write("---")
 
-        prefill_name = ""
-        if 'prefill_data' in st.session_state and st.session_state.prefill_data:
-            prefill_name = st.session_state.prefill_data.get("name", "")
+        prefill_name = st.session_state.get('prefill_data', {}).get('name', '')
 
         with st.form("add_item_form", clear_on_submit=True):
             st.write("---")
-            new_nom = st.text_input("Nom de l'article", value=prefill_name)
+            new_nom = st.text_input("Nom de l'article", value=prefill_name, key="product_name_input")
             new_emoji = st.selectbox("Emoji", options=EMOJI_LIST, index=None, placeholder="Sélectionnez un emoji...", help="Tapez pour rechercher")
             new_categorie = st.selectbox("Catégorie", ["Nourriture", "Fournitures", "Intendance", "Bibliothèque"])
             new_quantite = st.number_input("Quantité initiale", min_value=0, value=0)
