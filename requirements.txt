@@ -1,7 +1,4 @@
 streamlit
 pandas
 emoji
-requests
-opencv-python-headless
-pillow
-numpy
+sqlite3

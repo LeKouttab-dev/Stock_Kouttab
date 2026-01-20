@@ -5,6 +5,7 @@ from database import (get_user_profile, update_user_profile, add_expense,
                       update_expense_details, update_expense_by_accountant, delete_expense)
 import os
 from datetime import datetime
+from logger_config import logger
 
 UPLOADS_DIR = 'uploads'
 STATUTS_REMBOURSEMENT = ['En attente', 'Approuvée', 'Refusée', 'Remboursée']
@@ -32,6 +33,20 @@ def display_expense_management(user_id, user_role):
                     st.write(f"**TOTAL À REMBOURSER:** **{total:.2f}€**")
                     st.markdown("---")
                     
+                    # Affichage du RIB
+                    if row['rib']:
+                        col1, col2 = st.columns([3, 1])
+                        with col1:
+                            st.text_input("IBAN (RIB) de l'utilisateur", value=row['rib'], disabled=True, key=f"rib_{row['id']}")
+                        with col2:
+                            if st.button("Copier le RIB", key=f"copy_rib_{row['id']}"):
+                                st.write(f'<script>navigator.clipboard.writeText("{row["rib"]}")</script>', unsafe_allow_html=True)
+                                st.toast("RIB copié dans le presse-papiers !")
+                    else:
+                        st.warning("L'utilisateur n'a pas encore renseigné son RIB.")
+                    
+                    st.markdown("---")
+
                     files = get_files_for_expense(row['id'])
                     if files:
                         for file_name in files:
@@ -81,8 +96,10 @@ def display_expense_management(user_id, user_role):
                 submitted = st.form_submit_button("Soumettre la demande")
                 if submitted:
                     if montant and date_depense and rattachement:
-                        add_expense(user_id, date_depense, rattachement, fournisseur, nature_charge, montant, commentaires, remb_emis, remise, uploaded_files)
-                        st.success("Votre note de frais a été soumise avec succès ! Vous pouvez en saisir une nouvelle ou consulter vos demandes dans l'onglet 'Mes demandes'.")
+                        user_profile = get_user_profile(user_id)
+                        user_full_name = f"{user_profile[1]} {user_profile[0]}".strip()
+                        add_expense(user_id, user_full_name, date_depense, rattachement, fournisseur, nature_charge, montant, commentaires, remb_emis, remise, uploaded_files)
+                        st.success("Votre note de frais a été soumise avec succès ! Les responsables ont été notifiés.")
                     else:
                         st.error("Veuillez remplir tous les champs obligatoires (*).")
 
