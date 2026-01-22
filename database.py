@@ -415,6 +415,16 @@ def get_stock_statistics():
     """)
     stats_par_categorie = c.fetchall()
     
+    # Sous-catégories de Nourriture
+    c.execute("""
+        SELECT sous_categorie, COUNT(*) as count, SUM(quantite) as total
+        FROM Stock
+        WHERE categorie = 'Nourriture' AND sous_categorie IS NOT NULL AND sous_categorie != ''
+        GROUP BY sous_categorie
+        ORDER BY count DESC
+    """)
+    stats_nourriture_sous_categories = c.fetchall()
+    
     conn.close()
     
     return {
@@ -423,7 +433,8 @@ def get_stock_statistics():
         'alertes_stock': alertes_stock,
         'stock_epuise': stock_epuise,
         'dernieres_modifs': dernieres_modifs,
-        'stats_par_categorie': stats_par_categorie
+        'stats_par_categorie': stats_par_categorie,
+        'stats_nourriture_sous_categories': stats_nourriture_sous_categories
     }
 
 def get_recent_stock_changes(days=7):

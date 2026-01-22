@@ -66,6 +66,37 @@ def display_overview():
             'total': 'Quantité totale'
         })
         st.dataframe(cat_data_display, width='stretch')
+        
+        # Sous-catégories de Nourriture
+        if stats['stats_nourriture_sous_categories']:
+            st.markdown("---")
+            st.subheader("🍔 Détail des sous-catégories - Nourriture")
+            
+            sous_cat_data = pd.DataFrame(stats['stats_nourriture_sous_categories'],
+                                       columns=['sous_categorie', 'count', 'total'])
+            
+            # Graphique des sous-catégories
+            st.bar_chart(sous_cat_data.set_index('sous_categorie')['count'])
+            
+            st.write("**Nombre d'articles par sous-catégorie de Nourriture**")
+            
+            # Tableau détaillé des sous-catégories
+            sous_cat_display = sous_cat_data.rename(columns={
+                'sous_categorie': 'Sous-catégorie',
+                'count': 'Nombre d\'articles',
+                'total': 'Quantité totale'
+            })
+            st.dataframe(sous_cat_display, width='stretch')
+            
+            # Statistiques supplémentaires pour Nourriture
+            total_nourriture_articles = sous_cat_data['count'].sum()
+            total_nourriture_quantite = sous_cat_data['total'].sum()
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Total articles Nourriture", total_nourriture_articles)
+            with col2:
+                st.metric("Total quantité Nourriture", total_nourriture_quantite)
 
     # Dernières activités
     if stats['dernieres_modifs']:
