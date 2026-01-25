@@ -1,0 +1,26 @@
+# .htaccess pour protéger le dossier logs/
+# Placez ce fichier dans le dossier logs/
+
+# Bloquer tout accès web
+Deny from all
+
+# Interdire l'exécution de scripts
+<Files "*.php">
+    Deny from all
+</Files>
+
+<Files "*.py">
+    Deny from all
+</Files>
+
+<Files "*.log">
+    Deny from all
+</Files>
+
+# Cacher l'existence du dossier
+Options -Indexes
+
+# Pas d'accès direct
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
