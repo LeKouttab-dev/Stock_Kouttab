@@ -7,16 +7,12 @@ from email_utils import send_alert_email, send_new_expense_alert_email
 from logger_config import logger
 
 # --- Configuration ---
-DATABASE_NAME = 'stock_kouttab.db'
+DATABASE_NAME = 'data/stock_kouttab.db'
 UPLOADS_DIR = 'uploads'
 
 # --- Fonctions de Hachage ---
 import hashlib
-def hash_password(password):
-    return hashlib.sha256(password.encode()).hexdigest()
-
-def verify_password(stored_password_hash, provided_password):
-    return stored_password_hash == hash_password(provided_password)
+from security import hash_password_secure, verify_password_secure, validate_email, validate_username, sanitize_input
 
 # --- Fonctions de Base de Données ---
 def init_db():
@@ -99,12 +95,8 @@ def init_db():
         )
     ''')
     
-    # Initialisation des données
-    c.execute("SELECT * FROM Admins WHERE role = 'Super Admin'")
-    if c.fetchone() is None:
-        c.execute("INSERT INTO Admins (username, password_hash, role, validation_status, nom, prenom, email) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                  ('admin', hash_password('kouttab_admin'), 'Super Admin', 'active', 'Admin', 'Principal', 'admin@example.com'))
-        logger.info("Compte Super Admin par défaut créé.")
+    # Initialisation des données - PLUS DE COMPTE ADMIN PAR DÉFAUT
+    # Le premier admin sera créé via invitation sécurisée
 
     # Initialisation des sous-catégories par défaut
     default_categories = {
@@ -606,8 +598,26 @@ def create_pending_admin(username, password, role, nom, prenom, email, telephone
     conn = sqlite3.connect(DATABASE_NAME)
     c = conn.cursor()
     try:
+        # Validation des entrées
+        if not validate_username(username):
+            logger.warning(f"Tentative de création avec nom d'utilisateur invalide : '{username}'.")
+            st.toast("❌ Nom d'utilisateur invalide (3-20 caractères, alphanumériques uniquement).", icon='🚨')
+            return
+        
+        if email and not validate_email(email):
+            logger.warning(f"Tentative de création avec email invalide : '{email}'.")
+            st.toast("❌ Format d'email invalide.", icon='🚨')
+            return
+        
+        # Sanitization
+        username = sanitize_input(username)
+        nom = sanitize_input(nom)
+        prenom = sanitize_input(prenom)
+        email = sanitize_input(email)
+        telephone = sanitize_input(telephone)
+        
         c.execute("INSERT INTO Admins (username, password_hash, role, nom, prenom, email, telephone, validation_status) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')",
-                  (username, hash_password(password), role, nom, prenom, email, telephone))
+                  (username, hash_password_secure(password), role, nom, prenom, email, telephone))
         conn.commit()
         logger.info(f"Demande de compte en attente créée pour '{username}' (Rôle: {role}).")
         st.success("Votre demande de compte a été envoyée.")
@@ -619,6 +629,8 @@ def create_pending_admin(username, password, role, nom, prenom, email, telephone
 def get_user(username):
     conn = sqlite3.connect(DATABASE_NAME)
     c = conn.cursor()
+    # Sanitization du username pour éviter injection SQL
+    username = sanitize_input(username)
     c.execute("SELECT id, password_hash, role, validation_status, nom, prenom FROM Admins WHERE username = ?", (username,))
     result = c.fetchone()
     conn.close()

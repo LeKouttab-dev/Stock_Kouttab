@@ -11,14 +11,40 @@ ENV/
 
 # Fichiers de configuration de l'IDE
 .idea/
+.vscode/
+*.swp
+*.swo
 
 # Fichiers de base de données
 *.db
 *.sqlite
 *.sqlite3
+data/
 
-# Fichiers secrets
+# Fichiers secrets et configuration
 .streamlit/secrets.toml
+.env
+.env.local
+.env.production
+
+# Logs
+*.log
+logs/
+security.log
 
 # Dossier d'uploads
 uploads/
+uploads/*
+
+# Fichiers temporaires
+*.tmp
+*.temp
+*.backup
+
+# Fichiers de déploiement
+DEPLOYMENT_CHECKLIST.md
+INSTALLATION.md
+
+# Système
+.DS_Store
+Thumbs.db

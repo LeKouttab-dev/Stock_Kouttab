@@ -1,0 +1,75 @@
+# .htaccess pour protéger le dossier uploads/
+# Placez ce fichier dans le dossier uploads/
+
+# Bloquer tout accès direct aux fichiers exécutables
+<Files "*.php">
+    Require all denied
+</Files>
+
+<Files "*.py">
+    Require all denied
+</Files>
+
+<Files "*.sh">
+    Require all denied
+</Files>
+
+<Files "*.bat">
+    Require all denied
+</Files>
+
+<Files "*.exe">
+    Require all denied
+</Files>
+
+<Files "*.js">
+    Require all denied
+</Files>
+
+<Files "*.html">
+    Require all denied
+</Files>
+
+<Files "*.css">
+    Require all denied
+</Files>
+
+<Files "*.sql">
+    Require all denied
+</Files>
+
+<Files "*.db">
+    Require all denied
+</Files>
+
+<Files "*.toml">
+    Require all denied
+</Files>
+
+<Files "*.env">
+    Require all denied
+</Files>
+
+# Autoriser seulement les types de fichiers sécurisés
+<FilesMatch "\.(jpg|jpeg|png|gif|pdf|doc|docx|xls|xlsx)$">
+    Require all granted
+</FilesMatch>
+
+# Bloquer tous les autres types de fichiers
+<FilesMatch ".*">
+    Require all denied
+</FilesMatch>
+
+# Pas de listing de répertoire
+Options -Indexes
+
+# Désactiver l'exécution de scripts
+Options -ExecCGI
+
+# Limiter la taille des fichiers (10MB max)
+LimitRequestBody 10485760
+
+# Headers de sécurité pour les fichiers autorisés
+<FilesMatch "\.(jpg|jpeg|png|gif|pdf|doc|docx|xls|xlsx)$">
+    Header always set X-Content-Type-Options nosniff
+</FilesMatch>

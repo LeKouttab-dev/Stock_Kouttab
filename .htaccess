@@ -1,0 +1,76 @@
+# .htaccess principal à la racine du projet
+# Protection générale de l'application
+
+# Bloquer l'accès aux fichiers sensibles
+<Files "*.db">
+    Require all denied
+</Files>
+
+<Files "*.toml">
+    Require all denied
+</Files>
+
+<Files "*.log">
+    Require all denied
+</Files>
+
+<Files "*.py">
+    Require all denied
+</Files>
+
+<Files "*.env">
+    Require all denied
+</Files>
+
+<Files "*.backup">
+    Require all denied
+</Files>
+
+# Protéger le dossier .streamlit
+<Directory ".streamlit">
+    Require all denied
+</Directory>
+
+# Protéger le dossier data
+<Directory "data">
+    Require all denied
+</Directory>
+
+# Protéger le dossier logs
+<Directory "logs">
+    Require all denied
+</Directory>
+
+# Protéger le dossier uploads
+<Directory "uploads">
+    Require all denied
+</Directory>
+
+# Headers de sécurité
+Header always set X-Content-Type-Options nosniff
+Header always set X-Frame-Options DENY
+Header always set X-XSS-Protection "1; mode=block"
+Header always set Referrer-Policy "strict-origin-when-cross-origin"
+Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
+
+# Forcer HTTPS (décommentez en production)
+# RewriteEngine On
+# RewriteCond %{HTTPS} off
+# RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# Cacher les informations du serveur
+ServerTokens Prod
+ServerSignature Off
+
+# Désactiver le listing des répertoires
+Options -Indexes
+
+# Limiter la taille des uploads
+LimitRequestBody 10485760
+
+# Protéger contre les attaques communes
+RewriteEngine On
+RewriteCond %{QUERY_STRING} (\<|%3C).*script.*(\>|%3E) [NC,OR]
+RewriteCond %{QUERY_STRING} GLOBALS(=|\[|\%[0-9A-Z]{0,2}) [OR]
+RewriteCond %{QUERY_STRING} _REQUEST(=|\[|\%[0-9A-Z]{0,2})
+RewriteRule ^.*$ - [F,L]
