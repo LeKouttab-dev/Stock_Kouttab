@@ -1,0 +1,13 @@
+# Configuration Apache minimal pour Streamlit sur O2Switch
+
+# DirectoryIndex pour app.py
+DirectoryIndex app.py
+
+# Passenger configuration
+PassengerEnabled on
+PassengerAppType python
+PassengerStartupFile app.py
+PassengerPython /home/sc9bewu6999/virtualenv/stock.lekouttab.fr/3.11/bin/python
+
+# Options de base
+Options -Indexes

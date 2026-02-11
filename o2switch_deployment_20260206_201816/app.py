@@ -11,7 +11,6 @@ from logger_config import logger
 from security_middleware import security
 from database_backup import display_database_export_import_page
 import re
-import sys
 
 # --- Configuration pour la production sur stock.lekouttab.fr ---
 # Configuration de la page pour la production
@@ -25,21 +24,16 @@ st.set_page_config(
 # Configuration de sécurité pour la production
 if os.environ.get('ENVIRONMENT') == 'production':
     # Forcer le mode production
-    try:
-        st.runtime.legacy_caching.clear_cache()
-    except AttributeError:
-        # Alternative pour versions plus anciennes de Streamlit
-        st.cache_data.clear()
-        st.cache_resource.clear()
+    st.runtime.legacy_caching.clear_cache()
     
     # Configuration de la base de données pour la production
-    DATABASE_PATH = os.environ.get('DATABASE_PATH', '/home/sc9bewu6999/stock.lekouttab.fr/data/stock_kouttab.db')
+    DATABASE_PATH = os.environ.get('DATABASE_PATH', '/www/stock.lekouttab.fr/data/gestion_stock.db')
     
     # Créer le répertoire data si nécessaire
     os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)
 else:
     # Configuration pour le développement local
-    DATABASE_PATH = 'data/stock_kouttab.db'
+    DATABASE_PATH = 'gestion_stock.db'
 
 # --- Fonction de validation de mot de passe ---
 def validate_password_strength(password):
@@ -282,52 +276,3 @@ else:
     
     elif page == "Export/Import BDD":
         display_database_export_import_page()
-
-# --- Point d'entrée WSGI pour O2Switch ---
-def application(environ, start_response):
-    """
-    Point d'entrée WSGI pour O2Switch Passenger
-    """
-    # Importer les modules nécessaires
-    import sys
-    from io import StringIO
-    
-    # Configurer l'environnement
-    os.environ.update(environ)
-    
-    # Rediriger la sortie standard
-    old_stdout = sys.stdout
-    sys.stdout = StringIO()
-    
-    try:
-        # Exécuter l'application Streamlit
-        main()
-        
-        # Récupérer la sortie
-        output = sys.stdout.getvalue()
-        
-        # Préparer la réponse HTTP
-        start_response('200 OK', [
-            ('Content-Type', 'text/html; charset=utf-8'),
-            ('Content-Length', str(len(output)))
-        ])
-        
-        return [output.encode('utf-8')]
-        
-    except Exception as e:
-        # En cas d'erreur
-        error_msg = f"Erreur: {str(e)}"
-        start_response('500 Internal Server Error', [
-            ('Content-Type', 'text/plain; charset=utf-8'),
-            ('Content-Length', str(len(error_msg)))
-        ])
-        return [error_msg.encode('utf-8')]
-    
-    finally:
-        # Restaurer la sortie standard
-        sys.stdout = old_stdout
-
-# Point d'entrée principal pour compatibilité
-def main():
-    """Point d'entrée principal pour O2Switch"""
-    return "Application Gestion Stock Kouttab"

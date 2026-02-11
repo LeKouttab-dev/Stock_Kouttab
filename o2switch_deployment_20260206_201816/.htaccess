@@ -1,0 +1,96 @@
+# .htaccess principal à la racine du projet
+# Configuration pour O2Switch + Streamlit sur stock.lekouttab.fr
+
+# Redirection vers app.py pour Streamlit
+DirectoryIndex app.py
+
+<Files "app.py">
+    SetHandler cgi-script
+    Options +ExecCGI
+</Files>
+
+# Configuration de réécriture pour Streamlit
+RewriteEngine On
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ /app.py/$1 [L]
+
+# Forcer HTTPS pour stock.lekouttab.fr
+RewriteEngine On
+RewriteCond %{HTTPS} off
+RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# Bloquer l'accès aux fichiers sensibles
+<Files "*.db">
+    Require all denied
+</Files>
+
+<Files "*.toml">
+    Require all denied
+</Files>
+
+<Files "*.log">
+    Require all denied
+</Files>
+
+<Files "*.py">
+    Require all denied
+</Files>
+
+<Files "*.env">
+    Require all denied
+</Files>
+
+<Files "*.backup">
+    Require all denied
+</Files>
+
+# Protéger le dossier .streamlit
+<Directory ".streamlit">
+    Require all denied
+</Directory>
+
+# Protéger le dossier data
+<Directory "data">
+    Require all denied
+</Directory>
+
+# Protéger le dossier logs
+<Directory "logs">
+    Require all denied
+</Directory>
+
+# Protéger le dossier uploads
+<Directory "uploads">
+    Require all denied
+</Directory>
+
+# Headers de sécurité
+Header always set X-Content-Type-Options nosniff
+Header always set X-Frame-Options DENY
+Header always set X-XSS-Protection "1; mode=block"
+Header always set Referrer-Policy "strict-origin-when-cross-origin"
+Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
+Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
+# Cacher les informations du serveur
+ServerTokens Prod
+ServerSignature Off
+
+# Désactiver le listing des répertoires
+Options -Indexes
+
+# Limiter la taille des uploads
+LimitRequestBody 10485760
+
+# Cache pour les performances
+<FilesMatch "\.(css|js|png|jpg|jpeg|gif|ico|svg)$">
+    ExpiresActive On
+    ExpiresDefault "access plus 1 week"
+</FilesMatch>
+
+# Protéger contre les attaques communes
+RewriteCond %{QUERY_STRING} (\<|%3C).*script.*(\>|%3E) [NC,OR]
+RewriteCond %{QUERY_STRING} GLOBALS(=|\[|\%[0-9A-Z]{0,2}) [OR]
+RewriteCond %{QUERY_STRING} _REQUEST(=|\[|\%[0-9A-Z]{0,2})
+RewriteRule ^.*$ - [F,L]

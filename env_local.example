@@ -1,0 +1,17 @@
+# .env pour configuration locale
+# Copiez ce fichier en .env.local pour le développement
+
+# Configuration locale
+APP_MODE=local
+BASE_URL=http://localhost:8501
+DATABASE_PATH=data/stock_kouttab.db
+
+# Email pour tests locaux (utilisez des comptes temporaires)
+EMAIL_SENDER=votre-email@gmail.com
+EMAIL_PASSWORD=votre-mot-de-passe-app
+SMTP_SERVER=smtp.gmail.com
+SMTP_PORT=587
+
+# Configuration locale
+DEBUG=true
+LOG_LEVEL=DEBUG

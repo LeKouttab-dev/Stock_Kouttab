@@ -1,9 +1,6 @@
 # Configuration Apache pour Streamlit sur O2Switch
 # Version compatible .htaccess (sans directives Directory)
 
-# DirectoryIndex pour trouver app.py
-DirectoryIndex app.py
-
 # Activer Passenger pour Python
 PassengerEnabled on
 PassengerAppType python
