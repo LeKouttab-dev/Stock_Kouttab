@@ -1,0 +1,22 @@
+# Configuration déploiement O2Switch pour Gestion Stock Kouttab
+deploy:
+  - type: python
+    version: 3.13
+    path: /home/sc9bewu6999/stock.lekouttab.fr/stock.lekouttab.fr/
+    requirements:
+      - streamlit
+      - pandas
+      - emoji
+      - bcrypt
+      - python-dotenv
+    startup_file: app.py
+    entry_point: main
+    environment_variables:
+      ENVIRONMENT: production
+      DATABASE_PATH: /www/stock.lekouttab.fr/data/stock_kouttab.fr
+      DOMAIN_URL: https://stock.lekouttab.fr
+      SECRET_KEY: ***REMOVED***
+      EMAIL_SMTP: mail.lekouttab.fr
+      EMAIL_PORT: 465
+      EMAIL_SENDER: no-reply@lekouttab.fr
+      EMAIL_PASSWORD: ***REMOVED***
