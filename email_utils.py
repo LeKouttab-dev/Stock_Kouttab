@@ -4,6 +4,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
 from logger_config import logger
+from environment import env
 
 def send_alert_email(item_name, current_quantity, alert_threshold, recipient_emails):
     """
@@ -14,9 +15,13 @@ def send_alert_email(item_name, current_quantity, alert_threshold, recipient_ema
         return
 
     try:
-        # Récupérer les identifiants depuis les secrets de Streamlit
-        sender_email = st.secrets["email_credentials"]["sender_email"]
-        sender_password = st.secrets["email_credentials"]["sender_password"]
+        # Récupérer la configuration email depuis l'environnement
+        email_config = env.get_email_config()
+        sender_email = email_config['sender_email']
+        sender_password = email_config['sender_password']
+        smtp_server = email_config['smtp_server']
+        smtp_port = email_config['smtp_port']
+        use_tls = email_config['use_tls']
     except (KeyError, FileNotFoundError):
         st.error("Les informations d'identification pour l'envoi d'e-mails ne sont pas configurées dans secrets.toml.")
         return
@@ -47,9 +52,11 @@ def send_alert_email(item_name, current_quantity, alert_threshold, recipient_ema
     message.attach(MIMEText(body, "plain"))
 
     try:
-        # Connexion au serveur SMTP (exemple pour Gmail)
-        server = smtplib.SMTP("smtp.gmail.com", 587)
-        server.starttls()  # Activer la sécurité
+        # Connexion au serveur SMTP avec configuration environnement
+        server = smtplib.SMTP(smtp_server, smtp_port)
+        if use_tls:
+            context = smtplib.ssl.create_default_context()
+            server.starttls(context=context)
         server.login(sender_email, sender_password)
         
         # Envoi de l'e-mail
@@ -71,8 +78,13 @@ def send_new_expense_alert_email(user_name, amount, reason, recipient_emails):
         return
 
     try:
-        sender_email = st.secrets["email_credentials"]["sender_email"]
-        sender_password = st.secrets["email_credentials"]["sender_password"]
+        # Récupérer la configuration email depuis l'environnement
+        email_config = env.get_email_config()
+        sender_email = email_config['sender_email']
+        sender_password = email_config['sender_password']
+        smtp_server = email_config['smtp_server']
+        smtp_port = email_config['smtp_port']
+        use_tls = email_config['use_tls']
     except (KeyError, FileNotFoundError):
         st.error("Les informations d'identification pour l'envoi d'e-mails ne sont pas configurées dans secrets.toml.")
         return
@@ -100,8 +112,10 @@ def send_new_expense_alert_email(user_name, amount, reason, recipient_emails):
     message.attach(MIMEText(body, "plain"))
 
     try:
-        server = smtplib.SMTP("smtp.gmail.com", 587)
-        server.starttls()
+        server = smtplib.SMTP(smtp_server, smtp_port)
+        if use_tls:
+            context = smtplib.ssl.create_default_context()
+            server.starttls(context=context)
         server.login(sender_email, sender_password)
         server.sendmail(sender_email, recipient_emails, message.as_string())
         server.quit()
@@ -157,8 +171,10 @@ def send_invoice_email(user_name, comment, files, recipient_emails):
             st.error(f"Impossible d'attacher le fichier {file.name}.")
 
     try:
-        server = smtplib.SMTP("smtp.gmail.com", 587)
-        server.starttls()
+        server = smtplib.SMTP(smtp_server, smtp_port)
+        if use_tls:
+            context = smtplib.ssl.create_default_context()
+            server.starttls(context=context)
         server.login(sender_email, sender_password)
         server.sendmail(sender_email, recipient_emails, message.as_string())
         server.quit()

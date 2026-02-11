@@ -5,6 +5,7 @@ from datetime import datetime
 import os
 from email_utils import send_alert_email, send_new_expense_alert_email
 from logger_config import logger
+from environment import env
 
 # --- Configuration ---
 DATABASE_NAME = 'stock_kouttab.db'
@@ -20,7 +21,7 @@ def verify_password(stored_password_hash, provided_password):
 
 # --- Fonctions de Base de Données ---
 def init_db():
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     c = conn.cursor()
     c.execute('''
         CREATE TABLE IF NOT EXISTS Stock (
@@ -123,7 +124,7 @@ def init_db():
 
 # --- Fonctions pour les Factures ---
 def add_invoice(user_id, user_full_name, commentaire, uploaded_files):
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     c = conn.cursor()
     try:
         # Utiliser le nom du premier fichier comme nom principal de la facture
@@ -164,7 +165,7 @@ def add_invoice(user_id, user_full_name, commentaire, uploaded_files):
         conn.close()
 
 def get_all_invoices():
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     query = """
         SELECT f.*, a.nom, a.prenom, 
                GROUP_CONCAT(ff.nom_fichier, ', ') as fichiers_noms,
@@ -180,7 +181,7 @@ def get_all_invoices():
     return df
 
 def get_invoice_files(invoice_id):
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     c = conn.cursor()
     c.execute("""
         SELECT nom_fichier, chemin_fichier 
@@ -193,7 +194,7 @@ def get_invoice_files(invoice_id):
     return files
 
 def update_invoice_status(invoice_id, new_status):
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     c = conn.cursor()
     try:
         c.execute("""
@@ -213,7 +214,7 @@ def update_invoice_status(invoice_id, new_status):
 # --- Fonctions pour la gestion des catégories et sous-catégories ---
 def get_all_categories():
     """Récupère toutes les catégories uniques de la table Stock"""
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     c = conn.cursor()
     c.execute("SELECT DISTINCT categorie FROM Stock ORDER BY categorie")
     categories = [row[0] for row in c.fetchall()]
@@ -222,7 +223,7 @@ def get_all_categories():
 
 def get_all_subcategories():
     """Récupère toutes les sous-catégories"""
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     c = conn.cursor()
     c.execute("SELECT id, nom_categorie, nom_sous_categorie FROM SousCategories ORDER BY nom_categorie, nom_sous_categorie")
     subcategories = c.fetchall()
@@ -231,7 +232,7 @@ def get_all_subcategories():
 
 def update_category(old_name, new_name):
     """Met à jour une catégorie dans tous les articles concernés"""
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     c = conn.cursor()
     try:
         # Mettre à jour la catégorie dans la table Stock
@@ -252,7 +253,7 @@ def update_category(old_name, new_name):
 
 def delete_category(category_name):
     """Supprime une catégorie et ses sous-catégories"""
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     c = conn.cursor()
     try:
         # Vérifier s'il y a des articles dans cette catégorie
@@ -278,7 +279,7 @@ def delete_category(category_name):
 
 def update_subcategory(subcategory_id, new_category, new_name):
     """Met à jour une sous-catégorie"""
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     c = conn.cursor()
     try:
         # Mettre à jour la sous-catégorie
@@ -301,7 +302,7 @@ def update_subcategory(subcategory_id, new_category, new_name):
 
 def delete_subcategory(subcategory_id):
     """Supprime une sous-catégorie"""
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     c = conn.cursor()
     try:
         # Récupérer le nom de la sous-catégorie
@@ -335,7 +336,7 @@ def delete_subcategory(subcategory_id):
 
 def add_category(category_name):
     """Ajoute une nouvelle catégorie"""
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     c = conn.cursor()
     try:
         # Vérifier si la catégorie existe déjà
@@ -365,7 +366,7 @@ def add_category(category_name):
 # --- Fonctions pour l'historique et les états des stocks ---
 def get_stock_modifications_history():
     """Récupère l'historique complet des modifications de stock"""
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     query = """
         SELECT sm.*, a.nom, a.prenom, s.nom as stock_nom, s.categorie, s.sous_categorie
         FROM StockModifications sm
@@ -379,7 +380,7 @@ def get_stock_modifications_history():
 
 def get_stock_statistics():
     """Récupère les statistiques complètes du stock"""
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     
     # Statistiques générales
     c = conn.cursor()
@@ -439,7 +440,7 @@ def get_stock_statistics():
 
 def get_recent_stock_changes(days=7):
     """Récupère les changements récents du stock (par défaut 7 jours)"""
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     c = conn.cursor()
     c.execute("""
         SELECT s.nom, s.categorie, s.sous_categorie, s.quantite,
@@ -458,7 +459,7 @@ def get_recent_stock_changes(days=7):
 
 def get_low_stock_items():
     """Récupère tous les articles en alerte de stock bas"""
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     query = """
         SELECT s.nom, s.categorie, s.sous_categorie, s.quantite, s.seuil_alerte, s.emoji
         FROM Stock s
@@ -474,7 +475,7 @@ def import_inventory_from_csv(csv_data):
     Importe les articles d'inventaire depuis un fichier CSV.
     Le CSV doit avoir les colonnes: Catégorie, Sous-catégorie, Nom de l'article, Quantité initiale
     """
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     c = conn.cursor()
     
     try:
@@ -558,7 +559,7 @@ def import_inventory_from_csv(csv_data):
 
 # --- Fonctions pour les sous-catégories ---
 def get_categories_with_subcategories():
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     c = conn.cursor()
     c.execute("SELECT nom_categorie, nom_sous_categorie FROM SousCategories ORDER BY nom_categorie, nom_sous_categorie")
     
@@ -572,7 +573,7 @@ def get_categories_with_subcategories():
     return categories
 
 def add_subcategory(category_name, subcategory_name):
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     c = conn.cursor()
     try:
         c.execute("INSERT INTO SousCategories (nom_categorie, nom_sous_categorie) VALUES (?, ?)", (category_name, subcategory_name))
@@ -587,7 +588,7 @@ def add_subcategory(category_name, subcategory_name):
 
 # --- Fonctions Utilisateurs (Admins) ---
 def get_admin_benevoles_emails():
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     c = conn.cursor()
     c.execute("SELECT email FROM Admins WHERE role IN ('AdminBenevoles', 'Super Admin') AND email IS NOT NULL")
     emails = [row[0] for row in c.fetchall()]
@@ -595,7 +596,7 @@ def get_admin_benevoles_emails():
     return emails
 
 def get_compta_emails():
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     c = conn.cursor()
     c.execute("SELECT email FROM Admins WHERE role IN ('Compta', 'Super Admin') AND email IS NOT NULL")
     emails = [row[0] for row in c.fetchall()]
@@ -603,7 +604,7 @@ def get_compta_emails():
     return emails
 
 def create_pending_admin(username, password, role, nom, prenom, email, telephone):
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     c = conn.cursor()
     try:
         c.execute("INSERT INTO Admins (username, password_hash, role, nom, prenom, email, telephone, validation_status) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')",
@@ -617,7 +618,7 @@ def create_pending_admin(username, password, role, nom, prenom, email, telephone
     conn.close()
 
 def get_user(username):
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     c = conn.cursor()
     c.execute("SELECT id, password_hash, role, validation_status, nom, prenom FROM Admins WHERE username = ?", (username,))
     result = c.fetchone()
@@ -625,13 +626,13 @@ def get_user(username):
     return result
 
 def get_all_users(current_user_id):
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     df = pd.read_sql_query("SELECT id, username, nom, prenom, role FROM Admins WHERE id != ?", conn, params=(current_user_id,))
     conn.close()
     return df
 
 def update_user_role(user_id, new_role):
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     c = conn.cursor()
     c.execute("UPDATE Admins SET role = ? WHERE id = ?", (new_role, user_id))
     conn.commit()
@@ -639,7 +640,7 @@ def update_user_role(user_id, new_role):
     logger.info(f"Rôle de l'utilisateur ID {user_id} mis à jour vers '{new_role}'.")
 
 def get_user_profile(user_id):
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     c = conn.cursor()
     c.execute("SELECT nom, prenom, email, telephone, rib FROM Admins WHERE id = ?", (user_id,))
     result = c.fetchone()
@@ -647,7 +648,7 @@ def get_user_profile(user_id):
     return result
 
 def update_user_profile(user_id, nom, prenom, email, telephone, rib):
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     c = conn.cursor()
     c.execute("UPDATE Admins SET nom=?, prenom=?, email=?, telephone=?, rib=? WHERE id=?",
               (nom, prenom, email, telephone, rib, user_id))
@@ -656,13 +657,13 @@ def update_user_profile(user_id, nom, prenom, email, telephone, rib):
     logger.info(f"Profil utilisateur ID {user_id} mis à jour.")
 
 def get_pending_admins():
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     df = pd.read_sql_query("SELECT id, username, role FROM Admins WHERE validation_status = 'pending'", conn)
     conn.close()
     return df
 
 def update_validation_status(admin_id, new_status):
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     c = conn.cursor()
     c.execute("UPDATE Admins SET validation_status = ? WHERE id = ?", (new_status, admin_id))
     conn.commit()
@@ -670,7 +671,7 @@ def update_validation_status(admin_id, new_status):
     logger.info(f"Statut de validation de l'admin ID {admin_id} mis à jour vers '{new_status}'.")
 
 def delete_admin(admin_id):
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     c = conn.cursor()
     c.execute("DELETE FROM Admins WHERE id = ?", (admin_id,))
     conn.commit()
@@ -679,7 +680,7 @@ def delete_admin(admin_id):
 
 # --- Fonctions Notes de Frais ---
 def add_expense(user_id, user_full_name, date_depense, rattachement, fournisseur, nature_charge, montant, commentaires, remb_emis, remise, uploaded_files):
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     c = conn.cursor()
     c.execute("""
         INSERT INTO NotesDeFrais 
@@ -706,7 +707,7 @@ def add_expense(user_id, user_full_name, date_depense, rattachement, fournisseur
     send_new_expense_alert_email(user_full_name, montant, rattachement, recipient_emails)
 
 def get_files_for_expense(expense_id):
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     c = conn.cursor()
     c.execute("SELECT nom_fichier FROM FichiersNotesDeFrais WHERE id_note_de_frais = ?", (expense_id,))
     results = c.fetchall()
@@ -714,7 +715,7 @@ def get_files_for_expense(expense_id):
     return [row[0] for row in results]
 
 def delete_expense(expense_id):
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     c = conn.cursor()
     
     files_to_delete = get_files_for_expense(expense_id)
@@ -733,7 +734,7 @@ def delete_expense(expense_id):
     logger.info(f"Note de frais ID {expense_id} et ses fichiers associés supprimés.")
 
 def update_expense_details(expense_id, date_depense, rattachement, fournisseur, nature_charge, montant, commentaires, remb_emis, remise):
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     c = conn.cursor()
     c.execute("""
         UPDATE NotesDeFrais SET
@@ -746,7 +747,7 @@ def update_expense_details(expense_id, date_depense, rattachement, fournisseur, 
     logger.info(f"Note de frais ID {expense_id} mise à jour par l'utilisateur.")
 
 def update_expense_by_accountant(expense_id, new_status, new_comment):
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     c = conn.cursor()
     c.execute("UPDATE NotesDeFrais SET status = ?, commentaires_compta = ? WHERE id = ?", (new_status, new_comment, expense_id))
     conn.commit()
@@ -754,13 +755,13 @@ def update_expense_by_accountant(expense_id, new_status, new_comment):
     logger.info(f"Note de frais ID {expense_id} mise à jour par la comptabilité (Statut: {new_status}).")
 
 def get_expenses_by_user(user_id):
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     df = pd.read_sql_query("SELECT * FROM NotesDeFrais WHERE id_user = ? ORDER BY date_soumission DESC", conn, params=(user_id,))
     conn.close()
     return df
 
 def get_all_expenses():
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     query = """
     SELECT n.*, a.nom, a.prenom, a.rib
     FROM NotesDeFrais n JOIN Admins a ON n.id_user = a.id
@@ -772,7 +773,7 @@ def get_all_expenses():
 
 # --- Fonctions Stock ---
 def check_and_send_alert(stock_id):
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     c = conn.cursor()
     c.execute("SELECT nom, quantite, seuil_alerte, alert_sent FROM Stock WHERE id = ?", (stock_id,))
     item = c.fetchone()
@@ -794,7 +795,7 @@ def check_and_send_alert(stock_id):
     conn.close()
 
 def create_stock_modification_request(user_id, stock_id, current_qty, requested_qty):
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     c = conn.cursor()
     c.execute("INSERT INTO StockModifications (id_user, id_stock, quantite_actuelle, quantite_demandee) VALUES (?, ?, ?, ?)",
               (user_id, stock_id, current_qty, requested_qty))
@@ -803,7 +804,7 @@ def create_stock_modification_request(user_id, stock_id, current_qty, requested_
     logger.info(f"Demande de modification de stock créée par l'utilisateur ID {user_id} pour l'article ID {stock_id} (Quantité: {current_qty} -> {requested_qty}).")
 
 def get_pending_stock_modifications():
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     query = """
     SELECT sm.id, sm.id_stock, sm.date_demande, a.prenom, a.nom as user_nom, s.nom as stock_nom, sm.quantite_actuelle, sm.quantite_demandee
     FROM StockModifications sm
@@ -817,7 +818,7 @@ def get_pending_stock_modifications():
     return df
 
 def approve_stock_modification(modif_id, stock_id, new_quantity, approver_id=None):
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     c = conn.cursor()
     
     # Récupérer la quantité actuelle avant modification
@@ -844,7 +845,7 @@ def approve_stock_modification(modif_id, stock_id, new_quantity, approver_id=Non
     logger.info(f"Modification de stock ID {modif_id} approuvée pour l'article ID {stock_id} (Nouvelle quantité: {new_quantity}).")
 
 def refuse_stock_modification(modif_id):
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     c = conn.cursor()
     c.execute("UPDATE StockModifications SET status = 'Refusée' WHERE id = ?", (modif_id,))
     conn.commit()
@@ -852,7 +853,7 @@ def refuse_stock_modification(modif_id):
     logger.info(f"Modification de stock ID {modif_id} refusée.")
 
 def get_stock_item(stock_id):
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     c = conn.cursor()
     c.execute("SELECT * FROM Stock WHERE id = ?", (stock_id,))
     result = c.fetchone()
@@ -860,7 +861,7 @@ def get_stock_item(stock_id):
     return result
 
 def add_item(nom, categorie, sous_categorie, quantite, seuil_alerte, emoji_str):
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     c = conn.cursor()
     try:
         emoji_char = emoji_str.split(' ')[0]
@@ -879,13 +880,13 @@ def add_item(nom, categorie, sous_categorie, quantite, seuil_alerte, emoji_str):
         conn.close()
 
 def get_all_items():
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     df = pd.read_sql_query("SELECT * FROM Stock", conn)
     conn.close()
     return df
 
 def update_quantity(item_id, new_qty, user_id=None):
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     c = conn.cursor()
     
     # Récupérer la quantité actuelle avant modification
@@ -909,7 +910,7 @@ def update_quantity(item_id, new_qty, user_id=None):
     logger.info(f"Quantité de l'article ID {item_id} mise à jour vers {new_qty}.")
 
 def delete_item(item_id):
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     c = conn.cursor()
     c.execute("DELETE FROM Stock WHERE id = ?", (item_id,))
     conn.commit()
@@ -917,7 +918,7 @@ def delete_item(item_id):
     logger.info(f"Article ID {item_id} supprimé.")
 
 def update_item_details(item_id, nom, categorie, sous_categorie, quantite, seuil_alerte, emoji_str):
-    conn = sqlite3.connect(DATABASE_NAME)
+    conn = sqlite3.connect(env.get_database_path())
     c = conn.cursor()
     try:
         emoji_char = emoji_str.split(' ')[0]

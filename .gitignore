@@ -17,8 +17,28 @@ ENV/
 *.sqlite
 *.sqlite3
 
-# Fichiers secrets
+# Fichiers secrets et configuration
 .streamlit/secrets.toml
+.env
+.env.local
+.env.production
+.env.development
 
 # Dossier d'uploads
 uploads/
+
+# Scripts de basculement d'environnement
+switch_env.sh
+switch_env.bat
+
+# Fichiers de test et diagnostic
+simple_test.py
+test_app.py
+debug_app.py
+run_streamlit.py
+passenger_app.py
+start_streamlit.sh
+minimal_app.py
+.htaccess_correct
+.htaccess_simple
+o2switch_deployment_*

@@ -6,11 +6,17 @@ from ui_admin import display_admin_page
 from ui_invoices import display_invoice_deposit_page
 from ui_dashboard import display_dashboard_page
 from logger_config import logger
+from environment import env
 
 # --- Initialisation & Configuration ---
 init_db()
 st.set_page_config(layout="wide", page_title="Gestion Le Kouttâb")
 st.title("📦 Gestion Le Kouttâb")
+
+# Afficher les informations de l'environnement (optionnel)
+if env.is_development():
+    st.sidebar.info(f"🌍 Environnement: {env.env.upper()}")
+    st.sidebar.info(f"📁 Base: {env.get_database_path()}")
 
 ROLES = ['Benevole', 'AdminBenevoles', 'Compta', 'Super Admin']
 
