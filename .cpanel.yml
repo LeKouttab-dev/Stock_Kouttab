@@ -2,7 +2,7 @@
 deploy:
   - type: python
     version: 3.13
-    path: /home/sc9bewu6999/stock.lekouttab.fr/stock.lekouttab.fr/
+    path: /home/sc9bewu6999/stock.lekouttab.fr/repositories/Stock_Kouttab
     requirements:
       - streamlit
       - pandas

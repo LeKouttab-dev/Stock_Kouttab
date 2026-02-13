@@ -24,8 +24,62 @@ ROLES = ['Benevole', 'AdminBenevoles', 'Compta', 'Super Admin']
 if 'user_role' not in st.session_state:
     st.session_state.user_role = None
 
-# --- Vérifier les paramètres de l'URL pour le nom du produit scanné ---
+# --- Vérifier les paramètres de l'URL pour l'initialisation admin ---
 query_params = st.query_params
+if "init_admin" in query_params and query_params["init_admin"] == "true":
+    st.header("🔧 Initialisation Administrateur")
+    st.write("Créez le premier compte administrateur du système.")
+    
+    with st.form("init_admin_form"):
+        st.write("Informations de l'administrateur")
+        admin_username = st.text_input("Nom d'utilisateur administrateur*")
+        admin_password = st.text_input("Mot de passe*", type="password", help="Le mot de passe doit contenir au moins 6 caractères")
+        admin_password_confirm = st.text_input("Confirmez le mot de passe*", type="password")
+        
+        # Validation du mot de passe
+        password_valid = True
+        password_error = ""
+        
+        if admin_password and len(admin_password) < 6:
+            password_valid = False
+            password_error = "Le mot de passe doit contenir au moins 6 caractères"
+        elif admin_password and admin_password_confirm and admin_password != admin_password_confirm:
+            password_valid = False
+            password_error = "Les mots de passe ne correspondent pas"
+        
+        if not password_valid:
+            st.error(password_error)
+        
+        st.write("Informations personnelles")
+        admin_nom = st.text_input("Nom de famille*")
+        admin_prenom = st.text_input("Prénom*")
+        admin_email = st.text_input("Adresse e-mail*")
+        admin_telephone = st.text_input("Numéro de téléphone")
+        
+        init_submitted = st.form_submit_button("🚀 Créer l'administrateur")
+        
+        if init_submitted:
+            if all([admin_username, admin_password, admin_password_confirm, admin_nom, admin_prenom, admin_email]):
+                if password_valid:
+                    from database import create_user_direct
+                    # Créer directement l'utilisateur admin sans validation
+                    success = create_user_direct(admin_username, admin_password, 'Super Admin', admin_nom, admin_prenom, admin_email, admin_telephone, 'active')
+                    if success:
+                        st.success("✅ Administrateur créé avec succès ! Vous pouvez maintenant vous connecter.")
+                        logger.info(f"Administrateur '{admin_username}' créé avec succès.")
+                        # Nettoyer l'URL
+                        st.query_params.clear()
+                        st.rerun()
+                    else:
+                        st.error("❌ Erreur lors de la création de l'administrateur.")
+                else:
+                    st.error("Veuillez corriger les erreurs de mot de passe avant de continuer.")
+            else:
+                st.error("Veuillez remplir tous les champs obligatoires (*).")
+    
+    st.stop()  # Arrêter l'exécution ici
+
+# --- Vérifier les paramètres de l'URL pour le nom du produit scanné ---
 if "product_name" in query_params:
     product_name = query_params["product_name"]
     st.session_state.scanned_product_name = product_name

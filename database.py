@@ -603,6 +603,28 @@ def get_compta_emails():
     conn.close()
     return emails
 
+def create_user_direct(username, password, role, nom, prenom, email, telephone, validation_status='active'):
+    """Crée directement un utilisateur sans validation (pour l'initialisation admin)"""
+    conn = sqlite3.connect(env.get_database_path())
+    c = conn.cursor()
+    try:
+        password_hash = hash_password(password)
+        c.execute('''
+            INSERT INTO Admins (username, password_hash, role, validation_status, nom, prenom, email, telephone)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (username, password_hash, role, validation_status, nom, prenom, email, telephone))
+        conn.commit()
+        logger.info(f"Utilisateur '{username}' créé directement avec le rôle '{role}'.")
+        return True
+    except sqlite3.IntegrityError as e:
+        logger.error(f"Erreur d'intégrité lors de la création de l'utilisateur: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Erreur lors de la création de l'utilisateur: {e}")
+        return False
+    finally:
+        conn.close()
+
 def create_pending_admin(username, password, role, nom, prenom, email, telephone):
     conn = sqlite3.connect(env.get_database_path())
     c = conn.cursor()
