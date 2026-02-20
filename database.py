@@ -7,12 +7,23 @@ from email_utils import send_alert_email, send_new_expense_alert_email
 from logger_config import logger
 
 # --- Configuration pour production/developpement ---
-if os.environ.get('ENVIRONMENT') == 'production':
-    DATABASE_PATH = os.environ.get('DATABASE_PATH', '/www/stock.lekouttab.fr/data/stock_kouttab.db')
-    # Créer le répertoire data si nécessaire
-    os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)
-else:
-    DATABASE_PATH = 'data/stock_kouttab.db'
+import streamlit as st
+
+# Détection automatique de l'environnement
+try:
+    # Sur Streamlit Cloud, utilise st.secrets
+    if st.secrets.get("environment", {}).get("ENVIRONMENT") == "production":
+        DATABASE_PATH = st.secrets.get("database", {}).get("path", "data/stock_kouttab.db")
+    else:
+        DATABASE_PATH = 'data/stock_kouttab.db'
+except:
+    # En local ou si st.secrets n'est pas disponible, utilise os.environ
+    if os.environ.get('ENVIRONMENT') == 'production':
+        DATABASE_PATH = os.environ.get('DATABASE_PATH', '/www/stock.lekouttab.fr/data/stock_kouttab.db')
+        # Créer le répertoire data si nécessaire
+        os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)
+    else:
+        DATABASE_PATH = 'data/stock_kouttab.db'
 UPLOADS_DIR = 'uploads'
 
 # --- Fonctions de Hachage ---

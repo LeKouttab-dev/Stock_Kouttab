@@ -100,7 +100,12 @@ from admin_setup import check_admin_setup_mode, display_admin_setup_page
 import init_admin
 
 # --- Initialisation & Configuration ---
-init_db()
+# Initialiser la base de données seulement si nécessaire
+if 'db_initialized' not in st.session_state:
+    init_db()
+    st.session_state.db_initialized = True
+    logger.info("Base de données initialisée.")
+
 st.set_page_config(layout="wide", page_title="Gestion Le Kouttâb")
 
 # Vérifier si on est en mode setup admin
@@ -120,8 +125,16 @@ if 'user_role' not in st.session_state:
 if st.session_state.user_role is not None:
     security.check_session_timeout()
 
-# --- Vérifier les paramètres de l'URL pour le nom du produit scanné ---
+# --- Vérifier les paramètres de l'URL ---
 query_params = st.query_params
+
+# Gestion de l'invitation admin (setup_admin=true)
+if "setup_admin" in query_params and query_params["setup_admin"] == "true":
+    from init_admin import setup_admin_from_token
+    setup_admin_from_token()
+    st.stop()
+
+# --- Vérifier les paramètres de l'URL pour le nom du produit scanné ---
 if "product_name" in query_params:
     product_name = query_params["product_name"]
     st.session_state.scanned_product_name = product_name

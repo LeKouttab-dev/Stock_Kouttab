@@ -17,7 +17,13 @@ def generate_first_admin_invitation():
     
     # Vérifier si un admin existe déjà
     import sqlite3
-    conn = sqlite3.connect('data/stock_kouttab.db')
+    try:
+        from database import DATABASE_PATH
+        db_path = DATABASE_PATH
+    except:
+        db_path = 'data/stock_kouttab.db'
+    
+    conn = sqlite3.connect(db_path)
     c = conn.cursor()
     c.execute("SELECT COUNT(*) FROM Admins WHERE role = 'Super Admin' AND validation_status = 'active'")
     admin_count = c.fetchone()[0]
@@ -104,3 +110,78 @@ def generate_first_admin_invitation():
 if st.query_params.get("init_admin") == "true":
     generate_first_admin_invitation()
     st.stop()
+
+def setup_admin_from_token():
+    """Gère la configuration admin depuis un lien d'invitation"""
+    st.title("🔐 Configuration du Compte Administrateur")
+    
+    query_params = st.query_params
+    token = query_params.get("token")
+    email = query_params.get("email")
+    
+    if not token or not email:
+        st.error("❌ Lien d'invitation invalide")
+        return
+    
+    # Valider le token
+    from invitation_manager import invitation_manager
+    is_valid, message = invitation_manager.validate_invitation_token(token, email)
+    
+    if not is_valid:
+        st.error(f"❌ {message}")
+        st.warning("Le lien a peut-être expiré ou déjà été utilisé.")
+        return
+    
+    # Formulaire de création du compte
+    with st.form("setup_admin_form"):
+        st.subheader(f"Création du compte pour {email}")
+        
+        username = st.text_input("Nom d'utilisateur*", help="Choisissez un nom d'utilisateur unique")
+        password = st.text_input("Mot de passe*", type="password", help="Minimum 6 caractères")
+        password_confirm = st.text_input("Confirmer le mot de passe*", type="password")
+        
+        # Validation du mot de passe
+        password_valid = True
+        password_error = ""
+        
+        if password and len(password) < 6:
+            password_valid = False
+            password_error = "Le mot de passe doit contenir au moins 6 caractères"
+        elif password and password_confirm and password != password_confirm:
+            password_valid = False
+            password_error = "Les mots de passe ne correspondent pas"
+        
+        if not password_valid:
+            st.error(password_error)
+        
+        submitted = st.form_submit_button("🚀 Créer le compte administrateur", type="primary")
+        
+        if submitted:
+            if all([username, password, password_confirm]) and password_valid:
+                # Créer le compte admin
+                from database import create_user_direct
+                success = create_user_direct(
+                    username=username,
+                    password=password,
+                    role='Super Admin',
+                    nom=email.split('@')[0],
+                    prenom="Admin",
+                    email=email,
+                    telephone="",
+                    validation_status='active'
+                )
+                
+                if success:
+                    # Marquer l'invitation comme utilisée
+                    invitation_manager.mark_invitation_used(token, email)
+                    
+                    st.success("✅ Compte administrateur créé avec succès !")
+                    st.info("Vous pouvez maintenant vous connecter.")
+                    
+                    # Nettoyer l'URL
+                    st.query_params.clear()
+                    st.rerun()
+                else:
+                    st.error("❌ Erreur lors de la création du compte")
+            else:
+                st.error("Veuillez remplir tous les champs obligatoires")

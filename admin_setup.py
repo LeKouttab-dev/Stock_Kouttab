@@ -54,18 +54,31 @@ def send_admin_invitation_email(admin_email, invitation_link):
     message.attach(MIMEText(body, "plain"))
     
     try:
-        # Configuration SMTP (Gmail par défaut)
-        smtp_server = st.secrets.get("smtp", {}).get("server", "smtp.gmail.com")
-        smtp_port = st.secrets.get("smtp", {}).get("port", 587)
+        # Configuration SMTP depuis secrets.toml
+        smtp_server = st.secrets["email_credentials"]["smtp_server"]
+        smtp_port = st.secrets["email_credentials"]["smtp_port"]
+        use_tls = st.secrets["email_credentials"].get("use_tls", True)
         
-        server = smtplib.SMTP(smtp_server, smtp_port)
-        server.starttls()
+        print(f"🔗 Connexion à {smtp_server}:{smtp_port} (TLS: {use_tls})")
+        
+        if use_tls:
+            server = smtplib.SMTP(smtp_server, smtp_port)
+            server.starttls()
+        else:
+            # Pour SSL/Port 465
+            context = smtplib.ssl.create_default_context()
+            server = smtplib.SMTP_SSL(smtp_server, smtp_port, context=context)
+        
+        print(f"🔐 Authentification avec {sender_email}")
         server.login(sender_email, sender_password)
+        print("✅ Authentification réussie")
         
+        print(f"📤 Envoi à {admin_email}")
         server.sendmail(admin_email_config, admin_email, message.as_string())
         server.quit()
         
         logger.info(f"Email d'invitation envoyé à {admin_email}")
+        print("✅ Email envoyé avec succès !")
         return True
         
     except Exception as e:
@@ -74,7 +87,10 @@ def send_admin_invitation_email(admin_email, invitation_link):
 
 def generate_invitation_url(token, email):
     """Génère l'URL complète d'invitation"""
-    base_url = st.secrets.get("app", {}).get("base_url", "http://localhost:8501")
+    try:
+        base_url = st.secrets.get("app", {}).get("base_url", "http://localhost:8501")
+    except:
+        base_url = "http://localhost:8501"
     return f"{base_url}?setup_admin=true&token={token}&email={email}"
 
 def check_admin_setup_mode():
