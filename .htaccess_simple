@@ -1,4 +1,4 @@
-# Configuration Apache minimal pour Streamlit sur O2Switch
+ Configuration Apache minimal pour Streamlit sur O2Switch
 
 # DirectoryIndex pour app.py
 DirectoryIndex app.py
