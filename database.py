@@ -15,18 +15,15 @@ UPLOADS_DIR = 'uploads'
 
 
 # --- Connexion MySQL centralisée ---
-@st.cache_resource
 def get_db_connection():
     """
-    Retourne une connexion MySQL vers la base distante O2Switch,
-    configurée via st.secrets['db'].
-    Utilise un cache Streamlit pour éviter de recréer la connexion à chaque interaction.
+    Crée une nouvelle connexion MySQL fraîche à chaque appel.
+    O2Switch ferme les connexions inactives → on ne cache plus la connexion.
     """
     try:
         db_cfg = st.secrets["db"]
     except Exception as e:
-        st.error("⚠️ Configuration de base de données manquante dans st.secrets['db']. "
-                 "Veuillez définir la section [db] dans secrets.toml.")
+        st.error("⚠️ Configuration de base de données manquante dans st.secrets['db'].")
         logger.error(f"Configuration st.secrets['db'] introuvable: {e}")
         return None
 
@@ -39,25 +36,42 @@ def get_db_connection():
             database=db_cfg.get("database"),
             charset="utf8mb4",
             cursorclass=pymysql.cursors.Cursor,
+            connect_timeout=10,
+            autocommit=False,
         )
         return conn
     except OperationalError as e:
         msg = str(e)
-        # Gestion explicite des timeouts / pare-feu (erreur 10060 souvent remontée)
-        if "10060" in msg:
-            st.error(
-                "❌ Impossible de se connecter à la base de données distante "
-                "(erreur 10060 : timeout réseau ou pare-feu). "
-                "Essayez depuis un autre réseau ou contactez l’administrateur."
-            )
+        if "10060" in msg or "timed out" in msg.lower():
+            st.error("❌ Timeout réseau vers la base de données O2Switch.")
         else:
-            st.error(f"❌ Erreur de connexion à la base de données distante : {e}")
+            st.error(f"❌ Erreur de connexion à la base de données : {e}")
         logger.error(f"Erreur de connexion MySQL: {e}")
         return None
     except Exception as e:
-        st.error(f"❌ Erreur inattendue lors de la connexion à la base de données : {e}")
+        st.error(f"❌ Erreur inattendue lors de la connexion : {e}")
         logger.error(f"Erreur inattendue de connexion MySQL: {e}")
         return None
+
+def _query_to_df(query, params=None):
+    """
+    Exécute une requête SELECT et retourne un DataFrame pandas.
+    Remplace pd.read_sql_query() incompatible avec pymysql.
+    """
+    conn = get_db_connection()
+    if conn is None:
+        return pd.DataFrame()
+    try:
+        c = conn.cursor()
+        c.execute(query, params or ())
+        rows = c.fetchall()
+        columns = [desc[0] for desc in c.description] if c.description else []
+        return pd.DataFrame(rows, columns=columns)
+    except Exception as e:
+        logger.error(f"Erreur _query_to_df: {e}")
+        return pd.DataFrame()
+    finally:
+        conn.close()
 
 # --- Fonctions de Hachage ---
 import hashlib
@@ -232,10 +246,6 @@ def add_invoice(user_id, user_full_name, commentaire, uploaded_files):
         return None
 
 def get_all_invoices():
-    conn = get_db_connection()
-    if conn is None:
-        st.error("Connexion à la base de données indisponible. Veuillez réessayer plus tard.")
-        return pd.DataFrame()
     query = """
         SELECT f.*, a.nom, a.prenom, 
                GROUP_CONCAT(ff.nom_fichier SEPARATOR ', ') as fichiers_noms,
@@ -246,8 +256,7 @@ def get_all_invoices():
         GROUP BY f.id
         ORDER BY f.date_depot DESC
     """
-    df = pd.read_sql_query(query, conn)
-    return df
+    return _query_to_df(query)
 
 def get_invoice_files(invoice_id):
     conn = get_db_connection()
@@ -447,10 +456,6 @@ def add_category(category_name):
 # --- Fonctions pour l'historique et les états des stocks ---
 def get_stock_modifications_history():
     """Récupère l'historique complet des modifications de stock"""
-    conn = get_db_connection()
-    if conn is None:
-        st.error("Connexion à la base de données indisponible. Veuillez réessayer plus tard.")
-        return pd.DataFrame()
     query = """
         SELECT sm.*, a.nom, a.prenom, s.nom as stock_nom, s.categorie, s.sous_categorie
         FROM StockModifications sm
@@ -458,8 +463,7 @@ def get_stock_modifications_history():
         JOIN Stock s ON sm.id_stock = s.id
         ORDER BY sm.date_demande DESC
     """
-    df = pd.read_sql_query(query, conn)
-    return df
+    return _query_to_df(query)
 
 def get_stock_statistics():
     """Récupère les statistiques complètes du stock"""
@@ -553,18 +557,13 @@ def get_recent_stock_changes(days=7):
 
 def get_low_stock_items():
     """Récupère tous les articles en alerte de stock bas"""
-    conn = get_db_connection()
-    if conn is None:
-        st.error("Connexion à la base de données indisponible. Veuillez réessayer plus tard.")
-        return pd.DataFrame()
     query = """
         SELECT s.nom, s.categorie, s.sous_categorie, s.quantite, s.seuil_alerte, s.emoji
         FROM Stock s
         WHERE s.quantite < s.seuil_alerte
         ORDER BY s.quantite ASC
     """
-    df = pd.read_sql_query(query, conn)
-    return df
+    return _query_to_df(query)
 
 def import_inventory_from_csv(csv_data):
     """
@@ -763,16 +762,10 @@ def get_user(username):
     return result
 
 def get_all_users(current_user_id):
-    conn = get_db_connection()
-    if conn is None:
-        st.error("Connexion à la base de données indisponible. Veuillez réessayer plus tard.")
-        return pd.DataFrame()
-    df = pd.read_sql_query(
+    return _query_to_df(
         "SELECT id, username, nom, prenom, role FROM Admins WHERE id != %s",
-        conn,
-        params=(current_user_id,),
+        params=(current_user_id,)
     )
-    return df
 
 def update_user_role(user_id, new_role):
     conn = get_db_connection()
@@ -806,12 +799,7 @@ def update_user_profile(user_id, nom, prenom, email, telephone, rib):
     logger.info(f"Profil utilisateur ID {user_id} mis à jour.")
 
 def get_pending_admins():
-    conn = get_db_connection()
-    if conn is None:
-        st.error("Connexion à la base de données indisponible. Veuillez réessayer plus tard.")
-        return pd.DataFrame()
-    df = pd.read_sql_query("SELECT id, username, role FROM Admins WHERE validation_status = 'pending'", conn)
-    return df
+    return _query_to_df("SELECT id, username, role FROM Admins WHERE validation_status = 'pending'")
 
 def update_validation_status(admin_id, new_status):
     conn = get_db_connection()
@@ -929,29 +917,18 @@ def update_expense_by_accountant(expense_id, new_status, new_comment):
     logger.info(f"Note de frais ID {expense_id} mise à jour par la comptabilité (Statut: {new_status}).")
 
 def get_expenses_by_user(user_id):
-    conn = get_db_connection()
-    if conn is None:
-        st.error("Connexion à la base de données indisponible. Veuillez réessayer plus tard.")
-        return pd.DataFrame()
-    df = pd.read_sql_query(
+    return _query_to_df(
         "SELECT * FROM NotesDeFrais WHERE id_user = %s ORDER BY date_soumission DESC",
-        conn,
-        params=(user_id,),
+        params=(user_id,)
     )
-    return df
 
 def get_all_expenses():
-    conn = get_db_connection()
-    if conn is None:
-        st.error("Connexion à la base de données indisponible. Veuillez réessayer plus tard.")
-        return pd.DataFrame()
     query = """
     SELECT n.*, a.nom, a.prenom, a.rib
     FROM NotesDeFrais n JOIN Admins a ON n.id_user = a.id
     ORDER BY n.date_soumission DESC
     """
-    df = pd.read_sql_query(query, conn)
-    return df
+    return _query_to_df(query)
 
 # --- Fonctions Stock ---
 def check_and_send_alert(stock_id):
@@ -994,10 +971,6 @@ def create_stock_modification_request(user_id, stock_id, current_qty, requested_
     logger.info(f"Demande de modification de stock créée par l'utilisateur ID {user_id} pour l'article ID {stock_id} (Quantité: {current_qty} -> {requested_qty}).")
 
 def get_pending_stock_modifications():
-    conn = get_db_connection()
-    if conn is None:
-        st.error("Connexion à la base de données indisponible. Veuillez réessayer plus tard.")
-        return pd.DataFrame()
     query = """
     SELECT sm.id, sm.id_stock, sm.date_demande, a.prenom, a.nom as user_nom, s.nom as stock_nom, sm.quantite_actuelle, sm.quantite_demandee
     FROM StockModifications sm
@@ -1006,8 +979,7 @@ def get_pending_stock_modifications():
     WHERE sm.status = 'En attente'
     ORDER BY sm.date_demande DESC
     """
-    df = pd.read_sql_query(query, conn)
-    return df
+    return _query_to_df(query)
 
 def approve_stock_modification(modif_id, stock_id, new_quantity, approver_id=None):
     conn = get_db_connection()
@@ -1079,12 +1051,7 @@ def add_item(nom, categorie, sous_categorie, quantite, seuil_alerte, emoji_str):
         return False
 
 def get_all_items():
-    conn = get_db_connection()
-    if conn is None:
-        st.error("Connexion à la base de données indisponible. Veuillez réessayer plus tard.")
-        return pd.DataFrame()
-    df = pd.read_sql_query("SELECT * FROM Stock", conn)
-    return df
+    return _query_to_df("SELECT * FROM Stock")
 
 def update_quantity(item_id, new_qty, user_id=None):
     conn = get_db_connection()
