@@ -169,15 +169,7 @@ def init_db():
         )
     ''')
     
-    # Initialisation des données
-    c.execute("SELECT * FROM Admins WHERE role = 'Super Admin'")
-    if c.fetchone() is None:
-        c.execute(
-            "INSERT INTO Admins (username, password_hash, role, validation_status, nom, prenom, email) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s)",
-            ('admin', hash_password('kouttab_admin'), 'Super Admin', 'active', 'Admin', 'Principal', 'admin@example.com'),
-        )
-        logger.info("Compte Super Admin par défaut créé.")
+    # Ne pas créer d'admin par défaut : le système d'invitation gère la création du premier Super Admin
 
     # Initialisation des sous-catégories par défaut
     default_categories = {
