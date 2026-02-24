@@ -88,9 +88,14 @@ def send_admin_invitation_email(admin_email, invitation_link):
 def generate_invitation_url(token, email):
     """Génère l'URL complète d'invitation"""
     try:
-        base_url = st.secrets.get("app", {}).get("base_url", "http://localhost:8501")
+        # Priorité à DOMAIN_URL (URL de production Streamlit Cloud)
+        base_url = st.secrets.get("environment", {}).get("DOMAIN_URL", None)
+        if not base_url:
+            base_url = st.secrets.get("app", {}).get("base_url", "http://localhost:8501")
     except:
         base_url = "http://localhost:8501"
+    # Nettoyer le slash final si présent
+    base_url = base_url.rstrip("/")
     return f"{base_url}?setup_admin=true&token={token}&email={email}"
 
 def check_admin_setup_mode():
@@ -169,59 +174,61 @@ def display_admin_setup_page():
                 st.error("Veuillez remplir tous les champs obligatoires")
                 invitation_manager.increment_attempts(token, email)
                 return
-            
+
             if not password_valid:
                 st.error("Le mot de passe ne respecte pas les critères de sécurité")
                 invitation_manager.increment_attempts(token, email)
                 return
-            
+
             # Import ici pour éviter import circulaire
-            from database import create_pending_admin, validate_username
-            
+            from database import validate_username, hash_password_secure, get_db_connection
+
             if not validate_username(username):
                 st.error("Nom d'utilisateur invalide")
                 invitation_manager.increment_attempts(token, email)
                 return
-            
-            # Créer le compte admin directement (sans validation)
-            from database import hash_password_secure
-            import sqlite3
-            
-            conn = sqlite3.connect('data/stock_kouttab.db')
+
+            # Créer le compte admin directement via MySQL
+            conn = get_db_connection()
+            if conn is None:
+                st.error("❌ Impossible de se connecter à la base de données.")
+                return
             c = conn.cursor()
-            
+
             try:
                 c.execute('''
                     INSERT INTO Admins (username, password_hash, role, validation_status, nom, prenom, email)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
                 ''', (
-                    username, 
-                    hash_password_secure(password), 
-                    'Super Admin', 
+                    username,
+                    hash_password_secure(password),
+                    'Super Admin',
                     'active',
                     'Super',
                     'Admin',
                     email
                 ))
-                
+
                 conn.commit()
-                conn.close()
-                
+
                 # Marquer l'invitation comme utilisée
                 invitation_manager.mark_invitation_used(token, email)
-                
+
                 st.success("🎉 Compte administrateur créé avec succès!")
                 st.info("Vous pouvez maintenant vous connecter avec vos identifiants.")
-                
+
                 logger.info(f"Compte admin créé pour {username} ({email})")
-                
+
                 # Redirection après 3 secondes
                 st.markdown("""
                 <meta http-equiv="refresh" content="3;url=/" />
                 <p>Redirection vers la page de connexion dans 3 secondes...</p>
                 """, unsafe_allow_html=True)
-                
-            except sqlite3.IntegrityError as e:
-                conn.close()
-                st.error("Ce nom d'utilisateur existe déjà")
+
+            except Exception as e:
+                if "Duplicate" in str(e) or "IntegrityError" in type(e).__name__:
+                    st.error("Ce nom d'utilisateur existe déjà")
+                else:
+                    st.error(f"❌ Erreur lors de la création du compte : {e}")
+                    logger.error(f"Erreur création admin: {e}")
                 invitation_manager.increment_attempts(token, email)
