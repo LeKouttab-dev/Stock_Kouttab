@@ -16,19 +16,27 @@ def generate_first_admin_invitation():
     """)
     
     # Vérifier si un admin existe déjà
-    import sqlite3
+    from database import get_db_connection, init_db
+    conn = get_db_connection()
+    if conn is None:
+        st.error("❌ Impossible de se connecter à la base de données. Vérifiez la configuration dans st.secrets.")
+        return
     try:
-        from database import DATABASE_PATH
-        db_path = DATABASE_PATH
-    except:
-        db_path = 'data/stock_kouttab.db'
-    
-    conn = sqlite3.connect(db_path)
-    c = conn.cursor()
-    c.execute("SELECT COUNT(*) FROM Admins WHERE role = 'Super Admin' AND validation_status = 'active'")
-    admin_count = c.fetchone()[0]
-    conn.close()
-    
+        c = conn.cursor()
+        c.execute("SELECT COUNT(*) FROM Admins WHERE role = 'Super Admin' AND validation_status = 'active'")
+        admin_count = c.fetchone()[0]
+    except Exception as e:
+        # La table n'existe pas encore — initialiser la base puis réessayer
+        try:
+            init_db()
+            conn = get_db_connection()
+            c = conn.cursor()
+            c.execute("SELECT COUNT(*) FROM Admins WHERE role = 'Super Admin' AND validation_status = 'active'")
+            admin_count = c.fetchone()[0]
+        except Exception as e2:
+            st.error(f"❌ Erreur lors de l'accès à la base de données : {e2}")
+            return
+
     if admin_count > 0:
         st.success("✅ Un administrateur est déjà configuré!")
         st.info("Vous pouvez maintenant utiliser l'application normalement.")
