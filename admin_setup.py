@@ -181,7 +181,8 @@ def display_admin_setup_page():
                 return
 
             # Import ici pour éviter import circulaire
-            from database import validate_username, hash_password_secure, get_db_connection
+            from database import hash_password, get_db_connection
+            from security import validate_username
 
             if not validate_username(username):
                 st.error("Nom d'utilisateur invalide")
@@ -201,7 +202,7 @@ def display_admin_setup_page():
                     VALUES (%s, %s, %s, %s, %s, %s, %s)
                 ''', (
                     username,
-                    hash_password_secure(password),
+                    hash_password(password),
                     'Super Admin',
                     'active',
                     'Super',
