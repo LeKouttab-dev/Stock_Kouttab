@@ -1,4 +1,8 @@
 # Redirection vers l'app Streamlit Cloud avec embed
 RewriteEngine On
-RewriteCond %{QUERY_STRING} !embed=true
-RewriteRule ^(.*)$ https://stock-lekouttab.streamlit.app/?embed=true [R=301,L,QSD]
+# Si pas de query string → rediriger avec embed=true
+RewriteCond %{QUERY_STRING} ^$
+RewriteRule .* https://stock-lekouttab.streamlit.app/?embed=true [R=302,L]
+# Si query string présente → rediriger en la conservant
+RewriteCond %{QUERY_STRING} !^$
+RewriteRule .* https://stock-lekouttab.streamlit.app/?%{QUERY_STRING}&embed=true [R=302,L,QSD]

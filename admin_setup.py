@@ -94,9 +94,10 @@ def generate_invitation_url(token, email):
             base_url = st.secrets.get("app", {}).get("base_url", "http://localhost:8501")
     except:
         base_url = "http://localhost:8501"
-    # Nettoyer le slash final si présent
-    base_url = base_url.rstrip("/")
-    return f"{base_url}?setup_admin=true&token={token}&email={email}"
+    # Toujours pointer directement vers Streamlit Cloud (jamais via stock.lekouttab.fr)
+    # pour éviter que la redirection .htaccess écrase les paramètres du token
+    base_url = "https://stock-lekouttab.streamlit.app"
+    return f"{base_url}?setup_admin=true&token={token}&email={email}&embed=true"
 
 def check_admin_setup_mode():
     """Vérifie si on est en mode setup admin"""
