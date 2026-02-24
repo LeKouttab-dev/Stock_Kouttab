@@ -67,6 +67,15 @@ def hash_password(password):
 def verify_password(stored_password_hash, provided_password):
     return stored_password_hash == hash_password(provided_password)
 
+
+# Alias pour compatibilité avec l'ancien nom de fonction
+def verify_password_secure(stored_password_hash, provided_password):
+    """
+    Compatibilité : ancien nom utilisé par app.py.
+    Délègue simplement à verify_password.
+    """
+    return verify_password(stored_password_hash, provided_password)
+
 # --- Fonctions de Base de Données ---
 def init_db():
     """
