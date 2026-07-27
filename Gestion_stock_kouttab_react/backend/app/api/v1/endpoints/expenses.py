@@ -20,11 +20,14 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, require_roles
 from app.core.errors import ErrorCode
 from app.core.exceptions import AppException
+from app.crud import event as event_crud
 from app.crud import expense as expense_crud
+from app.crud import pole as pole_crud
 from app.db.models import Admin
 from app.db.session import SessionLocal, get_db
 from app.schemas.auth import MessageOut
 from app.schemas.expense import ExpenseOut, ExpenseUpdate, ExpenseValidate
+from app.services import compta_dispatch, outbox
 from app.services import email as email_service
 from app.services.files import delete_file, get_file_path, save_upload_file
 
@@ -121,10 +124,25 @@ async def create_expense(
     commentaires: str | None = Form(default=None),
     remboursement_deja_emis: str | None = Form(default=None),
     remise: str | None = Form(default=None),
+    id_pole: int | None = Form(default=None),
+    id_event: int | None = Form(default=None),
+    evenement_libre: str | None = Form(default=None),
+    date_evenement: str | None = Form(default=None),
     files: list[UploadFile] | None = File(default=None),
     db: Session = Depends(get_db),
     current_user: Admin = Depends(get_current_user),
 ) -> Any:
+    # Pole et evenement composent le nom du ticket envoye au comptable. Ils sont
+    # optionnels ici, contrairement aux factures : des notes de frais peuvent
+    # etre saisies pour une depense courante sans rattachement evenementiel.
+    pole = pole_crud.get_pole_or_404(db, id_pole) if id_pole is not None else None
+    event_id: int | None = None
+    event_label: str | None = None
+    if id_event is not None or (evenement_libre or "").strip():
+        event_id, event_label = event_crud.resolve_event(
+            db, event_id=id_event, evenement_libre=evenement_libre
+        )
+
     expense = expense_crud.create_expense(
         db,
         user_id=current_user.id,
@@ -138,6 +156,15 @@ async def create_expense(
             remboursement_deja_emis, field="remboursement_deja_emis", default=Decimal("0")
         ),
         remise=_parse_decimal(remise, field="remise", default=Decimal("0")),
+        id_pole=pole.id if pole else None,
+        pole=pole.nom if pole else None,
+        id_event=event_id,
+        evenement=event_label,
+        date_evenement=(
+            _parse_date(date_evenement, field="date_evenement")
+            if date_evenement
+            else None
+        ),
     )
     if files:
         if len(files) > 5:
@@ -160,10 +187,42 @@ async def create_expense(
         float(expense.montant),
         expense.rattachement,
     )
+
+    # Envoi des tickets au comptable, meme chaine que les factures. Synchrone
+    # jusqu'a la mise en file : une conversion PDF ratee doit remonter au
+    # deposant, pas disparaitre dans une tache de fond.
+    full_expense = expense_crud.get_expense(db, expense.id)
+    if full_expense is not None and full_expense.files:
+        for row in compta_dispatch.prepare_expense_dispatch(
+            db, full_expense, triggered_by=current_user.id
+        ):
+            background.add_task(outbox.try_send_now, row.id)
+
     out = expense_crud.get_expense_dict(db, expense.id)
     if out is None:
         raise AppException(ErrorCode.EXPENSE_NOT_FOUND)
     return _to_out(out, requester=current_user)
+
+
+@router.post(
+    "/{expense_id}/resend-compta-email",
+    response_model=MessageOut,
+    dependencies=[Depends(require_roles(*_ACCOUNTANT_ROLES))],
+)
+def resend_expense_compta_email(
+    expense_id: int,
+    background: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: Admin = Depends(get_current_user),
+) -> Any:
+    expense = expense_crud.get_expense(db, expense_id)
+    if expense is None:
+        raise AppException(ErrorCode.EXPENSE_NOT_FOUND)
+    for row in compta_dispatch.prepare_expense_dispatch(
+        db, expense, triggered_by=current_user.id
+    ):
+        background.add_task(outbox.try_send_now, row.id)
+    return MessageOut(message="Envoi au service comptable relance.")
 
 
 # ---- Edit ------------------------------------------------------------------

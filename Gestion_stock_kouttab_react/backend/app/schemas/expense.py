@@ -59,6 +59,15 @@ class ExpenseOut(ExpenseBase):
     status: EXPENSE_STATUS
     commentaires_compta: str | None = None
     date_soumission: datetime
+    # Rattachement comptable, aligne sur les factures. Nullable : les notes
+    # anterieures a la mise en place du module ne le portent pas.
+    id_pole: int | None = None
+    pole: str | None = None
+    id_event: int | None = None
+    evenement: str | None = None
+    date_evenement: date | None = None
+    validated_by: int | None = None
+    validated_at: datetime | None = None
     user_full_name: str | None = None
     user_email: str | None = None
     user_rib: str | None = None

@@ -8,13 +8,14 @@ import zipfile
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_roles
-from app.core.exceptions import ValidationError
+from app.api.deps import get_current_user, require_roles
+from app.core.errors import ErrorCode
+from app.core.exceptions import AppException, ValidationError
 from app.core.logger import get_logger
 from app.db.models import (
     Admin,
@@ -24,16 +25,23 @@ from app.db.models import (
     ExpenseFile,
     Invoice,
     InvoiceFile,
+    OutboundEmail,
     Stock,
     StockModification,
     SubCategory,
 )
 from app.db.session import engine, get_db
 from app.schemas.auth import MessageOut
+from app.schemas.outbox import OutboundEmailOut
+from app.services import outbox
 
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 logger = get_logger("admin")
+
+# La supervision des envois concerne d'abord la comptabilite : c'est elle qui
+# constate qu'une piece n'est pas arrivee et doit pouvoir la relancer.
+_ACCOUNTING_ROLES = ("Compta", "Super Admin")
 
 
 # Tables exported to CSV. Admins is excluded for security.
@@ -178,3 +186,46 @@ def check_database(db: Session = Depends(get_db)) -> Any:
     except Exception as exc:  # noqa: BLE001
         logger.exception("DB health check failed: %s", exc)
         return {"ok": False, "error": str(exc)}
+
+
+# ---- Envois comptables -----------------------------------------------------
+
+
+@router.get(
+    "/outbound-emails",
+    response_model=list[OutboundEmailOut],
+    dependencies=[Depends(require_roles(*_ACCOUNTING_ROLES))],
+)
+def list_outbound_emails(
+    status: str | None = Query(default=None),
+    limit: int = Query(default=100, ge=1, le=500),
+    db: Session = Depends(get_db),
+) -> Any:
+    """File des envois vers le service comptable.
+
+    Rend visible ce qui etait auparavant invisible : un echec SMTP se voyait
+    seulement en constatant, des mois plus tard, qu'une piece manquait.
+    """
+    return [
+        OutboundEmailOut.model_validate(row)
+        for row in outbox.list_emails(db, status=status, limit=limit)
+    ]
+
+
+@router.post(
+    "/outbound-emails/{email_id}/retry",
+    response_model=MessageOut,
+    dependencies=[Depends(require_roles(*_ACCOUNTING_ROLES))],
+)
+def retry_outbound_email(
+    email_id: int,
+    background: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: Admin = Depends(get_current_user),
+) -> Any:
+    row = db.get(OutboundEmail, email_id)
+    if row is None:
+        raise AppException(ErrorCode.NOT_FOUND, detail="Envoi introuvable.")
+    outbox.reset_for_retry(db, row, triggered_by=current_user.id)
+    background.add_task(outbox.try_send_now, row.id)
+    return MessageOut(message="Envoi relance.")

@@ -22,6 +22,11 @@ def _serialize(expense: Expense) -> dict[str, Any]:
         "id_user": expense.id_user,
         "date_depense": expense.date_depense,
         "rattachement": expense.rattachement,
+        "id_pole": expense.id_pole,
+        "pole": expense.pole,
+        "id_event": expense.id_event,
+        "evenement": expense.evenement,
+        "date_evenement": expense.date_evenement,
         "fournisseur": expense.fournisseur,
         "nature_charge": expense.nature_charge,
         "montant": expense.montant,
@@ -30,6 +35,8 @@ def _serialize(expense: Expense) -> dict[str, Any]:
         "remise": expense.remise,
         "status": expense.status,
         "commentaires_compta": expense.commentaires_compta,
+        "validated_by": expense.validated_by,
+        "validated_at": expense.validated_at,
         "date_soumission": expense.date_soumission,
         "user_full_name": user.full_name if user else None,
         "user_email": user.email if user else None,
@@ -91,8 +98,14 @@ def create_expense(
     nature_charge: str | None,
     montant: Decimal,
     commentaires: str | None,
-    remboursement_deja_emis: bool,
+    # Montant deja rembourse (colonne DECIMAL), pas un booleen malgre le nom.
+    remboursement_deja_emis: Decimal,
     remise: Decimal,
+    id_pole: int | None = None,
+    pole: str | None = None,
+    id_event: int | None = None,
+    evenement: str | None = None,
+    date_evenement: date | None = None,
 ) -> Expense:
     expense = Expense(
         id_user=user_id,
@@ -105,6 +118,11 @@ def create_expense(
         remboursement_deja_emis=remboursement_deja_emis,
         remise=remise,
         status="En attente",
+        id_pole=id_pole,
+        pole=pole,
+        id_event=id_event,
+        evenement=evenement,
+        date_evenement=date_evenement,
     )
     db.add(expense)
     db.commit()

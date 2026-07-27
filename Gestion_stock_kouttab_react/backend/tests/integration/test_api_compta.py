@@ -287,3 +287,95 @@ def test_resend_is_restricted_to_accounting(
         headers=auth_headers(compta_user),
     )
     assert allowed.status_code == 200, allowed.text
+
+
+# ---- Notes de frais ---------------------------------------------------------
+
+
+def _deposit_expense(client, user, headers, *, pole_id, **overrides):
+    payload = {
+        "date_depense": "2026-03-12",
+        "montant": "38.90",
+        "rattachement": "Buvette",
+        "fournisseur": "Carrefour",
+        "id_pole": str(pole_id),
+        "evenement_libre": "Gala d'été 2026",
+        "date_evenement": "2026-03-14",
+    }
+    payload.update(overrides)
+    files = [("files", ("ticket.jpg", io.BytesIO(_jpeg_bytes()), "image/jpeg"))]
+    return client.post(
+        "/api/v1/expenses", data=payload, files=files, headers=headers(user)
+    )
+
+
+def test_expense_uses_the_same_naming_as_invoices(
+    client: TestClient, benevole_user, auth_headers, db_session, first_pole,
+    compta_configured,
+):
+    """Tickets de caisse et factures doivent arriver sous le meme format."""
+    resp = _deposit_expense(
+        client, benevole_user, auth_headers, pole_id=first_pole.id
+    )
+    assert resp.status_code == 201, resp.text
+
+    row = outbox.latest_for_entity(db_session, "expense", resp.json()["id"])
+    assert row is not None
+    nom = json.loads(row.attachments)[0].replace("\\", "/").rsplit("/", 1)[-1]
+    assert nom == "Pole-evenementiel_Gala-dete-2026_2026-03-14.pdf"
+
+
+def test_expense_without_event_falls_back_on_the_expense_date(
+    client: TestClient, benevole_user, auth_headers, db_session, compta_configured,
+):
+    """Une depense courante sans evenement reste correctement nommee."""
+    resp = _deposit_expense(
+        client,
+        benevole_user,
+        auth_headers,
+        pole_id="",
+        id_pole="",
+        evenement_libre="",
+        date_evenement="",
+    )
+    assert resp.status_code == 201, resp.text
+
+    row = outbox.latest_for_entity(db_session, "expense", resp.json()["id"])
+    nom = json.loads(row.attachments)[0].replace("\\", "/").rsplit("/", 1)[-1]
+    # Pole absent -> NC ; l'evenement retombe sur le rattachement.
+    assert nom == "NC_Buvette_2026-03-12.pdf"
+
+
+# ---- Supervision de la file -------------------------------------------------
+
+
+def test_accounting_can_inspect_and_retry_the_queue(
+    client: TestClient, benevole_user, compta_user, auth_headers, first_pole,
+    compta_configured,
+):
+    _deposit(client, benevole_user, auth_headers, pole_id=first_pole.id)
+
+    listing = client.get(
+        "/api/v1/admin/outbound-emails", headers=auth_headers(compta_user)
+    )
+    assert listing.status_code == 200, listing.text
+    rows = listing.json()
+    assert rows, "la file devrait contenir au moins un envoi"
+    assert rows[0]["recipient_list"] == ["comptabilite@lekouttab.fr"]
+    # Les chemins absolus ne doivent pas fuir vers l'interface.
+    assert all("/" not in n and "\\" not in n for n in rows[0]["attachment_names"])
+
+    retry = client.post(
+        f"/api/v1/admin/outbound-emails/{rows[0]['id']}/retry",
+        headers=auth_headers(compta_user),
+    )
+    assert retry.status_code == 200, retry.text
+
+
+def test_benevole_cannot_inspect_the_queue(
+    client: TestClient, benevole_user, auth_headers
+):
+    resp = client.get(
+        "/api/v1/admin/outbound-emails", headers=auth_headers(benevole_user)
+    )
+    assert resp.status_code == 403, resp.text
