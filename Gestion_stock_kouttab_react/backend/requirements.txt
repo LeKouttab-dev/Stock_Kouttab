@@ -10,6 +10,12 @@ python-jose[cryptography]>=3.3
 bcrypt>=4.0
 python-multipart>=0.0.9
 fastapi-mail>=1.4
+# Normalisation des justificatifs en PDF avant envoi au comptable.
+# img2pdf embarque le flux JPEG sans re-encodage (pas de perte sur les tickets
+# photographies) ; Pillow ne sert qu'a l'orientation EXIF et aux modes de
+# couleur qu'img2pdf refuse. Pur Python : compatible O2Switch mutualise.
+img2pdf>=0.5
+Pillow>=10.0
 slowapi>=0.1.9
 python-dotenv>=1.0
 a2wsgi>=1.10
