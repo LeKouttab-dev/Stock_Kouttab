@@ -62,6 +62,13 @@ class Settings(BaseSettings):
     max_upload_mb: int = Field(default=10, alias="MAX_UPLOAD_MB")
     max_request_mb: int = Field(default=50, alias="MAX_REQUEST_MB")
 
+    # PDF prets a l'envoi comptable. Volontairement HORS de upload_dir : le
+    # .htaccess laisse passer /backend/uploads/, et ces fichiers portent des noms
+    # previsibles ({Pole}_{Evenement}_{Date}.pdf) — les y ecrire rendrait des
+    # factures fournisseur telechargeables sans authentification.
+    outbox_dir: str = Field(default="./outbox", alias="OUTBOX_DIR")
+    max_attachment_total_mb: int = Field(default=15, alias="MAX_ATTACHMENT_TOTAL_MB")
+
     # Rate limiting
     rate_limit_enabled: bool = Field(default=True, alias="RATE_LIMIT_ENABLED")
 
@@ -144,6 +151,10 @@ class Settings(BaseSettings):
     @property
     def upload_path(self) -> Path:
         return Path(self.upload_dir).resolve()
+
+    @property
+    def outbox_path(self) -> Path:
+        return Path(self.outbox_dir).resolve()
 
     @property
     def is_production(self) -> bool:

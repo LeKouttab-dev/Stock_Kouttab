@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+from pathlib import Path
 from typing import Iterable
 
 from fastapi_mail import ConnectionConfig, FastMail, MessageSchema, MessageType
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.errors import ErrorCode
+from app.core.exceptions import AppException
 from app.core.logger import get_logger
 from app.crud.user import get_emails_by_roles
 
@@ -75,7 +79,65 @@ _config = _build_config()
 _mailer = FastMail(_config) if _config else None
 
 
+async def _send_raw(
+    subject: str,
+    body: str,
+    recipients: Iterable[str],
+    *,
+    html: bool = False,
+    attachments: Sequence[Path] | None = None,
+) -> None:
+    """Envoi qui **leve** en cas d'echec. Reserve aux envois critiques.
+
+    Utilise par le circuit comptable, ou un echec silencieux signifie qu'une
+    piece n'arrive jamais chez le comptable sans que personne ne s'en apercoive
+    avant la cloture. Les envois d'agrement (alertes stock, invitations) passent
+    par :func:`_send`, qui reste tolerant.
+    """
+    rec_list = [r for r in recipients if r]
+    if not rec_list:
+        raise AppException(
+            ErrorCode.EMAIL_SEND_FAILED, detail="Aucun destinataire pour cet envoi."
+        )
+    if _mailer is None:
+        raise AppException(
+            ErrorCode.EMAIL_SEND_FAILED,
+            detail="Serveur SMTP non configure (SMTP_HOST / SMTP_USER).",
+        )
+
+    message = MessageSchema(
+        subject=subject,
+        recipients=rec_list,
+        body=body,
+        subtype=MessageType.html if html else MessageType.plain,
+        # fastapi-mail nomme la piece jointe d'apres le fichier sur disque :
+        # c'est pourquoi les PDF sont copies sous leur nom definitif en amont.
+        attachments=[str(p) for p in (attachments or [])],
+    )
+    try:
+        await _mailer.send_message(message)
+    except Exception as exc:  # noqa: BLE001 — aiosmtplib leve des types varies
+        logger.exception("Echec envoi email '%s' : %s", subject, exc)
+        raise AppException(
+            ErrorCode.EMAIL_SEND_FAILED,
+            detail="L'envoi du courriel a echoue.",
+            extras={"reason": str(exc)[:300]},
+        ) from exc
+    logger.info(
+        "Email envoye a %d destinataire(s) (sujet=%r, %d piece(s) jointe(s))",
+        len(rec_list),
+        subject,
+        len(attachments or []),
+    )
+
+
 async def _send(subject: str, body: str, recipients: Iterable[str], html: bool = False) -> None:
+    """Envoi best-effort : un echec est journalise, jamais propage.
+
+    Conserve tel quel pour les notifications non critiques (alertes de stock,
+    changements de statut, invitations) : les appelants n'ont pas de strategie
+    de reprise et ne doivent pas faire echouer la requete de l'utilisateur.
+    """
     rec_list = [r for r in recipients if r]
     if not rec_list:
         logger.info("No recipients for subject=%r — skipping send.", subject)
@@ -83,17 +145,10 @@ async def _send(subject: str, body: str, recipients: Iterable[str], html: bool =
     if _mailer is None:
         logger.warning("Mailer not configured — skipping send to %s", rec_list)
         return
-    message = MessageSchema(
-        subject=subject,
-        recipients=rec_list,
-        body=body,
-        subtype=MessageType.html if html else MessageType.plain,
-    )
     try:
-        await _mailer.send_message(message)
-        logger.info("Email envoye a %d destinataires (sujet=%r)", len(rec_list), subject)
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("Echec envoi email '%s' : %s", subject, exc)
+        await _send_raw(subject, body, rec_list, html=html)
+    except AppException:
+        pass  # deja journalise par _send_raw
 
 
 async def send_stock_alert(

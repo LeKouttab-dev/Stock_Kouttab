@@ -33,6 +33,9 @@ htmlcov/
 uploads/*
 !uploads/.gitkeep
 
+# PDF prets a l'envoi comptable (regeneres a la demande)
+outbox/
+
 # Alembic versions are tracked but pycache isn't
 alembic/versions/__pycache__/
 
