@@ -2,17 +2,18 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.security import OAuth2PasswordRequestForm
+from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.core.errors import ErrorCode
 from app.core.exceptions import AppException
 from app.core.logger import get_logger
+from app.core.rate_limit import limiter
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -23,15 +24,16 @@ from app.core.security import (
     verify_password,
     verify_password_legacy,
 )
+from app.crud import auth_security
 from app.crud import invitation as invitation_crud
 from app.crud import user as user_crud
 from app.db.models import Admin
 from app.db.session import get_db
 from app.schemas.auth import (
-    AccessTokenOut,
     AdminSetupIn,
     InvitationValidateOut,
     LoginIn,
+    LogoutIn,
     MessageOut,
     RefreshIn,
     SignupIn,
@@ -44,52 +46,26 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 logger = get_logger("auth")
 
 
-# Lockout: in-memory dictionary of {username_lower: (failed_count, locked_until)}.
-# TODO: persist in DB or Redis once we move beyond MVP.
-_LOCKOUT_THRESHOLD = 5
-_LOCKOUT_WINDOW_SECONDS = 15 * 60
-_login_attempts: dict[str, tuple[int, datetime | None]] = {}
-
-
-def _is_locked(username: str) -> tuple[bool, int]:
-    rec = _login_attempts.get(username.lower())
-    if not rec:
-        return False, 0
-    count, locked_until = rec
-    if locked_until and datetime.now(timezone.utc) < locked_until:
-        remaining = int((locked_until - datetime.now(timezone.utc)).total_seconds())
-        return True, remaining
-    if locked_until and datetime.now(timezone.utc) >= locked_until:
-        # Reset
-        _login_attempts.pop(username.lower(), None)
-    return False, 0
-
-
-def _record_failure(username: str) -> None:
-    key = username.lower()
-    count, _ = _login_attempts.get(key, (0, None))
-    count += 1
-    locked_until = None
-    if count >= _LOCKOUT_THRESHOLD:
-        locked_until = datetime.now(timezone.utc).replace(microsecond=0)
-        from datetime import timedelta
-
-        locked_until = locked_until + timedelta(seconds=_LOCKOUT_WINDOW_SECONDS)
-    _login_attempts[key] = (count, locked_until)
-
-
-def _record_success(username: str) -> None:
-    _login_attempts.pop(username.lower(), None)
+def _client_ip(request: Request | None) -> str:
+    if request is None:
+        return "unknown"
+    return get_remote_address(request) or "unknown"
 
 
 def _to_user_out(user: Admin) -> UserOut:
     return UserOut.model_validate(user)
 
 
-def _build_token_payload(user: Admin, password_must_change: bool) -> TokenOut:
+def _build_token_payload(
+    db: Session, user: Admin, password_must_change: bool
+) -> TokenOut:
+    refresh, jti, expires_at = create_refresh_token(user.id)
+    auth_security.store_refresh_token(
+        db, user_id=user.id, jti=jti, expires_at=expires_at
+    )
     return TokenOut(
         access_token=create_access_token(user.id, user.role),
-        refresh_token=create_refresh_token(user.id),
+        refresh_token=refresh,
         user=_to_user_out(user),
         password_must_change=password_must_change,
     )
@@ -99,7 +75,8 @@ def _build_token_payload(user: Admin, password_must_change: bool) -> TokenOut:
 
 
 @router.post("/signup", response_model=UserOut, status_code=201)
-def signup(payload: SignupIn, db: Session = Depends(get_db)) -> Any:
+@limiter.limit("3/hour")
+def signup(request: Request, payload: SignupIn, db: Session = Depends(get_db)) -> Any:
     if not validate_username(payload.username):
         raise AppException(ErrorCode.USERNAME_INVALID)
     ok, msg = validate_password_strength(payload.password)
@@ -114,7 +91,7 @@ def signup(payload: SignupIn, db: Session = Depends(get_db)) -> Any:
         db,
         username=payload.username,
         password=payload.password,
-        role=payload.role,
+        role="Benevole",  # jamais choisi par le demandeur — cf. SignupIn
         nom=payload.nom,
         prenom=payload.prenom,
         email=str(payload.email) if payload.email else None,
@@ -127,6 +104,7 @@ def signup(payload: SignupIn, db: Session = Depends(get_db)) -> Any:
 
 
 @router.post("/login", response_model=TokenOut)
+@limiter.limit("10/15minutes")
 def login(
     request: Request,
     db: Session = Depends(get_db),
@@ -135,19 +113,27 @@ def login(
     """Login endpoint accepting OAuth2-style form data."""
     username = (form_data.username or "").strip()
     password = form_data.password or ""
-    return _do_login(db, username=username, password=password)
+    return _do_login(db, username=username, password=password, request=request)
 
 
 @router.post("/login/json", response_model=TokenOut)
-def login_json(payload: LoginIn, db: Session = Depends(get_db)) -> Any:
+@limiter.limit("10/15minutes")
+def login_json(
+    request: Request, payload: LoginIn, db: Session = Depends(get_db)
+) -> Any:
     """Alternative JSON login endpoint."""
-    return _do_login(db, username=payload.username, password=payload.password)
+    return _do_login(
+        db, username=payload.username, password=payload.password, request=request
+    )
 
 
-def _do_login(db: Session, *, username: str, password: str) -> TokenOut:
+def _do_login(
+    db: Session, *, username: str, password: str, request: Request | None = None
+) -> TokenOut:
     if not username or not password:
         raise AppException(ErrorCode.INVALID_CREDENTIALS, detail="Identifiants requis.")
-    locked, remaining = _is_locked(username)
+    ip = _client_ip(request)
+    locked, remaining = auth_security.is_locked(db, username, ip)
     if locked:
         minutes = max(1, remaining // 60)
         raise AppException(
@@ -160,18 +146,18 @@ def _do_login(db: Session, *, username: str, password: str) -> TokenOut:
 
     user = user_crud.get_user_by_username(db, username)
     if user is None:
-        _record_failure(username)
+        auth_security.record_failure(db, username, ip)
         raise AppException(ErrorCode.INVALID_CREDENTIALS)
 
     password_must_change = False
     if is_legacy_hash(user.password_hash):
         if not verify_password_legacy(password, user.password_hash):
-            _record_failure(username)
+            auth_security.record_failure(db, username, ip)
             raise AppException(ErrorCode.INVALID_CREDENTIALS)
         password_must_change = True
     else:
         if not verify_password(password, user.password_hash):
-            _record_failure(username)
+            auth_security.record_failure(db, username, ip)
             raise AppException(ErrorCode.INVALID_CREDENTIALS)
 
     if user.validation_status == "rejected":
@@ -179,16 +165,21 @@ def _do_login(db: Session, *, username: str, password: str) -> TokenOut:
     if user.validation_status != "active":
         raise AppException(ErrorCode.ACCOUNT_PENDING)
 
-    _record_success(username)
+    auth_security.record_success(db, username, ip)
     logger.info("Login OK pour %s (role=%s)", username, user.role)
-    return _build_token_payload(user, password_must_change)
+    return _build_token_payload(db, user, password_must_change)
 
 
 # ---- Refresh ---------------------------------------------------------------
 
 
-@router.post("/refresh", response_model=AccessTokenOut)
+@router.post("/refresh", response_model=TokenOut)
 def refresh(payload: RefreshIn, db: Session = Depends(get_db)) -> Any:
+    """Echange un refresh token contre un couple neuf (rotation).
+
+    L'ancien token est consomme : le rejouer revoque toutes les sessions du
+    compte (cf. ``auth_security.consume_refresh_token``).
+    """
     decoded = decode_token(payload.refresh_token)
     if decoded.get("type") != "refresh":
         raise AppException(
@@ -198,21 +189,50 @@ def refresh(payload: RefreshIn, db: Session = Depends(get_db)) -> Any:
         user_id = int(decoded.get("sub"))
     except (TypeError, ValueError) as exc:
         raise AppException(ErrorCode.REFRESH_TOKEN_INVALID) from exc
+
+    jti = decoded.get("jti")
+    if not jti:
+        # Token emis avant l'introduction de la rotation : on le refuse pour
+        # forcer une reconnexion propre plutot que de laisser un trou.
+        raise AppException(
+            ErrorCode.REFRESH_TOKEN_INVALID,
+            detail="Session obsolete, merci de vous reconnecter.",
+        )
+
     user = user_crud.get_user(db, user_id)
     if not user or user.validation_status != "active":
         raise AppException(
             ErrorCode.REFRESH_TOKEN_INVALID,
             detail="Utilisateur introuvable ou inactif.",
         )
-    return AccessTokenOut(access_token=create_access_token(user.id, user.role))
+    if not auth_security.consume_refresh_token(db, jti, user_id=user_id):
+        raise AppException(
+            ErrorCode.REFRESH_TOKEN_INVALID,
+            detail="Session expiree ou revoquee, merci de vous reconnecter.",
+        )
+    return _build_token_payload(db, user, password_must_change=False)
 
 
-# ---- Logout (stateless no-op) ---------------------------------------------
+# ---- Logout ----------------------------------------------------------------
 
 
 @router.post("/logout", response_model=MessageOut)
-def logout(_: Admin = Depends(get_current_user)) -> Any:
-    # JWT is stateless: clients must drop their tokens locally.
+def logout(
+    payload: LogoutIn | None = None,
+    current_user: Admin = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Any:
+    """Revoque le refresh token fourni, ou toutes les sessions a defaut."""
+    if payload is not None and payload.refresh_token:
+        try:
+            decoded = decode_token(payload.refresh_token)
+        except AppException:
+            decoded = {}
+        jti = decoded.get("jti")
+        if jti and int(decoded.get("sub", -1)) == current_user.id:
+            auth_security.revoke_refresh_token(db, jti)
+            return MessageOut(message="Deconnecte.")
+    auth_security.revoke_all_for_user(db, current_user.id)
     return MessageOut(message="Deconnecte.")
 
 
@@ -228,7 +248,9 @@ def me(current_user: Admin = Depends(get_current_user)) -> Any:
 
 
 @router.get("/validate-invitation", response_model=InvitationValidateOut)
+@limiter.limit("10/hour")
 def validate_invitation(
+    request: Request,
     token: str = Query(..., min_length=10),
     email: str = Query(..., min_length=5),
     db: Session = Depends(get_db),
@@ -238,7 +260,10 @@ def validate_invitation(
 
 
 @router.post("/admin-setup", response_model=TokenOut, status_code=201)
-def admin_setup(payload: AdminSetupIn, db: Session = Depends(get_db)) -> Any:
+@limiter.limit("5/hour")
+def admin_setup(
+    request: Request, payload: AdminSetupIn, db: Session = Depends(get_db)
+) -> Any:
     ok, message, invitation = invitation_crud.validate_token(
         db, payload.token, str(payload.email)
     )
@@ -275,4 +300,4 @@ def admin_setup(payload: AdminSetupIn, db: Session = Depends(get_db)) -> Any:
     )
     invitation_crud.mark_used(db, invitation)
     logger.info("Super Admin '%s' cree via invitation pour %s", user.username, payload.email)
-    return _build_token_payload(user, password_must_change=False)
+    return _build_token_payload(db, user, password_must_change=False)

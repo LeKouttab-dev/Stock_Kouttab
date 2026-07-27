@@ -81,16 +81,17 @@ Gestion_stock_kouttab_react/
 
 ## 🔐 Comptes initiaux
 
-### 🚧 Pour le développement / test (temporaire)
+### Premier Super Admin
 
 ```bash
 cd backend
-python scripts/seed_super_admin.py
+python scripts/create_first_admin_invitation.py prenom.nom@lekouttab.fr
 ```
 
-Crée un compte par défaut : **username=`admin`** / **password=`Admin1234!`** (à changer dans l'app dès la première connexion).
-
-⚠️ **À NE PAS UTILISER EN PRODUCTION.** Voir [`CLAUDE.md`](./CLAUDE.md) §11.1 pour la procédure cible (script générant une invitation à usage unique = "Option A").
+Le script affiche un lien `admin-setup` à usage unique (valable 24 h). L'opérateur
+l'ouvre et choisit lui-même son identifiant et son mot de passe — aucun compte ni
+mot de passe n'est écrit par le script. La même commande fonctionne en
+développement et en production.
 
 ### ✅ Création d'admins suivants (flow normal)
 

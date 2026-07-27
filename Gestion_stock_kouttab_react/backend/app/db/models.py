@@ -105,11 +105,20 @@ class Admin(Base):
         DateTime, server_default=func.now(), onupdate=func.now()
     )
 
+    # ``foreign_keys`` explicite : Factures et NotesDeFrais portent desormais
+    # deux cles vers Admins (le deposant et le valideur), ce qui rend la
+    # jointure ambigue sans desambiguisation.
     expenses: Mapped[list["Expense"]] = relationship(
-        "Expense", back_populates="user", cascade="all, delete-orphan"
+        "Expense",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        foreign_keys="Expense.id_user",
     )
     invoices: Mapped[list["Invoice"]] = relationship(
-        "Invoice", back_populates="user", cascade="all, delete-orphan"
+        "Invoice",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        foreign_keys="Invoice.id_user",
     )
 
     @property
@@ -132,6 +141,62 @@ class AdminInvitation(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     used: Mapped[bool] = mapped_column(Boolean, default=False)
     attempts: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class LoginAttempt(Base):
+    """Compteur d'echecs de connexion, persiste en base.
+
+    Le lockout etait auparavant un dictionnaire en memoire du process, ce qui
+    posait trois problemes : il disparaissait a chaque redemarrage Passenger,
+    n'etait pas partage entre workers, et grossissait sans borne puisqu'un
+    echec sur un username inexistant creait une entree.
+
+    La cle est le couple (username, ip) : verrouiller sur le seul username
+    permettait a un tiers de bloquer n'importe quel compte en cinq requetes.
+    """
+
+    __tablename__ = "LoginAttempts"
+    __table_args__ = (
+        UniqueConstraint("username", "ip_address", name="uq_login_attempt"),
+        Index("idx_login_attempt_locked_until", "locked_until"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    username: Mapped[str] = mapped_column(String(50), nullable=False)
+    ip_address: Mapped[str] = mapped_column(String(45), nullable=False)  # IPv6 = 45
+    failed_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_attempt_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class RefreshToken(Base):
+    """Refresh tokens emis, pour permettre rotation et revocation.
+
+    Sans cette table, ``/auth/logout`` ne pouvait rien revoquer et un refresh
+    token vole restait valide sept jours. On ne stocke que le hash SHA256 du
+    ``jti`` : une fuite de la base ne permet pas de rejouer les tokens.
+    """
+
+    __tablename__ = "RefreshTokens"
+    __table_args__ = (
+        Index("idx_refresh_user", "id_user"),
+        Index("idx_refresh_expires", "expires_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    jti_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    id_user: Mapped[int] = mapped_column(
+        Integer, ForeignKey("Admins.id", ondelete="CASCADE"), nullable=False
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Renseigne quand le token est consomme par une rotation : si un token deja
+    # tourne est represente, c'est le signe d'un vol et toute la famille saute.
+    rotated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
@@ -165,13 +230,20 @@ class Expense(Base):
     remise: Mapped[Decimal] = mapped_column(DECIMAL(10, 2), default=0)
     status: Mapped[str] = mapped_column(String(20), default="En attente")
     commentaires_compta: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Tracabilite comptable — cf. commentaire equivalent sur Invoice.
+    validated_by: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("Admins.id", ondelete="SET NULL"), nullable=True
+    )
+    validated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     date_soumission: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
     )
 
-    user: Mapped["Admin"] = relationship("Admin", back_populates="expenses")
+    user: Mapped["Admin"] = relationship(
+        "Admin", back_populates="expenses", foreign_keys=[id_user]
+    )
     files: Mapped[list["ExpenseFile"]] = relationship(
         "ExpenseFile", back_populates="expense", cascade="all, delete-orphan"
     )
@@ -212,12 +284,20 @@ class Invoice(Base):
     commentaire: Mapped[str | None] = mapped_column(Text, nullable=True)
     date_depot: Mapped[date] = mapped_column(Date, nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="En attente")
+    # Tracabilite comptable : sans ces deux colonnes, il etait impossible de
+    # savoir quel comptable avait valide quelle facture, ni quand.
+    validated_by: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("Admins.id", ondelete="SET NULL"), nullable=True
+    )
+    validated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
     )
 
-    user: Mapped["Admin"] = relationship("Admin", back_populates="invoices")
+    user: Mapped["Admin"] = relationship(
+        "Admin", back_populates="invoices", foreign_keys=[id_user]
+    )
     files: Mapped[list["InvoiceFile"]] = relationship(
         "InvoiceFile", back_populates="invoice", cascade="all, delete-orphan"
     )

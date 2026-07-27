@@ -29,16 +29,29 @@ class RefreshIn(BaseModel):
     refresh_token: str
 
 
+class LogoutIn(BaseModel):
+    """Corps optionnel : sans refresh token, toutes les sessions sont revoquees."""
+
+    refresh_token: str | None = None
+
+
 class AccessTokenOut(BaseModel):
     access_token: str
     token_type: str = "bearer"
 
 
 class SignupIn(BaseModel):
+    """Public signup payload.
+
+    Le role n'est volontairement PAS acceptable en entree : un demandeur
+    pouvait sinon s'auto-attribuer ``Super Admin``, qu'un valideur pressé
+    n'aurait pas forcement remarque en approuvant le compte. Tout compte cree
+    ici est ``Benevole`` ; la promotion passe par ``PATCH /users/{id}/role``.
+    """
+
     username: str = Field(min_length=3, max_length=20)
     password: str = Field(min_length=8, max_length=200)
     confirm_password: str | None = None
-    role: ROLE_LITERAL = "Benevole"
     nom: str | None = None
     prenom: str | None = None
     email: EmailStr | None = None

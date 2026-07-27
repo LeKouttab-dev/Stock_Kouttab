@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Any
 
@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.core.errors import ErrorCode
 from app.core.exceptions import AppException
+from app.core.workflow import check_expense_transition
 from app.db.models import Expense, ExpenseFile
 
 
@@ -184,10 +185,15 @@ def validate_expense(
     *,
     new_status: str,
     comment: str | None,
+    validated_by: int | None = None,
 ) -> Expense:
     expense = get_expense(db, expense_id)
     if not expense:
         raise AppException(ErrorCode.EXPENSE_NOT_FOUND)
+    check_expense_transition(expense.status, new_status)
+    if new_status != expense.status:
+        expense.validated_by = validated_by
+        expense.validated_at = datetime.now(timezone.utc).replace(tzinfo=None)
     expense.status = new_status
     expense.commentaires_compta = comment
     db.commit()

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import secrets
 from datetime import datetime
 from typing import Any
+from urllib.parse import quote
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request
 from sqlalchemy.orm import Session
@@ -132,16 +134,19 @@ def sync_products(db: Session = Depends(get_db)) -> Any:
 # ---------------------------------------------------------------------------
 
 
-@router.get(
-    "/sales",
-    response_model=list[BuvetteSaleOut],
-    dependencies=[Depends(require_roles(*_ADMIN_ROLES))],
-)
+@router.get("/sales", response_model=list[BuvetteSaleOut])
 def list_sales(
     limit: int = Query(default=50, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
+    _: Admin = Depends(get_current_user),
 ) -> Any:
+    """Historique des ventes buvette.
+
+    Ouvert a tout compte authentifie, conformement a la matrice de permissions
+    (« Buvette — consulter stock & ventes »). L'endpoint etait restreint aux
+    seuls administrateurs, ce qui excluait aussi la comptabilite.
+    """
     return [
         BuvetteSaleOut.model_validate(s)
         for s in buvette_crud.list_sales(db, limit=limit, offset=offset)
@@ -250,13 +255,38 @@ def _process_order(
             logger.exception("Error processing HelloAsso item: %s", exc)
 
 
+def _webhook_secret_ok(provided: str | None) -> bool:
+    """Compare le secret d'URL en temps constant.
+
+    Si aucun secret n'est configure, on laisse passer (comportement historique)
+    mais on le signale : l'endpoint est alors ouvert et permet a un tiers de
+    forger des ventes.
+    """
+    expected = settings.helloasso_webhook_secret
+    if not expected:
+        logger.warning(
+            "Webhook HelloAsso non protege : definir HELLOASSO_WEBHOOK_SECRET."
+        )
+        return True
+    return secrets.compare_digest(provided or "", expected)
+
+
 @router.post("/webhook/helloasso", include_in_schema=True)
 async def helloasso_webhook(
     request: Request,
     background: BackgroundTasks,
+    token: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> dict[str, str]:
-    """Receive HelloAsso notifications. **Public** — no auth required."""
+    """Receive HelloAsso notifications. **Public** — no JWT required."""
+    if not _webhook_secret_ok(token):
+        logger.warning(
+            "Webhook HelloAsso rejete : secret invalide (ip=%s).",
+            request.client.host if request.client else "?",
+        )
+        # 200 volontaire : un 4xx renseignerait un attaquant sur l'existence du
+        # secret, et HelloAsso ne doit de toute facon jamais voir d'erreur.
+        return {"status": "ignored", "reason": "unauthorized"}
     try:
         raw_body = await request.json()
     except Exception as exc:  # noqa: BLE001
@@ -296,7 +326,12 @@ async def helloasso_webhook(
 
 def _default_webhook_url() -> str:
     base = settings.backend_url.rstrip("/")
-    return f"{base}/v1/buvette/webhook/helloasso"
+    url = f"{base}/v1/buvette/webhook/helloasso"
+    # Le secret voyage dans l'URL enregistree chez HelloAsso : c'est la seule
+    # forme d'authentification qu'accepte leur systeme de notifications.
+    if settings.helloasso_webhook_secret:
+        url = f"{url}?token={quote(settings.helloasso_webhook_secret, safe='')}"
+    return url
 
 
 @router.post(

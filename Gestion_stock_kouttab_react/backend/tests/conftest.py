@@ -25,9 +25,12 @@ def _fast_gensalt(rounds: int = 12, prefix: bytes = b"2b") -> bytes:  # noqa: AR
 
 bcrypt.gensalt = _fast_gensalt  # type: ignore[assignment]
 
+from app.core.config import settings  # noqa: E402
+from app.core.rate_limit import limiter  # noqa: E402
 from app.core.security import create_access_token  # noqa: E402
 from app.crud import user as user_crud  # noqa: E402
 from app.db.base import Base  # noqa: E402
+from app.db.models import LoginAttempt, RefreshToken  # noqa: E402
 from app.db.session import get_db  # noqa: E402
 from app.main import app  # noqa: E402
 
@@ -72,6 +75,31 @@ def db_session() -> Generator[Session, None, None]:
 def client() -> Generator[TestClient, None, None]:
     with TestClient(app) as c:
         yield c
+
+
+@pytest.fixture(autouse=True)
+def _reset_auth_state() -> Generator[None, None, None]:
+    """Isole l'etat d'authentification entre les tests.
+
+    Le lockout et les refresh tokens sont desormais persistes en base : sans ce
+    nettoyage, un test qui verrouille un compte contaminerait les suivants.
+
+    Le limiteur de debit est desactive par defaut, car ``TestClient`` presente
+    toujours la meme IP : les quotas seraient consommes par l'accumulation des
+    tests plutot que par le scenario teste. Le test dedie au rate limiting le
+    reactive explicitement.
+    """
+    limiter.enabled = False
+    db = _TestingSessionLocal()
+    try:
+        db.query(LoginAttempt).delete()
+        db.query(RefreshToken).delete()
+        db.commit()
+    finally:
+        db.close()
+    yield
+    limiter.reset()
+    limiter.enabled = settings.rate_limit_enabled
 
 
 # ---------------------------------------------------------------------------

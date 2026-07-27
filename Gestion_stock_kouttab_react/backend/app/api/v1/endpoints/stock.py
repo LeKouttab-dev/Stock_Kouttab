@@ -386,9 +386,14 @@ def list_modifications(
     status: str | None = Query(default=None),
     days: int | None = Query(default=None, ge=0),
     db: Session = Depends(get_db),
-    _: Admin = Depends(get_current_user),
+    current_user: Admin = Depends(get_current_user),
 ) -> Any:
-    return [ModificationOut(**row) for row in stock_crud.list_modifications(db, status=status, days=days)]
+    rows = stock_crud.list_modifications(db, status=status, days=days)
+    # Un benevole ne voit que ses propres demandes : la liste complete exposait
+    # a tout compte authentifie l'activite de l'ensemble des utilisateurs.
+    if current_user.role not in _ADMIN_ROLES:
+        rows = [row for row in rows if row.get("id_user") == current_user.id]
+    return [ModificationOut(**row) for row in rows]
 
 
 @router.post("/modifications", response_model=ModificationOut, status_code=201)

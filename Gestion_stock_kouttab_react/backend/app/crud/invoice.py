@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.core.errors import ErrorCode
 from app.core.exceptions import AppException
+from app.core.workflow import check_invoice_transition
 from app.db.models import Invoice, InvoiceFile
 
 
@@ -127,10 +128,20 @@ def attach_file(
     return f
 
 
-def update_status(db: Session, invoice_id: int, new_status: str) -> Invoice:
+def update_status(
+    db: Session,
+    invoice_id: int,
+    new_status: str,
+    *,
+    validated_by: int | None = None,
+) -> Invoice:
     invoice = get_invoice(db, invoice_id)
     if not invoice:
         raise AppException(ErrorCode.INVOICE_NOT_FOUND)
+    check_invoice_transition(invoice.status, new_status)
+    if new_status != invoice.status:
+        invoice.validated_by = validated_by
+        invoice.validated_at = datetime.now(timezone.utc).replace(tzinfo=None)
     invoice.status = new_status
     db.commit()
     db.refresh(invoice)

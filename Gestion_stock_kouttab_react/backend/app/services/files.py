@@ -19,12 +19,15 @@ from app.core.logger import get_logger
 logger = get_logger("files")
 
 
-# (mime, extension) whitelist
+# (mime, extension) whitelist.
+# NB : ``image/webp`` a ete retire — il etait accepte ici alors que l'extension
+# ``webp`` n'a jamais figure dans EXTENSIONS_ALLOWED. Un fichier WEBP renomme en
+# .jpg passait donc la validation de type puis etait stocke en .webp, hors du
+# jeu d'extensions autorisees.
 IMAGE_MIMES: dict[str, str] = {
     "image/png": "png",
     "image/jpeg": "jpg",
     "image/jpg": "jpg",
-    "image/webp": "webp",
 }
 INVOICE_MIMES: dict[str, str] = {**IMAGE_MIMES, "application/pdf": "pdf"}
 
@@ -38,15 +41,12 @@ _MAGIC: list[tuple[bytes, str]] = [
     (b"\x89PNG\r\n\x1a\n", "image/png"),
     (b"\xff\xd8\xff", "image/jpeg"),
     (b"%PDF", "application/pdf"),
-    (b"RIFF", "image/webp"),  # WEBP files start with RIFF then ...WEBP
 ]
 
 
 def _detect_mime(prefix: bytes) -> str | None:
     for sig, mime in _MAGIC:
         if prefix.startswith(sig):
-            if mime == "image/webp" and b"WEBP" not in prefix[:16]:
-                continue
             return mime
     return None
 
@@ -82,14 +82,17 @@ def validate_file_type(
         )
     detected = _detect_mime(head_bytes)
     if detected is None:
-        # Some browsers send valid JPEG without our extra signature variants — fall
-        # back to the client mime if at least it is in the whitelist.
-        if mime_from_client in INVOICE_MIMES:
-            detected = mime_from_client
-        else:
-            raise AppException(
-                ErrorCode.INVALID_FILE_TYPE, detail="Type de fichier non reconnu."
-            )
+        # Pas de repli sur ``mime_from_client`` : il est fourni par le client et
+        # se falsifie trivialement. Un fichier arbitraire renomme en .jpg avec un
+        # en-tete ``Content-Type: image/jpeg`` etait accepte tel quel.
+        logger.warning(
+            "Upload rejete : signature inconnue (fichier=%r, mime client=%r)",
+            filename,
+            mime_from_client,
+        )
+        raise AppException(
+            ErrorCode.INVALID_FILE_TYPE, detail="Type de fichier non reconnu."
+        )
     if allowed_subdir == "expenses" and detected not in IMAGE_MIMES:
         raise AppException(
             ErrorCode.INVALID_FILE_TYPE,
@@ -166,9 +169,28 @@ async def save_upload_file(upload: UploadFile, subdir: str) -> dict[str, object]
     }
 
 
-def delete_file(path: str) -> bool:
+def _is_inside_uploads(candidate: Path) -> bool:
+    """True si ``candidate`` est bien contenu dans le repertoire d'uploads.
+
+    ``chemin_fichier`` provient de la base, mais la base n'est pas une source de
+    confiance : ``POST /admin/database/import`` insere des lignes depuis un CSV
+    fourni par l'utilisateur. Sans ce controle, un chemin arbitraire
+    (``/home/user/backend/.env``) etait servi tel quel par ``FileResponse``.
+    """
     try:
-        os.remove(path)
+        root = settings.upload_path.resolve(strict=False)
+        return candidate.resolve(strict=False).is_relative_to(root)
+    except (OSError, ValueError):
+        return False
+
+
+def delete_file(path: str) -> bool:
+    candidate = Path(path)
+    if not _is_inside_uploads(candidate):
+        logger.warning("Suppression refusee, chemin hors uploads : %s", path)
+        return False
+    try:
+        os.remove(candidate)
         return True
     except FileNotFoundError:
         return False
@@ -179,6 +201,9 @@ def delete_file(path: str) -> bool:
 
 def get_file_path(stored_path: str) -> Path | None:
     p = Path(stored_path)
+    if not _is_inside_uploads(p):
+        logger.warning("Acces refuse, chemin hors uploads : %s", stored_path)
+        return None
     if p.exists() and p.is_file():
         return p
     return None

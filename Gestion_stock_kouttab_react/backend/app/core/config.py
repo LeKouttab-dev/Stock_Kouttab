@@ -6,8 +6,11 @@ from functools import lru_cache
 from pathlib import Path
 from typing import List
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+INSECURE_JWT_SECRETS = {"change-me", "change-me-in-production", "secret", ""}
 
 
 class Settings(BaseSettings):
@@ -72,6 +75,13 @@ class Settings(BaseSettings):
     helloasso_buvette_form_slug: str = Field(
         default="buvette", alias="HELLOASSO_BUVETTE_FORM_SLUG"
     )
+    # Secret partage ajoute a l'URL de webhook enregistree chez HelloAsso.
+    # HelloAsso ne signe pas ses notifications ; a defaut de HMAC, un secret
+    # dans l'URL evite que n'importe qui puisse forger des ventes et decrementer
+    # le stock. Vide = pas de verification (comportement historique).
+    helloasso_webhook_secret: str = Field(
+        default="", alias="HELLOASSO_WEBHOOK_SECRET"
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -84,6 +94,32 @@ class Settings(BaseSettings):
     @classmethod
     def _strip_origins(cls, value: str) -> str:
         return value.strip()
+
+    @model_validator(mode="after")
+    def _refuse_insecure_production_config(self) -> "Settings":
+        """Empeche le demarrage en production avec une configuration dangereuse.
+
+        Le defaut ``change-me`` est public : signer les JWT avec permettrait a
+        n'importe qui de forger un token ``Super Admin``. Mieux vaut un refus de
+        demarrage bruyant qu'une application ouverte silencieusement.
+        """
+        if not self.is_production:
+            return self
+        problems: list[str] = []
+        if self.jwt_secret_key.strip() in INSECURE_JWT_SECRETS:
+            problems.append(
+                "JWT_SECRET_KEY utilise la valeur par defaut. Generer une cle avec : "
+                'python -c "import secrets; print(secrets.token_urlsafe(64))"'
+            )
+        if self.app_debug:
+            problems.append("APP_DEBUG doit valoir false en production.")
+        if any(o.startswith("http://") for o in self.cors_origins):
+            problems.append("CORS_ORIGINS contient une origine non chiffree (http://).")
+        if problems:
+            raise ValueError(
+                "Configuration de production invalide :\n- " + "\n- ".join(problems)
+            )
+        return self
 
     @property
     def cors_origins(self) -> List[str]:

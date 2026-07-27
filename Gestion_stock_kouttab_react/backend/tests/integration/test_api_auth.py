@@ -8,7 +8,6 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.api.v1.endpoints import auth as auth_endpoint
 from app.crud import user as user_crud
 
 
@@ -21,19 +20,10 @@ def _signup_payload(username: str | None = None, password: str = "Strong#Pass1")
         "username": username,
         "password": password,
         "confirm_password": password,
-        "role": "Benevole",
         "nom": "Test",
         "prenom": "User",
         "email": f"{username}@example.com",
     }
-
-
-@pytest.fixture(autouse=True)
-def _clear_login_lockouts():
-    """Reset the in-memory lockout dict between tests."""
-    auth_endpoint._login_attempts.clear()
-    yield
-    auth_endpoint._login_attempts.clear()
 
 
 def test_signup_happy_path_creates_pending_user(client: TestClient) -> None:
@@ -156,9 +146,7 @@ def test_login_pending_account_returns_account_pending(
     assert resp.json()["code"] == "AUTH_1002"
 
 
-def test_refresh_token_valid_returns_new_access(
-    client: TestClient, db_session: Session
-) -> None:
+def _login(client: TestClient, db_session: Session) -> dict:
     payload = _signup_payload()
     user_crud.create_user(
         db_session,
@@ -168,14 +156,75 @@ def test_refresh_token_valid_returns_new_access(
         email=payload["email"],
         validation_status="active",
     )
-    login = client.post(
+    resp = client.post(
         "/api/v1/auth/login/json",
         json={"username": payload["username"], "password": payload["password"]},
     )
-    refresh_token = login.json()["refresh_token"]
-    resp = client.post("/api/v1/auth/refresh", json={"refresh_token": refresh_token})
     assert resp.status_code == 200, resp.text
-    assert resp.json()["access_token"]
+    return resp.json()
+
+
+def test_signup_cannot_self_assign_a_role(client: TestClient) -> None:
+    """Un demandeur ne doit pas pouvoir se declarer Super Admin."""
+    payload = _signup_payload()
+    payload["role"] = "Super Admin"
+    resp = client.post("/api/v1/auth/signup", json=payload)
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["role"] == "Benevole"
+
+
+def test_refresh_token_valid_returns_new_access(
+    client: TestClient, db_session: Session
+) -> None:
+    tokens = _login(client, db_session)
+    resp = client.post(
+        "/api/v1/auth/refresh", json={"refresh_token": tokens["refresh_token"]}
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["access_token"]
+    # Rotation : un refresh token neuf, different de celui consomme.
+    assert body["refresh_token"]
+    assert body["refresh_token"] != tokens["refresh_token"]
+
+
+def test_refresh_token_cannot_be_replayed(
+    client: TestClient, db_session: Session
+) -> None:
+    """Rejouer un refresh token deja tourne doit echouer."""
+    tokens = _login(client, db_session)
+    first = client.post(
+        "/api/v1/auth/refresh", json={"refresh_token": tokens["refresh_token"]}
+    )
+    assert first.status_code == 200
+
+    replay = client.post(
+        "/api/v1/auth/refresh", json={"refresh_token": tokens["refresh_token"]}
+    )
+    assert replay.status_code == 401, replay.text
+
+    # Le rejeu revoque toute la famille : le token issu de la rotation legitime
+    # ne doit plus fonctionner non plus.
+    rotated = first.json()["refresh_token"]
+    after = client.post("/api/v1/auth/refresh", json={"refresh_token": rotated})
+    assert after.status_code == 401, after.text
+
+
+def test_logout_revokes_the_refresh_token(
+    client: TestClient, db_session: Session
+) -> None:
+    tokens = _login(client, db_session)
+    resp = client.post(
+        "/api/v1/auth/logout",
+        json={"refresh_token": tokens["refresh_token"]},
+        headers={"Authorization": f"Bearer {tokens['access_token']}"},
+    )
+    assert resp.status_code == 200, resp.text
+
+    after = client.post(
+        "/api/v1/auth/refresh", json={"refresh_token": tokens["refresh_token"]}
+    )
+    assert after.status_code == 401, after.text
 
 
 def test_refresh_with_invalid_token_returns_401(client: TestClient) -> None:

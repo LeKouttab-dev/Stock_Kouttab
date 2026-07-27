@@ -134,8 +134,11 @@ def update_invoice_status(
     invoice_id: int,
     payload: InvoiceStatusUpdate,
     db: Session = Depends(get_db),
+    current_user: Admin = Depends(get_current_user),
 ) -> Any:
-    invoice = invoice_crud.update_status(db, invoice_id, payload.status)
+    invoice = invoice_crud.update_status(
+        db, invoice_id, payload.status, validated_by=current_user.id
+    )
     return InvoiceOut(**_serialize_invoice(invoice))
 
 
@@ -178,9 +181,21 @@ def delete_invoice(
     invoice = invoice_crud.get_invoice(db, invoice_id)
     if not invoice:
         raise AppException(ErrorCode.INVOICE_NOT_FOUND)
-    if invoice.id_user != current_user.id and current_user.role not in _ACCOUNTANT_ROLES:
+    is_accountant = current_user.role in _ACCOUNTANT_ROLES
+    if invoice.id_user != current_user.id and not is_accountant:
         raise AppException(
             ErrorCode.FORBIDDEN, detail="Vous ne pouvez pas supprimer cette facture."
+        )
+    # Une facture prise en charge par la comptabilite est une piece comptable :
+    # son deposant ne peut plus la faire disparaitre.
+    if not is_accountant and invoice.status != "En attente":
+        raise AppException(
+            ErrorCode.FORBIDDEN,
+            detail=(
+                "Cette facture est deja traitee par la comptabilite et ne peut "
+                "plus etre supprimee. Contactez le service comptable."
+            ),
+            extras={"status": invoice.status},
         )
     files = list(invoice.files)
     db.delete(invoice)

@@ -9,22 +9,19 @@ from typing import AsyncIterator
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
-from slowapi.util import get_remote_address
 
 from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.errors import ERROR_MESSAGES, ErrorCode
 from app.core.exceptions import register_exception_handlers
 from app.core.logger import get_logger
+from app.core.rate_limit import limiter
 
 
 logger = get_logger("main")
-
-
-limiter = Limiter(key_func=get_remote_address, enabled=settings.rate_limit_enabled)
 
 
 @asynccontextmanager
@@ -35,14 +32,18 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     logger.info("Kouttab Stock API arrete.")
 
 
+# La documentation interactive decrit toute la surface d'API (endpoints admin,
+# schemas, codes d'erreur). On la reserve aux environnements non-production.
+_docs_enabled = not settings.is_production
+
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
     debug=settings.app_debug,
     lifespan=lifespan,
-    docs_url="/docs",
-    redoc_url="/redoc",
-    openapi_url="/openapi.json",
+    docs_url="/docs" if _docs_enabled else None,
+    redoc_url="/redoc" if _docs_enabled else None,
+    openapi_url="/openapi.json" if _docs_enabled else None,
 )
 
 
@@ -81,6 +82,54 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)
 # Keep the slowapi default handler ref to avoid an unused-import lint warning.
 _ = _rate_limit_exceeded_handler
 app.add_middleware(SlowAPIMiddleware)
+
+
+# Taille maximale du corps de requete. ``MAX_REQUEST_MB`` etait declare dans la
+# configuration mais n'etait lu nulle part : la limite n'existait pas.
+@app.middleware("http")
+async def _limit_request_size(request: Request, call_next):
+    content_length = request.headers.get("content-length")
+    if content_length is not None:
+        try:
+            if int(content_length) > settings.max_request_mb * 1024 * 1024:
+                _, message = ERROR_MESSAGES[ErrorCode.FILE_TOO_LARGE]
+                return JSONResponse(
+                    status_code=413,
+                    content={
+                        "code": ErrorCode.FILE_TOO_LARGE.value,
+                        "message": message,
+                        "extras": {"max_mb": settings.max_request_mb},
+                    },
+                )
+        except ValueError:
+            pass
+    return await call_next(request)
+
+
+# En-tetes de securite. Ils completent ceux du .htaccess : en developpement
+# (uvicorn seul) Apache n'est pas dans la boucle, et en production une reponse
+# servie directement par Passenger ne passe pas toujours par les regles Apache.
+@app.middleware("http")
+async def _security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault(
+        "Permissions-Policy", "geolocation=(), microphone=(), camera=(self)"
+    )
+    # L'API ne rend que du JSON : aucune ressource n'a besoin d'etre chargee.
+    # Exception pour Swagger UI / ReDoc, qui chargent leurs assets depuis un CDN
+    # et seraient des pages blanches sous cette politique (dev uniquement).
+    if request.url.path not in ("/docs", "/redoc", "/docs/oauth2-redirect"):
+        response.headers.setdefault(
+            "Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'"
+        )
+    if settings.is_production:
+        response.headers.setdefault(
+            "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+        )
+    return response
 
 
 # Request timing log

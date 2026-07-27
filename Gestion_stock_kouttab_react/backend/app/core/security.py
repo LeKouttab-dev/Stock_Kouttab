@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -85,16 +86,29 @@ def create_access_token(
     return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
 
-def create_refresh_token(subject: str | int) -> str:
-    """Sign a long-lived refresh token."""
+def create_refresh_token(subject: str | int) -> tuple[str, str, datetime]:
+    """Sign a long-lived refresh token.
+
+    Retourne ``(token, jti, expires_at)``. Le ``jti`` identifie le token de
+    maniere unique et permet de le revoquer cote base : sans lui, un refresh
+    token vole restait utilisable jusqu'a son expiration naturelle.
+    """
     expire = _now() + timedelta(days=settings.jwt_refresh_token_days)
+    jti = secrets.token_urlsafe(32)
     payload: dict[str, Any] = {
         "sub": str(subject),
         "type": "refresh",
+        "jti": jti,
         "iat": int(_now().timestamp()),
         "exp": int(expire.timestamp()),
     }
-    return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+    token = jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+    return token, jti, expire
+
+
+def hash_jti(jti: str) -> str:
+    """SHA256 du ``jti``, seule forme stockee en base."""
+    return hashlib.sha256(jti.encode("utf-8")).hexdigest()
 
 
 def decode_token(token: str) -> dict[str, Any]:

@@ -448,7 +448,7 @@ python -m venv .venv && .venv\Scripts\activate          # Windows
 pip install -r requirements.txt
 copy .env.example .env                                  # puis remplir
 alembic upgrade head                                    # créer les tables
-python scripts/seed_super_admin.py                      # ⚠️ TEMPORAIRE — voir §11.1
+python scripts/create_first_admin_invitation.py <email> # voir §11.1
 uvicorn app.main:app --reload --port 8000
 
 # Frontend
@@ -459,23 +459,22 @@ npm run dev                                             # http://localhost:5173
 
 ### 11.1 Bootstrap initial du Super Admin
 
-Pour créer le **tout premier compte Super Admin** sans avoir à passer par l'API, il y a deux approches :
-
-**🚧 Approche TEMPORAIRE (en place actuellement, pour le dev/test) :**
+Le **tout premier compte Super Admin** se crée via un script CLI qui ne fabrique
+aucun compte et n'écrit aucun mot de passe :
 
 ```bash
-python scripts/seed_super_admin.py
+python scripts/create_first_admin_invitation.py prenom.nom@lekouttab.fr
 ```
 
-Crée un compte `username=admin`, `password=Admin1234!`, `role=Super Admin`, status `active`. Override possible via env vars `SEED_USERNAME`, `SEED_PASSWORD`, `SEED_EMAIL`. **À NE PAS UTILISER EN PRODUCTION** — le mot de passe est public dans ce repo.
-
-**✅ Approche cible (Option A) — à implémenter avant la mise en prod :**
-
-Un script CLI `scripts/create_first_admin_invitation.py` (à écrire) qui :
-1. Vérifie qu'aucun Super Admin n'existe encore.
+Le script :
+1. Vérifie qu'aucun Super Admin actif n'existe (`--force` pour outrepasser si l'accès est perdu).
 2. Crée une `AdminInvitation` directement en DB (sans passer par l'API qui exige un Super Admin).
 3. Affiche le lien complet `https://stock.lekouttab.fr/admin-setup?token=...&email=...`
-4. L'opérateur ouvre le lien → flow normal `admin-setup` → compte Super Admin créé.
+4. L'opérateur ouvre le lien → flow normal `admin-setup` → il choisit lui-même son identifiant et son mot de passe.
+
+> L'ancien `scripts/seed_super_admin.py` a été supprimé : il créait un compte
+> `admin` / `Admin1234!` dont le mot de passe était publié dans ce dépôt, et rien
+> ne l'empêchait de s'exécuter contre la base de production.
 
 Une fois le premier Super Admin existant, toute création d'admin ultérieure passe par le **flow normal `AdminInvitations`** :
 - `POST /api/v1/invitations` (Super Admin connecté) → email envoyé

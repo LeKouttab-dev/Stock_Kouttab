@@ -205,6 +205,7 @@ def validate_expense(
         expense_id,
         new_status=payload.status,
         comment=payload.commentaires_compta,
+        validated_by=current_user.id,
     )
     out = expense_crud.get_expense_dict(db, expense.id)
     if out and out.get("user_email"):
