@@ -1,99 +1,45 @@
-# 🚀 Gestion Le Kouttâb
+# Kouttâb Stock
 
-Application de gestion de stock complète pour Le Kouttâb avec authentification sécurisée, gestion des rôles et interface moderne.
+Application de gestion des stocks, notes de frais et factures de l'institut
+associatif **Le Kouttâb**.
 
-## ✨ Fonctionnalités
+L'application vit dans **[`Gestion_stock_kouttab_react/`](./Gestion_stock_kouttab_react/)** :
 
-- 📦 **Gestion de stock** complète avec catégories et sous-catégories
-- 👥 **Gestion des utilisateurs** avec rôles et permissions
-- 🔐 **Sécurité renforcée** avec mots de passe hashés et timeout de session
-- 📊 **Tableau de bord** avec statistiques en temps réel
-- 💰 **Gestion des dépenses** et notes de frais
-- 🧾 **Dépôt de factures** avec upload sécurisé
-- 📤 **Export/Import** de la base de données
-- 🔔 **Notifications** temps réel pour les administrateurs
+- **Frontend** : React 18 + TypeScript (Vite), Tailwind CSS, TanStack Query, Zustand
+- **Backend** : FastAPI, SQLAlchemy 2, MySQL (PyMySQL), JWT
+- **Hébergement** : O2Switch (cPanel + Passenger) — `stock.lekouttab.fr`
 
-## 🚀 Installation Rapide
-
-### Prérequis
-- Python 3.8+
-- pip
-
-### Installation
-```bash
-# 1. Cloner le projet
-git clone <repository-url>
-cd gestion-stock-kouttab
-
-# 2. Installer les dépendances
-pip install -r requirements.txt
-
-# 3. Créer les dossiers
-mkdir -p data uploads logs
-
-# 4. Configurer les secrets
-cp .streamlit/secrets.toml.example .streamlit/secrets.toml
-# Éditer .streamlit/secrets.toml avec vos informations
-
-# 5. Démarrer
-streamlit run app.py
-```
-
-### Premier démarrage
-1. Allez sur `http://localhost:8501?init_admin=true`
-2. Créez le premier compte Super Admin
-3. Commencez à utiliser l'application !
-
-## 📋 Documentation
-
-- 📖 **[Installation rapide](README_INSTALL.md)** - Guide d'installation détaillé
-- 🔐 **[Sécurité & Déploiement](README_SECURITY.md)** - Guide de déploiement sécurisé
-
-## 🏗️ Architecture
-
-```
-├── app.py                 # Application principale
-├── database.py            # Gestion base de données
-├── ui_*.py               # Interfaces utilisateur
-├── security*.py          # Sécurité et authentification
-├── .streamlit/           # Configuration Streamlit
-├── data/                 # Base de données SQLite
-├── uploads/              # Fichiers uploadés
-└── logs/                 # Logs de sécurité
-```
-
-## 🔐 Sécurité
-
-- ✅ Mots de passe hashés avec bcrypt
-- ✅ Protection contre les attaques par force brute
-- ✅ Session avec timeout automatique
-- ✅ Validation des entrées utilisateur
-- ✅ Protection des fichiers sensibles (.htaccess)
-- ✅ Logs de sécurité complets
-
-## 👥 Rôles
-
-- **Bénévole** : Gestion du stock de base
-- **Admin Bénévoles** : Gestion des utilisateurs et stock
-- **Compta** : Gestion des dépenses et factures
-- **Super Admin** : Accès complet à toutes les fonctionnalités
-
-## 🛠️ Technologies
-
-- **Backend** : Python 3.8+, SQLite3
-- **Frontend** : Streamlit
-- **Sécurité** : bcrypt, validation personnalisée
-- **Email** : SMTP intégré
-
-## 📞 Support
-
-Pour toute question ou problème :
-1. Consultez la documentation
-2. Vérifiez les logs dans `logs/`
-3. Contactez l'équipe technique
+Voir [`Gestion_stock_kouttab_react/README.md`](./Gestion_stock_kouttab_react/README.md)
+pour le démarrage rapide, et [`CLAUDE.md`](./Gestion_stock_kouttab_react/CLAUDE.md)
+pour la documentation technique complète.
 
 ---
 
-**Version** : 1.0.0  
-**Développé pour** : Le Kouttâb  
-**Licence** : Propriétaire
+## Fichiers conservés à la racine
+
+| Fichier | Rôle |
+|---|---|
+| `create_mysql_structure.sql` | Schéma MySQL de référence de la base de production |
+| `.htaccess` | Configuration Apache **actuellement en production** : redirection vers Streamlit Cloud. À remplacer par `Gestion_stock_kouttab_react/.htaccess` lors de la bascule. |
+
+## Version historique (Streamlit)
+
+Une première version de l'application, écrite en **Streamlit/Python**, occupait
+la racine de ce dépôt. Elle a été remplacée par la version React/FastAPI puis
+retirée de l'arborescence.
+
+Elle reste consultable :
+
+```bash
+git checkout legacy-streamlit     # tag d'archive
+git checkout archive/streamlit    # branche d'archive
+```
+
+Aucune fonctionnalité n'a été perdue : la couverture a été vérifiée fonction par
+fonction avant retrait (stock, notes de frais, factures, administration,
+export/import de la base, envois d'e-mails).
+
+> ⚠️ Les commits antérieurs à ce retrait contiennent des identifiants de
+> production (mot de passe SMTP, `SECRET_KEY`, mot de passe d'application Gmail).
+> Ces secrets sont à considérer comme compromis et doivent être révoqués :
+> retirer les fichiers du suivi ne les efface pas de l'historique.
