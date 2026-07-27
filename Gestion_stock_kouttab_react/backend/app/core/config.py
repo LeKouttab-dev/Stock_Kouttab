@@ -45,6 +45,9 @@ class Settings(BaseSettings):
     smtp_use_ssl: bool = Field(default=False, alias="SMTP_USE_SSL")
     email_from: str = Field(default="no-reply@lekouttab.fr", alias="EMAIL_FROM")
     email_from_name: str = Field(default="Le Kouttab Stock", alias="EMAIL_FROM_NAME")
+    # Destinataires des pieces comptables (factures, tickets), separes par des
+    # virgules. Vide = les envois restent en file d'attente sans etre perdus.
+    compta_email_raw: str = Field(default="", alias="COMPTA_EMAIL")
 
     # URLs
     frontend_url: str = Field(default="http://localhost:5173", alias="FRONTEND_URL")
@@ -124,6 +127,10 @@ class Settings(BaseSettings):
     @property
     def cors_origins(self) -> List[str]:
         return [origin.strip() for origin in self.cors_origins_raw.split(",") if origin.strip()]
+
+    @property
+    def compta_emails(self) -> List[str]:
+        return [e.strip() for e in self.compta_email_raw.split(",") if e.strip()]
 
     @property
     def database_url(self) -> str:

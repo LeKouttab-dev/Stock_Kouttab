@@ -15,10 +15,48 @@ from app.crud.user import get_emails_by_roles
 logger = get_logger("email")
 
 
+# Ports SMTP a semantique fixe : 465 = TLS implicite (la connexion est chiffree
+# des l'ouverture), 587 et 25 = connexion en clair puis STARTTLS.
+_IMPLICIT_TLS_PORTS = {465}
+_STARTTLS_PORTS = {587, 25}
+
+
+def _resolve_tls_mode() -> tuple[bool, bool]:
+    """Retourne ``(starttls, ssl_implicite)`` en faisant primer le port.
+
+    La configuration livree combinait ``SMTP_PORT=465`` avec
+    ``SMTP_USE_TLS=true`` et ``SMTP_USE_SSL=false``, soit un STARTTLS sur un port
+    a TLS implicite. La connexion echouait, et comme ``_send`` avale les
+    exceptions, plus aucun email ne partait sans que rien ne le signale.
+
+    Le port etant sans ambiguite, on s'aligne dessus et on trace l'ecart.
+    """
+    starttls = settings.smtp_use_tls and not settings.smtp_use_ssl
+    ssl_implicit = settings.smtp_use_ssl
+
+    if settings.smtp_port in _IMPLICIT_TLS_PORTS and not ssl_implicit:
+        logger.warning(
+            "SMTP_PORT=%d impose un TLS implicite : SMTP_USE_SSL force a true "
+            "(corriger le .env : SMTP_USE_SSL=true, SMTP_USE_TLS=false).",
+            settings.smtp_port,
+        )
+        starttls, ssl_implicit = False, True
+    elif settings.smtp_port in _STARTTLS_PORTS and ssl_implicit:
+        logger.warning(
+            "SMTP_PORT=%d attend STARTTLS : SMTP_USE_SSL force a false "
+            "(corriger le .env : SMTP_USE_SSL=false, SMTP_USE_TLS=true).",
+            settings.smtp_port,
+        )
+        starttls, ssl_implicit = True, False
+
+    return starttls, ssl_implicit
+
+
 def _build_config() -> ConnectionConfig | None:
     if not settings.smtp_host or not settings.smtp_user:
         logger.warning("SMTP not configured — emails will be skipped.")
         return None
+    starttls, ssl_implicit = _resolve_tls_mode()
     return ConnectionConfig(
         MAIL_USERNAME=settings.smtp_user,
         MAIL_PASSWORD=settings.smtp_password,
@@ -26,8 +64,8 @@ def _build_config() -> ConnectionConfig | None:
         MAIL_FROM_NAME=settings.email_from_name,
         MAIL_PORT=settings.smtp_port,
         MAIL_SERVER=settings.smtp_host,
-        MAIL_STARTTLS=settings.smtp_use_tls and not settings.smtp_use_ssl,
-        MAIL_SSL_TLS=settings.smtp_use_ssl,
+        MAIL_STARTTLS=starttls,
+        MAIL_SSL_TLS=ssl_implicit,
         USE_CREDENTIALS=True,
         VALIDATE_CERTS=True,
     )
