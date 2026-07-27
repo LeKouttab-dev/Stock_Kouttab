@@ -151,7 +151,22 @@ export const fr = {
   },
   invoices: {
     title: 'Dépôt de Factures',
+    subtitle: 'Déposez vos factures pour traitement par la comptabilité.',
     depositTab: 'Déposer des factures',
+    pole: 'Pôle de rattachement',
+    polePlaceholder: 'Sélectionnez un pôle',
+    evenement: 'Événement',
+    dateEvenement: "Date de l'événement",
+    fournisseur: 'Fournisseur (facultatif)',
+    montant: 'Montant TTC (facultatif)',
+    uploadHelper: 'PDF, PNG, JPG. 10 Mo max par fichier.',
+    apercuNomFichier:
+      'Nom du/des fichier(s) qui sera envoyé au service comptabilité :',
+    mailComptaEnvoye: 'Envoyé à la comptabilité',
+    mailComptaAttente: "En attente d'envoi",
+    mailComptaEchec: "Échec de l'envoi",
+    renvoyerMail: 'Renvoyer au comptable',
+    renvoiSucces: 'Envoi au service comptable relancé.',
     viewTab: 'Visionner les factures',
     important: 'Important',
     importantText:
@@ -176,6 +191,44 @@ export const fr = {
     dateDepot: 'Date de dépôt',
     nombreFichiers: 'Nombre de fichiers',
   },
+  poles: {
+    title: 'Pôles de rattachement',
+    subtitle:
+      'Référentiel utilisé pour nommer les pièces envoyées à la comptabilité.',
+    nom: 'Nom du pôle',
+    ajouter: 'Ajouter un pôle',
+    ajoutSucces: 'Pôle ajouté.',
+    renommer: 'Renommer',
+    activer: 'Activer',
+    desactiver: 'Désactiver',
+    supprimer: 'Supprimer',
+    inactif: 'Inactif',
+    parDefaut: 'Par défaut',
+    aucun: 'Aucun pôle défini.',
+    confirmSuppression: 'Supprimer définitivement ce pôle ?',
+  },
+
+  events: {
+    title: 'Événements',
+    subtitle:
+      'Liste proposée au dépôt des factures et notes de frais. Synchronisable depuis HelloAsso.',
+    selectPlaceholder: 'Sélectionnez un événement',
+    notListed: "Mon événement n'est pas dans la liste",
+    freeTextPlaceholder: "Saisissez le nom de l'événement",
+    selected: 'Événement sélectionné',
+    unavailable:
+      'La liste des événements est momentanément indisponible. Saisissez le nom manuellement.',
+    synchroniser: 'Synchroniser depuis HelloAsso',
+    syncSucces: 'Événements synchronisés.',
+    ajouter: 'Ajouter un événement',
+    nom: "Nom de l'événement",
+    date: 'Date',
+    source: 'Source',
+    manuel: 'Manuel',
+    helloasso: 'HelloAsso',
+    aucun: 'Aucun événement enregistré.',
+  },
+
   admin: {
     title: "Panneau d'Administration",
     validationComptes: 'Validation des nouveaux comptes',

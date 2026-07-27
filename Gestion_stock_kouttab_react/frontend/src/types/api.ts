@@ -211,6 +211,75 @@ export interface Invoice {
   files: InvoiceFile[];
   nom?: string;
   prenom?: string;
+  /* Rattachement comptable — absent sur les factures antérieures au module. */
+  id_pole?: number | null;
+  pole?: string | null;
+  id_event?: number | null;
+  evenement?: string | null;
+  date_evenement?: string | null;
+  fournisseur?: string | null;
+  montant?: string | number | null;
+  validated_by?: number | null;
+  validated_at?: string | null;
+}
+
+/* Référentiels comptables */
+export interface Pole {
+  id: number;
+  nom: string;
+  is_default: boolean;
+  is_active: boolean;
+  ordre: number;
+  created_at?: string | null;
+}
+
+/**
+ * Événement de l'association.
+ *
+ * ⚠️ Ne PAS nommer ce type `Event` : il entrerait en collision avec le type DOM
+ * global du même nom, ce qui produit des erreurs de typage trompeuses.
+ */
+export interface AppEvent {
+  id: number;
+  nom: string;
+  date_evenement?: string | null;
+  date_fin?: string | null;
+  url?: string | null;
+  source: 'helloasso' | 'manuel';
+  is_active: boolean;
+  helloasso_state?: string | null;
+  last_synced_at?: string | null;
+}
+
+export interface EventSyncResult {
+  created: number;
+  updated: number;
+  skipped: number;
+  errors: string[];
+}
+
+export type OutboundEmailStatus =
+  | 'pending'
+  | 'sending'
+  | 'sent'
+  | 'failed'
+  | 'abandoned';
+
+export interface OutboundEmail {
+  id: number;
+  kind: string;
+  entity_type: string;
+  entity_id: number;
+  subject: string;
+  status: OutboundEmailStatus;
+  attempts: number;
+  max_attempts: number;
+  last_error?: string | null;
+  next_retry_at?: string | null;
+  sent_at?: string | null;
+  created_at?: string | null;
+  recipient_list: string[];
+  attachment_names: string[];
 }
 
 /* Invitations */
