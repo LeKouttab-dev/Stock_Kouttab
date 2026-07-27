@@ -78,10 +78,22 @@
 # Bloquer les dossiers sensibles
 RedirectMatch 404 /\.git
 RedirectMatch 404 /node_modules
-RedirectMatch 404 /backend(?!/uploads/)
+
+# `backend/` est intégralement fermé, uploads compris.
+# L'exception `(?!/uploads/)` qui figurait ici exposait les justificatifs en
+# accès HTTP direct : leur seule protection était l'imprévisibilité des noms
+# UUID. Les téléchargements passent tous par un endpoint authentifié qui
+# vérifie l'appartenance de la pièce (GET /api/v1/invoices/{id}/files/{fid}),
+# et les PDF destinés au comptable vivent dans OUTBOX_DIR, également sous
+# backend/.
+RedirectMatch 404 /backend
 
 # Empêcher l'indexation de répertoires
 Options -Indexes
 
-# Limite upload (sera doublée par les contrôles applicatifs côté FastAPI)
-LimitRequestBody 10485760
+# Limite de taille de requête.
+# Doit rester cohérente avec MAX_REQUEST_MB côté FastAPI : Apache rejette en
+# 413 AVANT que l'application ne voie la requête, donc une valeur plus basse
+# ici produit une erreur sans message exploitable. 10 fichiers × 10 Mo étant
+# autorisés par dépôt, la limite applicative est à 50 Mo.
+LimitRequestBody 52428800

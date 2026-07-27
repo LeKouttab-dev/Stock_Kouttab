@@ -68,10 +68,13 @@ Gestion_stock_kouttab_react/
 ├── backend/
 │   ├── app/
 │   │   ├── main.py                  # FastAPI entrypoint
+│   │   ├── api/deps.py              # Dependency injection (get_current_user, require_roles)
 │   │   ├── core/
 │   │   │   ├── config.py            # Pydantic Settings (.env)
 │   │   │   ├── security.py          # JWT, bcrypt, validations
-│   │   │   ├── deps.py              # Dependency injection
+│   │   │   ├── rate_limit.py        # Limiter slowapi partagé
+│   │   │   ├── workflow.py          # Transitions de statut autorisées
+│   │   │   ├── errors.py            # Codes d'erreur
 │   │   │   └── logger.py
 │   │   ├── db/
 │   │   │   ├── session.py           # SQLAlchemy engine + sessionmaker
@@ -102,9 +105,14 @@ Gestion_stock_kouttab_react/
 │   │   │   │   └── invitations.py   # /invitations
 │   │   │   └── deps.py
 │   │   ├── services/
-│   │   │   ├── email.py             # SMTP via fastapi-mail
-│   │   │   ├── files.py             # Upload, validation MIME
-│   │   │   └── invitation.py
+│   │   │   ├── email.py             # SMTP via fastapi-mail (_send / _send_raw)
+│   │   │   ├── files.py             # Upload, validation MIME, confinement
+│   │   │   ├── naming.py            # Nomenclature des pièces comptables
+│   │   │   ├── pdf.py               # Conversion des justificatifs en PDF
+│   │   │   ├── outbox.py            # File d'envoi persistante
+│   │   │   ├── compta_dispatch.py   # Orchestration nommage + PDF + file
+│   │   │   ├── helloasso.py         # Client API HelloAsso
+│   │   │   └── csv_import.py
 │   │   └── utils/
 │   ├── alembic/                     # Migrations (read-only après init)
 │   ├── tests/                       # pytest
@@ -271,15 +279,49 @@ Préfixe : `/api/v1`. Auth : header `Authorization: Bearer <jwt>` (sauf `/auth/*
 
 ### Invoices (Factures)
 - `GET /invoices/me` — mes factures
-- `POST /invoices` — déposer (multipart)
+- `POST /invoices` — déposer (multipart). Champs obligatoires : `id_pole`,
+  `date_evenement`, et **exactement un** de `id_event` / `evenement_libre`.
+  Optionnels : `fournisseur`, `montant`, `commentaire`.
 - `GET /invoices` — toutes (filtres statut, date, recherche)
-- `PATCH /invoices/{id}/status` — changer (Compta+)
+- `PATCH /invoices/{id}/status` — changer (Compta+), transitions contrôlées
 - `GET /invoices/{id}/files/{file_id}` — download
+- `POST /invoices/{id}/resend-compta-email` — relancer l'envoi (Compta+)
+
+### Circuit comptable
+
+Au dépôt d'une facture ou d'une note de frais accompagnée de justificatifs :
+
+1. Pôle et événement sont résolus **avant** toute écriture — ils composent le
+   nom du fichier, une erreur doit être signalée au déposant.
+2. Chaque justificatif est converti en PDF A4 (`services/pdf.py`) et nommé
+   `{Pôle}_{Événement}_{AAAA-MM-JJ}.pdf` (`services/naming.py`), avec suffixe
+   `-2`, `-3` en cas de collision.
+3. L'envoi est inscrit dans `OutboundEmails` **dans la transaction du dépôt**,
+   puis tenté immédiatement en tâche de fond.
+4. En cas d'échec : backoff 5/10/20/40/80 min, puis `abandoned`. Le cron
+   `scripts/process_outbound_emails.py` reprend la file toutes les 10 minutes.
+
+Les PDF prêts à l'envoi vont dans `OUTBOX_DIR`, **hors** de `uploads/`, car
+leurs noms sont prévisibles.
+
+`frontend/src/lib/naming.ts` duplique `services/naming.py` pour afficher au
+déposant le nom exact qui sera envoyé. **Les deux modules partagent la même
+table de cas de test** : toute divergence casse un test.
+
+### Pôles & Événements (référentiels comptables)
+- `GET /poles` — liste (tout authentifié) ; `?include_inactive=true`
+- `POST|PATCH|DELETE /poles[/{id}]` — Super Admin. Un pôle `is_default` ou
+  référencé par une facture n'est pas supprimable, seulement désactivable.
+- `GET /events` — liste (tout authentifié), servie depuis le cache local
+- `POST /events/sync` — synchronisation HelloAsso (AdminBenevoles+)
+- `POST|PATCH|DELETE /events[/{id}]` — AdminBenevoles+
 
 ### Admin
 - `GET /admin/database/status` — diagnostic
 - `POST /admin/database/export` — export ZIP
 - `POST /admin/database/import` — import CSVs (Super Admin)
+- `GET /admin/outbound-emails` — file des envois comptables (Compta+)
+- `POST /admin/outbound-emails/{id}/retry` — relancer un envoi (Compta+)
 
 ### Buvette (HelloAsso)
 - `GET /buvette/products` — liste produits buvette + stock (auth)
