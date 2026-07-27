@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
@@ -37,6 +38,17 @@ class InvoiceOut(BaseModel):
     date_depot: date
     status: INVOICE_STATUS
     created_at: datetime
+    # Rattachement comptable. Nullable : les factures anterieures a la mise en
+    # place du module ne portent pas ces informations.
+    id_pole: int | None = None
+    pole: str | None = None
+    id_event: int | None = None
+    evenement: str | None = None
+    date_evenement: date | None = None
+    fournisseur: str | None = None
+    montant: Decimal | None = None
+    validated_by: int | None = None
+    validated_at: datetime | None = None
     user_full_name: str | None = None
     user_email: str | None = None
     files: list[InvoiceFileOut] = []

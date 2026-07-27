@@ -28,11 +28,18 @@ bcrypt.gensalt = _fast_gensalt  # type: ignore[assignment]
 from app.core.config import settings  # noqa: E402
 from app.core.rate_limit import limiter  # noqa: E402
 from app.core.security import create_access_token  # noqa: E402
+from app.crud import pole as pole_crud  # noqa: E402
 from app.crud import user as user_crud  # noqa: E402
 from app.db.base import Base  # noqa: E402
 from app.db.models import LoginAttempt, RefreshToken  # noqa: E402
 from app.db.session import get_db  # noqa: E402
 from app.main import app  # noqa: E402
+
+from app.api.v1.endpoints import buvette as buvette_endpoint  # noqa: E402
+from app.api.v1.endpoints import expenses as expenses_endpoint  # noqa: E402
+from app.api.v1.endpoints import invoices as invoices_endpoint  # noqa: E402
+from app.db import session as db_session_module  # noqa: E402
+from app.services import outbox as outbox_service  # noqa: E402
 
 
 _engine = create_engine(
@@ -44,6 +51,15 @@ _TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_eng
 
 # Create tables once.
 Base.metadata.create_all(bind=_engine)
+
+# Le referentiel des poles est seede par la migration Alembic en production et
+# par le lifespan au demarrage — mais ce dernier ouvre une SessionLocal pointant
+# sur MySQL, pas sur la base de test. On amorce donc explicitement ici.
+_bootstrap = sessionmaker(bind=_engine)()
+try:
+    pole_crud.ensure_default_poles(_bootstrap)
+finally:
+    _bootstrap.close()
 
 
 def _override_get_db() -> Generator[Session, None, None]:
@@ -57,9 +73,40 @@ def _override_get_db() -> Generator[Session, None, None]:
 app.dependency_overrides[get_db] = _override_get_db
 
 
+# `dependency_overrides` ne couvre que l'injection FastAPI. Les traitements
+# differes (BackgroundTasks, cron de la file d'envoi) ouvrent leur propre
+# `SessionLocal` parce que la session de la requete est deja fermee quand ils
+# s'executent — ils viseraient donc la base reelle. On redirige toutes les
+# references deja importees vers la base de test.
+for _module in (
+    db_session_module,
+    outbox_service,
+    invoices_endpoint,
+    expenses_endpoint,
+    buvette_endpoint,
+):
+    _module.SessionLocal = _TestingSessionLocal  # type: ignore[attr-defined]
+
+
 # ---------------------------------------------------------------------------
 # Core fixtures
 # ---------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def first_pole():
+    """Pole « Pôle événementiel » du referentiel de base.
+
+    Cible explicitement un pole ``is_default`` : les tests peuvent en creer
+    d'autres, et un tri par ordre ferait remonter un pole ad hoc en tete.
+    """
+    db = _TestingSessionLocal()
+    try:
+        poles = [p for p in pole_crud.list_poles(db) if p.is_default]
+        assert poles, "le referentiel de poles par defaut n'a pas ete amorce"
+        return poles[0]
+    finally:
+        db.close()
 
 
 @pytest.fixture()

@@ -11,9 +11,16 @@ from fastapi.testclient import TestClient
 pytestmark = pytest.mark.integration
 
 
-def _upload_invoice(client, user, headers_factory) -> int:
+def _upload_invoice(client, user, headers_factory, pole=None, **overrides) -> int:
     files = {"files": ("facture.pdf", io.BytesIO(b"%PDF-1.4 fake"), "application/pdf")}
-    data = {"commentaire": "Une facture", "date_depot": "2024-04-15"}
+    data = {
+        "commentaire": "Une facture",
+        "date_depot": "2024-04-15",
+        "id_pole": str(pole.id) if pole is not None else "1",
+        "evenement_libre": "Gala de printemps",
+        "date_evenement": "2024-04-10",
+    }
+    data.update(overrides)
     resp = client.post(
         "/api/v1/invoices", data=data, files=files, headers=headers_factory(user)
     )

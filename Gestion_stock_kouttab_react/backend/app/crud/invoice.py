@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import or_, select
@@ -14,7 +15,12 @@ from app.core.workflow import check_invoice_transition
 from app.db.models import Invoice, InvoiceFile
 
 
-def _serialize(invoice: Invoice) -> dict[str, Any]:
+def serialize_invoice(invoice: Invoice) -> dict[str, Any]:
+    """Representation d'une facture pour l'API.
+
+    Point unique de verite : l'endpoint avait sa propre copie de cette fonction,
+    ce qui garantissait qu'un champ ajoute ici manquerait la.
+    """
     user = invoice.user
     return {
         "id": invoice.id,
@@ -23,6 +29,15 @@ def _serialize(invoice: Invoice) -> dict[str, Any]:
         "date_depot": invoice.date_depot,
         "status": invoice.status,
         "created_at": invoice.created_at,
+        "id_pole": invoice.id_pole,
+        "pole": invoice.pole,
+        "id_event": invoice.id_event,
+        "evenement": invoice.evenement,
+        "date_evenement": invoice.date_evenement,
+        "fournisseur": invoice.fournisseur,
+        "montant": invoice.montant,
+        "validated_by": invoice.validated_by,
+        "validated_at": invoice.validated_at,
         "user_full_name": user.full_name if user else None,
         "user_email": user.email if user else None,
         "files": [
@@ -45,7 +60,7 @@ def list_invoices_for_user(db: Session, user_id: int) -> list[dict[str, Any]]:
         .where(Invoice.id_user == user_id)
         .order_by(Invoice.date_depot.desc())
     )
-    return [_serialize(e) for e in db.execute(stmt).scalars().all()]
+    return [serialize_invoice(e) for e in db.execute(stmt).scalars().all()]
 
 
 def list_invoices(
@@ -75,7 +90,7 @@ def list_invoices(
             if any(search_lower in (f.nom_fichier or "").lower() for f in inv.files)
             or search_lower in (inv.commentaire or "").lower()
         ]
-    return [_serialize(inv) for inv in invoices]
+    return [serialize_invoice(inv) for inv in invoices]
 
 
 def get_invoice(db: Session, invoice_id: int) -> Invoice | None:
@@ -93,12 +108,26 @@ def create_invoice(
     user_id: int,
     commentaire: str | None,
     date_depot: date | None,
+    id_pole: int | None = None,
+    pole: str | None = None,
+    id_event: int | None = None,
+    evenement: str | None = None,
+    date_evenement: date | None = None,
+    fournisseur: str | None = None,
+    montant: Decimal | None = None,
 ) -> Invoice:
     invoice = Invoice(
         id_user=user_id,
         commentaire=commentaire,
         date_depot=date_depot or datetime.now(timezone.utc).date(),
         status="En attente",
+        id_pole=id_pole,
+        pole=pole,
+        id_event=id_event,
+        evenement=evenement,
+        date_evenement=date_evenement,
+        fournisseur=(fournisseur or None),
+        montant=montant,
     )
     db.add(invoice)
     db.commit()

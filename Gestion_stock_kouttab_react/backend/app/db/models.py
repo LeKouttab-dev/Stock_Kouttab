@@ -319,6 +319,8 @@ class Expense(Base):
         Index("idx_nf_user", "id_user"),
         Index("idx_nf_status", "status"),
         Index("idx_nf_date_depense", "date_depense"),
+        Index("idx_nf_pole", "id_pole"),
+        Index("idx_nf_event", "id_event"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -338,6 +340,19 @@ class Expense(Base):
         DECIMAL(10, 2), default=0, nullable=False
     )
     remise: Mapped[Decimal] = mapped_column(DECIMAL(10, 2), default=0)
+
+    # ---- Rattachement comptable -------------------------------------------
+    # Memes champs que Factures, pour que le comptable recoive les tickets de
+    # caisse et les factures sous une nomenclature identique. Identifiant +
+    # libelle en double, meme raisonnement que sur Invoice : le nom du PDF est
+    # fige au depot. `rattachement` est conserve tel quel, il precede ces champs
+    # et reste renseigne sur les notes existantes.
+    id_pole: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    pole: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    id_event: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    evenement: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    date_evenement: Mapped[date | None] = mapped_column(Date, nullable=True)
+
     status: Mapped[str] = mapped_column(String(20), default="En attente")
     commentaires_compta: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Tracabilite comptable — cf. commentaire equivalent sur Invoice.

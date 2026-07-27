@@ -19,6 +19,8 @@ from app.core.errors import ERROR_MESSAGES, ErrorCode
 from app.core.exceptions import register_exception_handlers
 from app.core.logger import get_logger
 from app.core.rate_limit import limiter
+from app.crud import pole as pole_crud
+from app.db.session import SessionLocal
 
 
 logger = get_logger("main")
@@ -27,6 +29,19 @@ logger = get_logger("main")
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     settings.upload_path.mkdir(parents=True, exist_ok=True)
+    settings.outbox_path.mkdir(parents=True, exist_ok=True)
+
+    # Le referentiel des poles est seede par la migration Alembic, mais les
+    # tests et les environnements de developpement montent le schema via
+    # create_all() sans jouer les migrations : ils auraient une table vide.
+    db = SessionLocal()
+    try:
+        pole_crud.ensure_default_poles(db)
+    except Exception as exc:  # noqa: BLE001 — ne jamais empecher le demarrage
+        logger.warning("Initialisation des poles par defaut ignoree : %s", exc)
+    finally:
+        db.close()
+
     logger.info("Kouttab Stock API demarre (env=%s)", settings.app_env)
     yield
     logger.info("Kouttab Stock API arrete.")

@@ -133,8 +133,26 @@ def upgrade() -> None:
     op.create_index("idx_facture_event", "Factures", ["id_event"])
     op.create_index("idx_facture_date_evenement", "Factures", ["date_evenement"])
 
+    # ---- Memes metadonnees sur NotesDeFrais ---------------------------------
+    # Pour que tickets de caisse et factures arrivent chez le comptable sous une
+    # nomenclature identique. `rattachement` est conserve tel quel.
+    op.add_column("NotesDeFrais", sa.Column("id_pole", sa.Integer(), nullable=True))
+    op.add_column("NotesDeFrais", sa.Column("pole", sa.String(length=120), nullable=True))
+    op.add_column("NotesDeFrais", sa.Column("id_event", sa.Integer(), nullable=True))
+    op.add_column(
+        "NotesDeFrais", sa.Column("evenement", sa.String(length=255), nullable=True)
+    )
+    op.add_column("NotesDeFrais", sa.Column("date_evenement", sa.Date(), nullable=True))
+    op.create_index("idx_nf_pole", "NotesDeFrais", ["id_pole"])
+    op.create_index("idx_nf_event", "NotesDeFrais", ["id_event"])
+
 
 def downgrade() -> None:
+    op.drop_index("idx_nf_event", table_name="NotesDeFrais")
+    op.drop_index("idx_nf_pole", table_name="NotesDeFrais")
+    for column in ("date_evenement", "evenement", "id_event", "pole", "id_pole"):
+        op.drop_column("NotesDeFrais", column)
+
     op.drop_index("idx_facture_date_evenement", table_name="Factures")
     op.drop_index("idx_facture_event", table_name="Factures")
     op.drop_index("idx_facture_pole", table_name="Factures")

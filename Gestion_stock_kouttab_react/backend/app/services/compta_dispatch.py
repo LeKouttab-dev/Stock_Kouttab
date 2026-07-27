@@ -153,10 +153,14 @@ def prepare_expense_dispatch(
     db: Session, expense: Expense, *, triggered_by: int | None = None
 ) -> list[OutboundEmail]:
     depositor = expense.user.full_name if expense.user else "-"
+    # Meme nomenclature que les factures : {Pole}_{Evenement}_{Date}.pdf.
+    # La date de l'evenement fait foi ; a defaut (note sans evenement rattache),
+    # on retombe sur la date de la depense pour ne jamais produire un « NC ».
+    date_value = expense.date_evenement or expense.date_depense
     attachments = _prepare_attachments(
         files=list(expense.files),
-        components=["NDF", expense.rattachement],
-        date_value=expense.date_depense,
+        components=[expense.pole, expense.evenement or expense.rattachement],
+        date_value=date_value,
         entity_type="expense",
         entity_id=expense.id,
     )
@@ -166,14 +170,17 @@ def prepare_expense_dispatch(
     for index, batch in enumerate(batches, start=1):
         suffix = f" ({index}/{len(batches)})" if len(batches) > 1 else ""
         subject = (
-            f"[Note de frais] {expense.rattachement or 'NC'} — "
-            f"{_format_date(expense.date_depense)}{suffix}"
+            f"[Note de frais] {expense.pole or 'NC'} — "
+            f"{expense.evenement or expense.rattachement or 'NC'} — "
+            f"{_format_date(date_value)}{suffix}"
         )
         body = (
             "Bonjour,\n\n"
             "Une nouvelle note de frais a ete deposee dans l'application.\n\n"
+            f"Pole          : {expense.pole or '-'}\n"
+            f"Evenement     : {expense.evenement or '-'}\n"
             f"Rattachement  : {expense.rattachement or '-'}\n"
-            f"Date          : {_format_date(expense.date_depense)}\n"
+            f"Date          : {_format_date(date_value)}\n"
             f"Fournisseur   : {expense.fournisseur or '-'}\n"
             f"Nature        : {expense.nature_charge or '-'}\n"
             f"Montant       : {_format_amount(expense.montant)}\n"

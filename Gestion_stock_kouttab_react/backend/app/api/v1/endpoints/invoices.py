@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date as date_type
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from fastapi import (
@@ -20,11 +21,14 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, require_roles
 from app.core.errors import ErrorCode
 from app.core.exceptions import AppException
+from app.crud import event as event_crud
 from app.crud import invoice as invoice_crud
+from app.crud import pole as pole_crud
 from app.db.models import Admin
 from app.db.session import SessionLocal, get_db
 from app.schemas.auth import MessageOut
 from app.schemas.invoice import InvoiceOut, InvoiceStatusUpdate
+from app.services import compta_dispatch, outbox
 from app.services import email as email_service
 from app.services.files import delete_file, get_file_path, save_upload_file
 
@@ -42,6 +46,27 @@ def _parse_optional_date(value: str | None) -> date_type | None:
     except ValueError as exc:
         raise AppException(
             ErrorCode.INVALID_DATE, detail="Date invalide (format YYYY-MM-DD)."
+        ) from exc
+
+
+def _parse_required_date(value: str) -> date_type:
+    parsed = _parse_optional_date(value)
+    if parsed is None:
+        raise AppException(
+            ErrorCode.REQUIRED_FIELD_MISSING,
+            detail="La date de l'evenement est obligatoire.",
+        )
+    return parsed
+
+
+def _parse_optional_decimal(value: str | None) -> Decimal | None:
+    if value is None or str(value).strip() == "":
+        return None
+    try:
+        return Decimal(str(value).replace(",", "."))
+    except (InvalidOperation, ValueError) as exc:
+        raise AppException(
+            ErrorCode.INVALID_AMOUNT, detail="Montant invalide."
         ) from exc
 
 
@@ -79,6 +104,12 @@ def list_invoices(
 @router.post("", response_model=InvoiceOut, status_code=201)
 async def create_invoice(
     background: BackgroundTasks,
+    id_pole: int = Form(...),
+    date_evenement: str = Form(...),
+    id_event: int | None = Form(default=None),
+    evenement_libre: str | None = Form(default=None),
+    fournisseur: str | None = Form(default=None),
+    montant: str | None = Form(default=None),
     commentaire: str | None = Form(default=None),
     date_depot: str | None = Form(default=None),
     files: list[UploadFile] = File(...),
@@ -94,11 +125,27 @@ async def create_invoice(
             ErrorCode.TOO_MANY_FILES, detail="Maximum 10 fichiers par depot."
         )
 
+    # Le pole et l'evenement sont resolus AVANT toute ecriture : ils composent le
+    # nom du fichier envoye au comptable, une erreur ici doit etre signalee au
+    # deposant plutot que produire une piece mal nommee.
+    pole = pole_crud.get_pole_or_404(db, id_pole)
+    event_id, event_label = event_crud.resolve_event(
+        db, event_id=id_event, evenement_libre=evenement_libre
+    )
+    date_event = _parse_required_date(date_evenement)
+
     invoice = invoice_crud.create_invoice(
         db,
         user_id=current_user.id,
         commentaire=commentaire,
         date_depot=_parse_optional_date(date_depot),
+        id_pole=pole.id,
+        pole=pole.nom,
+        id_event=event_id,
+        evenement=event_label,
+        date_evenement=date_event,
+        fournisseur=fournisseur,
+        montant=_parse_optional_decimal(montant),
     )
 
     for upload in files:
@@ -114,12 +161,44 @@ async def create_invoice(
             type_fichier=str(meta["mime"]),
         )
 
-    background.add_task(_notify_new_invoice_safe, current_user.full_name, commentaire)
-
     inv = invoice_crud.get_invoice(db, invoice.id)
     if inv is None:
         raise AppException(ErrorCode.INVOICE_NOT_FOUND)
+
+    # Conversion PDF et mise en file : synchrone et dans la transaction. Si la
+    # conversion echoue, le deposant le voit immediatement au lieu de croire sa
+    # piece partie. Seul l'envoi SMTP part en tache de fond.
+    outbound = compta_dispatch.prepare_invoice_dispatch(
+        db, inv, triggered_by=current_user.id
+    )
+    background.add_task(_notify_new_invoice_safe, current_user.full_name, commentaire)
+    for row in outbound:
+        background.add_task(outbox.try_send_now, row.id)
+
     return InvoiceOut(**_serialize_invoice(inv))
+
+
+@router.post(
+    "/{invoice_id}/resend-compta-email",
+    response_model=MessageOut,
+    dependencies=[Depends(require_roles(*_ACCOUNTANT_ROLES))],
+)
+def resend_compta_email(
+    invoice_id: int,
+    background: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: Admin = Depends(get_current_user),
+) -> Any:
+    """Relance l'envoi au comptable (nouvelle ligne, l'historique est conserve)."""
+    invoice = invoice_crud.get_invoice(db, invoice_id)
+    if invoice is None:
+        raise AppException(ErrorCode.INVOICE_NOT_FOUND)
+    rows = compta_dispatch.prepare_invoice_dispatch(
+        db, invoice, triggered_by=current_user.id
+    )
+    for row in rows:
+        background.add_task(outbox.try_send_now, row.id)
+    return MessageOut(message="Envoi au service comptable relance.")
 
 
 # ---- Update status ---------------------------------------------------------
@@ -209,27 +288,9 @@ def delete_invoice(
 
 
 def _serialize_invoice(invoice) -> dict[str, Any]:
-    user = invoice.user
-    return {
-        "id": invoice.id,
-        "id_user": invoice.id_user,
-        "commentaire": invoice.commentaire,
-        "date_depot": invoice.date_depot,
-        "status": invoice.status,
-        "created_at": invoice.created_at,
-        "user_full_name": user.full_name if user else None,
-        "user_email": user.email if user else None,
-        "files": [
-            {
-                "id": f.id,
-                "nom_fichier": f.nom_fichier,
-                "taille_fichier": f.taille_fichier,
-                "type_fichier": f.type_fichier,
-                "date_upload": f.date_upload,
-            }
-            for f in invoice.files
-        ],
-    }
+    # Delegue au CRUD : ce module en avait une copie, qui divergeait des que le
+    # modele gagnait un champ.
+    return invoice_crud.serialize_invoice(invoice)
 
 
 async def _notify_new_invoice_safe(user_full_name: str, comment: str | None) -> None:

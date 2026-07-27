@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import threading
 import time
+from collections.abc import Sequence
 from typing import Any
 
 import httpx
@@ -158,6 +159,7 @@ class HelloAssoClient:
         *,
         with_auth: bool = True,
         json: dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
         retry_on_401: bool = True,
     ) -> httpx.Response:
         url = self._full_url(path)
@@ -168,6 +170,7 @@ class HelloAssoClient:
                     url,
                     headers=self._headers(with_auth=with_auth),
                     json=json,
+                    params=params,
                 )
         except httpx.HTTPError as exc:
             logger.exception("HelloAsso %s %s failed: %s", method, path, exc)
@@ -180,7 +183,12 @@ class HelloAssoClient:
             logger.info("HelloAsso responded 401 on %s %s — invalidating token and retrying.", method, path)
             self.invalidate_token()
             return self._request(
-                method, path, with_auth=with_auth, json=json, retry_on_401=False
+                method,
+                path,
+                with_auth=with_auth,
+                json=json,
+                params=params,
+                retry_on_401=False,
             )
         return response
 
@@ -327,6 +335,103 @@ class HelloAssoClient:
             len(tiers),
         )
         return tiers
+
+    # ---------------------------------------------------------------- forms
+
+    def list_organization_forms(
+        self,
+        org_slug: str,
+        *,
+        form_types: Sequence[str] = ("Event",),
+        states: Sequence[str] = ("Public",),
+        page_size: int = 100,
+        max_pages: int = 10,
+    ) -> list[dict[str, Any]]:
+        """Liste les formulaires d'une organisation (evenements par defaut).
+
+        Sert a proposer au deposant une liste d'evenements fidele aux noms
+        publies sur HelloAsso, plutot qu'une saisie libre approximative.
+
+        Privilege OAuth requis : ``AccessPublicData``. Un 403 signifie que le
+        client OAuth n'a pas ce privilege — meme diagnostic que pour la boutique.
+
+        La pagination est bornee par ``max_pages`` : une organisation ne devrait
+        pas avoir mille formulaires, et une reponse inattendue ne doit pas faire
+        boucler le serveur.
+        """
+        path = f"/v5/organizations/{org_slug}/forms"
+        collected: list[dict[str, Any]] = []
+
+        for page_index in range(1, max_pages + 1):
+            params: dict[str, Any] = {
+                "pageIndex": page_index,
+                "pageSize": page_size,
+            }
+            if form_types:
+                params["formTypes"] = list(form_types)
+            if states:
+                params["states"] = list(states)
+
+            response = self._request("GET", path, params=params)
+            if response.status_code == 403:
+                logger.warning(
+                    "HelloAsso 403 sur %s — privileges OAuth insuffisants.", path
+                )
+                raise AppException(
+                    ErrorCode.HELLOASSO_API_ERROR,
+                    detail=(
+                        "HelloAsso a refuse l'acces (403). Activez le privilege "
+                        "'AccessPublicData' sur votre client OAuth "
+                        "(admin HelloAsso > Mon compte > API)."
+                    ),
+                    extras={"upstream_status": 403, "org": org_slug},
+                )
+            if response.status_code >= 400:
+                logger.warning(
+                    "HelloAsso GET %s failed (status=%s body=%s)",
+                    path,
+                    response.status_code,
+                    response.text[:300],
+                )
+                raise AppException(
+                    ErrorCode.HELLOASSO_API_ERROR,
+                    detail=(
+                        f"HelloAsso a renvoye {response.status_code} lors de la "
+                        "recuperation des evenements."
+                    ),
+                    extras={"upstream_status": response.status_code},
+                )
+
+            try:
+                payload = response.json()
+            except ValueError as exc:
+                raise AppException(
+                    ErrorCode.HELLOASSO_API_ERROR,
+                    detail="Reponse HelloAsso invalide (formulaires non JSON).",
+                ) from exc
+
+            data = payload.get("data") or []
+            if page_index == 1:
+                # Le schema de reponse n'est pas documente : on trace le premier
+                # element brut pour pouvoir ajuster le mapping sans deviner.
+                logger.info(
+                    "HelloAsso forms — premier element brut : %s",
+                    str(data[0])[:500] if data else "(aucun)",
+                )
+            collected.extend(data)
+
+            pagination = payload.get("pagination") or {}
+            total_pages = pagination.get("totalPages")
+            if not data or not total_pages or page_index >= int(total_pages):
+                break
+
+        logger.info(
+            "HelloAsso forms recuperes : org=%s types=%s count=%d",
+            org_slug,
+            list(form_types),
+            len(collected),
+        )
+        return collected
 
     # ---------------------------------------------------------------- hooks
 
