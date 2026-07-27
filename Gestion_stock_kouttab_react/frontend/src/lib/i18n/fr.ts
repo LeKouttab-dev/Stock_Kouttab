@@ -33,6 +33,8 @@ export const fr = {
     invalidCredentials: "Nom d'utilisateur ou mot de passe incorrect.",
     requiredField: 'Champ obligatoire',
     role: 'Rôle',
+    roleAssignedByAdmin:
+        "Votre rôle sera attribué par un administrateur lors de la validation de votre compte.",
     nom: 'Nom de famille',
     prenom: 'Prénom',
     email: 'Adresse e-mail',

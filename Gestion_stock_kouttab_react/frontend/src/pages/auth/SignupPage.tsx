@@ -4,23 +4,13 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ErrorAlert } from '@/components/shared/ErrorAlert';
 import { PasswordStrengthMeter } from '@/components/forms/PasswordStrengthMeter';
 import { useSignup } from '@/api/endpoints/auth';
 import { signupSchema, type SignupFormValues } from '@/lib/schemas/auth';
-import { ROLES, ROLE_LABELS, type Role } from '@/lib/constants';
 import { fr } from '@/lib/i18n/fr';
 import { useToast } from '@/hooks/useToast';
-
-const SIGNUP_ROLES: Role[] = ['Benevole', 'AdminBenevoles', 'Compta'];
 
 export function SignupPage() {
   const navigate = useNavigate();
@@ -31,7 +21,6 @@ export function SignupPage() {
     register,
     handleSubmit,
     watch,
-    setValue,
     formState: { errors, isSubmitting },
   } = useForm<SignupFormValues>({
     resolver: zodResolver(signupSchema),
@@ -39,7 +28,6 @@ export function SignupPage() {
       username: '',
       password: '',
       confirmPassword: '',
-      role: 'Benevole',
       nom: '',
       prenom: '',
       email: '',
@@ -48,14 +36,12 @@ export function SignupPage() {
   });
 
   const password = watch('password');
-  const role = watch('role');
 
   const onSubmit = async (values: SignupFormValues) => {
     try {
       await signupMutation.mutateAsync({
         username: values.username,
         password: values.password,
-        role: values.role,
         nom: values.nom,
         prenom: values.prenom,
         email: values.email,
@@ -131,25 +117,13 @@ export function SignupPage() {
               <PasswordStrengthMeter password={password} />
             </div>
 
-            <div className="space-y-1.5">
-              <Label required>{fr.auth.role}</Label>
-              <Select
-                value={role}
-                onValueChange={(v) => setValue('role', v as Role, { shouldValidate: true })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ROLES.filter((r) => SIGNUP_ROLES.includes(r)).map((r) => (
-                    <SelectItem key={r} value={r}>
-                      {ROLE_LABELS[r]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.role && <p className="text-xs text-destructive">{errors.role.message}</p>}
-            </div>
+            {/* Le rôle n'est plus choisi à l'inscription : le serveur crée
+                systématiquement un compte Bénévole, qu'un Super Admin promeut
+                ensuite s'il y a lieu. Laisser le champ donnait l'illusion d'un
+                choix et exposait une escalade de privilèges. */}
+            <p className="md:col-span-2 text-sm text-muted-foreground">
+              {fr.auth.roleAssignedByAdmin}
+            </p>
 
             <p className="text-sm font-medium text-muted-foreground pt-2">
               {fr.auth.personalInfo}

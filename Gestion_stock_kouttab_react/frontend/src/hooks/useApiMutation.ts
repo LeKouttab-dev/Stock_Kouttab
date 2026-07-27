@@ -36,11 +36,19 @@ export function useApiMutation<
 ): UseMutationResult<TData, TError, TVariables, TContext> {
   const showError = useApiErrorToast();
   const { silentToast, onError, ...rest } = options;
+
+  // Les arguments sont relayés tels quels plutôt que déstructurés : l'arité de
+  // `onError` a changé entre versions de TanStack Query, et une signature figée
+  // casse la compilation à la mise à jour.
+  type OnErrorArgs = Parameters<
+    NonNullable<UseMutationOptions<TData, TError, TVariables, TContext>['onError']>
+  >;
+
   return useMutation<TData, TError, TVariables, TContext>({
     ...rest,
-    onError: (err, variables, context) => {
-      if (!silentToast) showError(err);
-      onError?.(err, variables, context);
+    onError: (...args: OnErrorArgs) => {
+      if (!silentToast) showError(args[0]);
+      return onError?.(...args);
     },
   });
 }

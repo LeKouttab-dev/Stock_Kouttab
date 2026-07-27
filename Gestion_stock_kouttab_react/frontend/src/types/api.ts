@@ -6,6 +6,17 @@ import type {
   ValidationStatus,
 } from '@/lib/constants';
 
+// Re-export : plusieurs modules importent ces types depuis '@/types/api'
+// plutot que de connaitre '@/lib/constants'. Sans cette ligne, TypeScript
+// remonte TS2459 et le build echoue.
+export type {
+  ExpenseStatus,
+  InvoiceStatus,
+  Role,
+  StockModStatus,
+  ValidationStatus,
+};
+
 /* Auth & users */
 export interface User {
   id: number;
@@ -35,7 +46,8 @@ export interface LoginResponse {
 export interface SignupRequest {
   username: string;
   password: string;
-  role: Role;
+  // Pas de `role` : le serveur crée toujours un compte 'Benevole' et ignore
+  // toute valeur envoyée. Un Super Admin promeut ensuite depuis l'administration.
   nom: string;
   prenom: string;
   email: string;

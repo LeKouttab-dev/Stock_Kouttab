@@ -11,7 +11,9 @@ import {
 // `Intl.NumberFormat('fr-FR')` insère un NBSP (U+202F en Node ≥ 18) entre la
 // valeur et le symbole. On normalise pour tester de manière robuste.
 function normalizeSpaces(s: string): string {
-  return s.replace(/[  ]/g, ' ');
+  // Echappements Unicode explicites : les caracteres bruts declenchent la
+  // regle ESLint no-irregular-whitespace et sont invisibles a la relecture.
+  return s.replace(/[\u00A0\u202F]/g, ' ');
 }
 
 describe('lib/format', () => {

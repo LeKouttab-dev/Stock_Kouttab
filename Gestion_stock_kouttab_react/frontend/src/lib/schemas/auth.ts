@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { ROLES } from '../constants';
 
 export const passwordSchema = z
   .string()
@@ -27,7 +26,8 @@ export const signupSchema = z
     username: usernameSchema,
     password: passwordSchema,
     confirmPassword: z.string().min(1, 'Champ obligatoire'),
-    role: z.enum(ROLES),
+    // Pas de `role` : il est imposé côté serveur ('Benevole') et un Super Admin
+    // le fait évoluer ensuite. Cf. SignupPage.
     nom: z.string().min(1, 'Nom obligatoire'),
     prenom: z.string().min(1, 'Prénom obligatoire'),
     email: z.string().email('Email invalide'),

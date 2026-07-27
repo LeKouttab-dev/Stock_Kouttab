@@ -21,7 +21,9 @@
     "paths": {
       "@/*": ["src/*"]
     },
-    "types": ["vitest/globals", "@testing-library/jest-dom"]
+    // "vite/client" est indispensable : declarer "types" desactive la resolution
+    // automatique, et sans lui import.meta.env n'est plus type (le build cassait).
+    "types": ["vite/client", "vitest/globals", "@testing-library/jest-dom"]
   },
   "include": ["src"],
   "references": [{ "path": "./tsconfig.node.json" }]
