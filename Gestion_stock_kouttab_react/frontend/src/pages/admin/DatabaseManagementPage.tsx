@@ -6,15 +6,17 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { FileUploader } from '@/components/forms/FileUploader';
 import {
-  useDatabaseStatus,
-  useExportDatabase,
-  useImportDatabase,
-} from '@/api/endpoints/admin';
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { FileUploader } from '@/components/forms/FileUploader';
+import { useDatabaseStatus, useExportDatabase, useImportDatabase } from '@/api/endpoints/admin';
 import { useToast } from '@/hooks/useToast';
-import { extractErrorMessage } from '@/api/client';
 import { formatNumber } from '@/lib/format';
 import { fr } from '@/lib/i18n/fr';
 
@@ -31,8 +33,9 @@ export function DatabaseManagementPage() {
     try {
       await exportMut.mutateAsync();
       toast.success('Export téléchargé');
-    } catch (e) {
-      toast.error('Erreur', extractErrorMessage(e));
+    } catch {
+      /* Erreur deja signalee par useApiMutation : un second toast
+         ferait doublon a l'ecran. */
     }
   };
 
@@ -48,8 +51,9 @@ export function DatabaseManagementPage() {
     try {
       const res = await importMut.mutateAsync(files);
       toast.success('Import terminé', `${res.tables.length} table(s) traitée(s)`);
-    } catch (e) {
-      toast.error('Erreur', extractErrorMessage(e));
+    } catch {
+      /* Erreur deja signalee par useApiMutation : un second toast
+         ferait doublon a l'ecran. */
     }
   };
 
@@ -153,7 +157,6 @@ export function DatabaseManagementPage() {
           </Button>
         </CardContent>
       </Card>
-
     </div>
   );
 }

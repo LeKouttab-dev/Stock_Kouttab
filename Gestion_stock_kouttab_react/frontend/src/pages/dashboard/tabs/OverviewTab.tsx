@@ -1,13 +1,5 @@
 import { Package, AlertTriangle, PackageX, BarChart3 } from 'lucide-react';
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { KpiCard } from '@/components/shared/KpiCard';
@@ -74,7 +66,12 @@ export function OverviewTab() {
                   <XAxis dataKey="categorie" tick={{ fontSize: 12 }} />
                   <YAxis tick={{ fontSize: 12 }} />
                   <Tooltip />
-                  <Bar dataKey="count" fill={CHART_COLORS[0]} radius={[4, 4, 0, 0]} name="Nb articles" />
+                  <Bar
+                    dataKey="count"
+                    fill={CHART_COLORS[0]}
+                    radius={[4, 4, 0, 0]}
+                    name="Nb articles"
+                  />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -95,7 +92,12 @@ export function OverviewTab() {
                   <XAxis dataKey="sous_categorie" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 12 }} />
                   <Tooltip />
-                  <Bar dataKey="count" fill={CHART_COLORS[2]} radius={[4, 4, 0, 0]} name="Nb articles" />
+                  <Bar
+                    dataKey="count"
+                    fill={CHART_COLORS[2]}
+                    radius={[4, 4, 0, 0]}
+                    name="Nb articles"
+                  />
                 </BarChart>
               </ResponsiveContainer>
             ) : (

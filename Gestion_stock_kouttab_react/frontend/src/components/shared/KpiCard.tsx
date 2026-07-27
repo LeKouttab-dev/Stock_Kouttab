@@ -27,7 +27,14 @@ const tones: Record<NonNullable<KpiCardProps['variant']>, string> = {
   info: 'text-forest-700',
 };
 
-export function KpiCard({ label, value, icon, hint, variant = 'default', className }: KpiCardProps) {
+export function KpiCard({
+  label,
+  value,
+  icon,
+  hint,
+  variant = 'default',
+  className,
+}: KpiCardProps) {
   return (
     <Card className={cn('border-border bg-card', className)}>
       <CardContent className="p-5">

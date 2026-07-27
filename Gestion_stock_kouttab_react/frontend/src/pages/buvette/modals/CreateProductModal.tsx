@@ -18,8 +18,8 @@ import {
   type CreateBuvetteProductFormValues,
 } from '@/lib/schemas/buvette';
 import { useToast } from '@/hooks/useToast';
-import { extractErrorMessage } from '@/api/client';
 import { fr } from '@/lib/i18n/fr';
+import { eurosToCents } from '@/lib/money';
 import { EMOJI_OPTIONS } from '@/lib/constants';
 
 interface CreateProductModalProps {
@@ -51,17 +51,17 @@ export function CreateProductModal({ open, onOpenChange }: CreateProductModalPro
     try {
       await create.mutateAsync({
         name: values.name,
-        price_cents: Math.round(values.price_euros * 100),
+        price_cents: eurosToCents(values.price_euros),
         quantity: values.quantity,
         seuil_alerte: values.seuil_alerte,
         emoji: values.emoji,
-        helloasso_tier_id:
-          values.helloasso_tier_id === undefined ? null : values.helloasso_tier_id,
+        helloasso_tier_id: values.helloasso_tier_id === undefined ? null : values.helloasso_tier_id,
       });
       toast.success(fr.buvette.productCreated);
       onOpenChange(false);
-    } catch (e) {
-      toast.error('Erreur', extractErrorMessage(e));
+    } catch {
+      /* Erreur deja signalee par useApiMutation : un second toast
+         ferait doublon a l'ecran. */
     }
   };
 
@@ -120,9 +120,7 @@ export function CreateProductModal({ open, onOpenChange }: CreateProductModalPro
                 {...form.register('quantity', { valueAsNumber: true })}
               />
               {form.formState.errors.quantity && (
-                <p className="text-xs text-destructive">
-                  {form.formState.errors.quantity.message}
-                </p>
+                <p className="text-xs text-destructive">{form.formState.errors.quantity.message}</p>
               )}
             </div>
           </div>

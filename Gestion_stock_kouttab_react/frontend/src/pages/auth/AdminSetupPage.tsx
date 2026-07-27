@@ -61,7 +61,9 @@ export function AdminSetupPage() {
     <div className="flex min-h-full items-center justify-center bg-gradient-to-br from-cream via-background to-sand-200 px-4 py-12">
       <Card className="w-full max-w-md border-border bg-card shadow-xl">
         <CardHeader>
-          <CardTitle className="font-serif text-2xl text-forest">{fr.auth.adminSetupTitle}</CardTitle>
+          <CardTitle className="font-serif text-2xl text-forest">
+            {fr.auth.adminSetupTitle}
+          </CardTitle>
           <CardDescription>{fr.auth.adminSetupSubtitle}</CardDescription>
         </CardHeader>
         <CardContent>
@@ -125,15 +127,9 @@ export function AdminSetupPage() {
                 )}
               </div>
 
-              {setupError && (
-                <ErrorAlert error={setupError} title="Création refusée" />
-              )}
+              {setupError && <ErrorAlert error={setupError} title="Création refusée" />}
 
-              <Button
-                type="submit"
-                fullWidth
-                loading={isSubmitting || setupMutation.isPending}
-              >
+              <Button type="submit" fullWidth loading={isSubmitting || setupMutation.isPending}>
                 Créer mon compte Super Admin
               </Button>
             </form>

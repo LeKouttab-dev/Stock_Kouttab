@@ -4,12 +4,15 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { useApproveModification, useRefuseModification, useStockModifications } from '@/api/endpoints/stock';
+import {
+  useApproveModification,
+  useRefuseModification,
+  useStockModifications,
+} from '@/api/endpoints/stock';
 import { formatDateTime } from '@/lib/format';
 import { useAuth } from '@/hooks/useAuth';
 import { ACTIONS } from '@/lib/auth';
 import { useToast } from '@/hooks/useToast';
-import { extractErrorMessage } from '@/api/client';
 import { fr } from '@/lib/i18n/fr';
 
 export function ModificationsTab() {
@@ -39,8 +42,9 @@ export function ModificationsTab() {
     try {
       await approve.mutateAsync(id);
       toast.success('Modification approuvée');
-    } catch (e) {
-      toast.error('Erreur', extractErrorMessage(e));
+    } catch {
+      /* Erreur deja signalee par useApiMutation : un second toast
+         ferait doublon a l'ecran. */
     }
   };
 
@@ -48,8 +52,9 @@ export function ModificationsTab() {
     try {
       await refuse.mutateAsync(id);
       toast.info('Modification refusée');
-    } catch (e) {
-      toast.error('Erreur', extractErrorMessage(e));
+    } catch {
+      /* Erreur deja signalee par useApiMutation : un second toast
+         ferait doublon a l'ecran. */
     }
   };
 

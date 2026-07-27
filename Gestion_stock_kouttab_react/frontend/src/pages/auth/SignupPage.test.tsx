@@ -24,7 +24,9 @@ describe('pages/auth/SignupPage', () => {
 
     expect(screen.getByLabelText("Nom d'utilisateur", { exact: false })).toBeInTheDocument();
     expect(screen.getAllByLabelText(/Mot de passe/i).length).toBeGreaterThan(0);
-    expect(screen.getByRole('button', { name: /Demander la création du compte/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /Demander la création du compte/i }),
+    ).toBeInTheDocument();
     // PasswordStrengthMeter renders nothing when password is empty
     expect(screen.queryByText(/Force du mot de passe/i)).not.toBeInTheDocument();
   });
@@ -63,10 +65,7 @@ describe('pages/auth/SignupPage', () => {
   it('renders an ErrorAlert with the AUTH_1023 message when username is taken', async () => {
     server.use(
       http.post(`${BASE_URL}/auth/signup`, () =>
-        HttpResponse.json(
-          { code: 'AUTH_1023', message: 'Pris' },
-          { status: 409 },
-        ),
+        HttpResponse.json({ code: 'AUTH_1023', message: 'Pris' }, { status: 409 }),
       ),
     );
 

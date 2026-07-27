@@ -45,10 +45,7 @@ export function EventSelect({
 
   const value = eventId !== null ? String(eventId) : freeText ? FREE_EVENT : '';
 
-  const selected = useMemo(
-    () => events?.find((e) => e.id === eventId) ?? null,
-    [events, eventId],
-  );
+  const selected = useMemo(() => events?.find((e) => e.id === eventId) ?? null, [events, eventId]);
 
   // Pré-remplit la date d'événement à la sélection : c'est presque toujours la
   // bonne, et elle reste modifiable.
@@ -85,9 +82,7 @@ export function EventSelect({
 
       {/* Le référentiel est indisponible : on bascule d'office en saisie libre
           plutôt que de bloquer le dépôt. */}
-      {isError && (
-        <p className="text-xs text-muted-foreground">{fr.events.unavailable}</p>
-      )}
+      {isError && <p className="text-xs text-muted-foreground">{fr.events.unavailable}</p>}
 
       {(value === FREE_EVENT || isError) && (
         <Input

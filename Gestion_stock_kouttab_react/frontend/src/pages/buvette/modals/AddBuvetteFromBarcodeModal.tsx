@@ -18,8 +18,8 @@ import {
   type BuvetteProductFromBarcodeFormValues,
 } from '@/lib/schemas/buvette';
 import { useToast } from '@/hooks/useToast';
-import { extractErrorMessage } from '@/api/client';
 import { fr } from '@/lib/i18n/fr';
+import { eurosToCents } from '@/lib/money';
 import { EMOJI_OPTIONS } from '@/lib/constants';
 import type { BarcodeLookupResponse } from '@/types/api';
 
@@ -77,7 +77,7 @@ export function AddBuvetteFromBarcodeModal({
     try {
       await create.mutateAsync({
         name: values.name,
-        price_cents: Math.round(values.price_euros * 100),
+        price_cents: eurosToCents(values.price_euros),
         quantity: values.quantity,
         seuil_alerte: values.seuil_alerte,
         emoji: values.emoji,
@@ -86,8 +86,9 @@ export function AddBuvetteFromBarcodeModal({
       });
       toast.success(fr.buvette.productCreated);
       onOpenChange(false);
-    } catch (e) {
-      toast.error('Erreur', extractErrorMessage(e));
+    } catch {
+      /* Erreur deja signalee par useApiMutation : un second toast
+         ferait doublon a l'ecran. */
     }
   };
 
@@ -106,9 +107,7 @@ export function AddBuvetteFromBarcodeModal({
 
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">{fr.scanner.barcode} :</span>
-          <span className="rounded bg-muted px-2 py-1 font-mono text-sm">
-            {lookup.barcode}
-          </span>
+          <span className="rounded bg-muted px-2 py-1 font-mono text-sm">{lookup.barcode}</span>
         </div>
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -210,9 +209,7 @@ export function AddBuvetteFromBarcodeModal({
             ))}
           </div>
 
-          {hasOff && (
-            <p className="text-xs text-muted-foreground">{fr.scanner.enrichedFromOFF}</p>
-          )}
+          {hasOff && <p className="text-xs text-muted-foreground">{fr.scanner.enrichedFromOFF}</p>}
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

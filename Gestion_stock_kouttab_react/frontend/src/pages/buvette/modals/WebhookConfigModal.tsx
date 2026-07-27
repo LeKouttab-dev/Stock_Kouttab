@@ -9,13 +9,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import {
-  useConfigureWebhook,
-  useDeleteWebhook,
-  useWebhookStatus,
-} from '@/api/endpoints/buvette';
+import { useConfigureWebhook, useDeleteWebhook, useWebhookStatus } from '@/api/endpoints/buvette';
 import { useToast } from '@/hooks/useToast';
-import { extractErrorMessage } from '@/api/client';
 import { fr } from '@/lib/i18n/fr';
 
 interface WebhookConfigModalProps {
@@ -35,8 +30,9 @@ export function WebhookConfigModal({ open, onOpenChange }: WebhookConfigModalPro
     try {
       await configure.mutateAsync(undefined);
       toast.success(fr.buvette.webhookActivated);
-    } catch (e) {
-      toast.error('Erreur', extractErrorMessage(e));
+    } catch {
+      /* Erreur deja signalee par useApiMutation : un second toast
+         ferait doublon a l'ecran. */
     }
   };
 
@@ -44,8 +40,9 @@ export function WebhookConfigModal({ open, onOpenChange }: WebhookConfigModalPro
     try {
       await remove.mutateAsync();
       toast.success(fr.buvette.webhookDeactivated);
-    } catch (e) {
-      toast.error('Erreur', extractErrorMessage(e));
+    } catch {
+      /* Erreur deja signalee par useApiMutation : un second toast
+         ferait doublon a l'ecran. */
     }
   };
 

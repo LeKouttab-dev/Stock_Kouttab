@@ -53,10 +53,7 @@ describe('api/endpoints/stock', () => {
   it('useCreateStockItem shows an error toast on 409 (CONF_4002)', async () => {
     server.use(
       http.post(`${BASE_URL}/stock/items`, () =>
-        HttpResponse.json(
-          { code: 'CONF_4002', message: 'Existe déjà' },
-          { status: 409 },
-        ),
+        HttpResponse.json({ code: 'CONF_4002', message: 'Existe déjà' }, { status: 409 }),
       ),
     );
 

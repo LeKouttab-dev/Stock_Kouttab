@@ -67,9 +67,7 @@ export function BuvetteSalesPage() {
                       <TableCell className="whitespace-nowrap text-xs">
                         {formatDateTime(sale.sold_at ?? sale.processed_at)}
                       </TableCell>
-                      <TableCell className="font-medium">
-                        {sale.product_name_snapshot}
-                      </TableCell>
+                      <TableCell className="font-medium">{sale.product_name_snapshot}</TableCell>
                       <TableCell className="text-right">{sale.quantity_sold}</TableCell>
                       <TableCell className="text-right font-semibold">
                         {formatCents(sale.amount_cents)}

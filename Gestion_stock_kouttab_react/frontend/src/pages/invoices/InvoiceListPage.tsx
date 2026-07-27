@@ -26,7 +26,6 @@ import type { Invoice } from '@/types/api';
 import { useAuth } from '@/hooks/useAuth';
 import { ACTIONS } from '@/lib/auth';
 import { useToast } from '@/hooks/useToast';
-import { extractErrorMessage } from '@/api/client';
 import { formatDate } from '@/lib/format';
 import { fr } from '@/lib/i18n/fr';
 
@@ -125,9 +124,8 @@ export function InvoiceListPage() {
                         <ChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
                       )}
                       <span className="truncate font-medium">
-                        📄 Facture #{inv.id} —{' '}
-                        {inv.files?.[0]?.nom_fichier ?? '—'}{' '}
-                        ({formatDate(inv.date_depot)})
+                        📄 Facture #{inv.id} — {inv.files?.[0]?.nom_fichier ?? '—'} (
+                        {formatDate(inv.date_depot)})
                       </span>
                     </div>
                     <StatusBadge status={inv.status} />
@@ -156,8 +154,9 @@ function InvoiceDetail({ invoice }: { invoice: Invoice }) {
     try {
       await update.mutateAsync({ id: invoice.id, status });
       toast.success('Statut mis à jour');
-    } catch (e) {
-      toast.error('Erreur', extractErrorMessage(e));
+    } catch {
+      /* Erreur deja signalee par useApiMutation : un second toast
+         ferait doublon a l'ecran. */
     }
   };
 
@@ -191,8 +190,7 @@ function InvoiceDetail({ invoice }: { invoice: Invoice }) {
         )}
         {invoice.date_evenement && (
           <p>
-            <strong>{fr.invoices.dateEvenement} :</strong>{' '}
-            {formatDate(invoice.date_evenement)}
+            <strong>{fr.invoices.dateEvenement} :</strong> {formatDate(invoice.date_evenement)}
           </p>
         )}
         {invoice.fournisseur && (
@@ -260,9 +258,7 @@ function InvoiceDetail({ invoice }: { invoice: Invoice }) {
           abandonne — ce bouton reprend la main ensuite. */}
       {canResend && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-background p-3">
-          <p className="text-xs text-muted-foreground">
-            {fr.invoices.renvoyerAide}
-          </p>
+          <p className="text-xs text-muted-foreground">{fr.invoices.renvoyerAide}</p>
           <Button variant="outline" onClick={onResend} loading={resend.isPending}>
             <Send className="mr-1 h-4 w-4" />
             {fr.invoices.renvoyerMail}

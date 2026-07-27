@@ -19,7 +19,6 @@ import {
   type AdjustBuvetteProductFormValues,
 } from '@/lib/schemas/buvette';
 import { useToast } from '@/hooks/useToast';
-import { extractErrorMessage } from '@/api/client';
 import { fr } from '@/lib/i18n/fr';
 import { EMOJI_OPTIONS } from '@/lib/constants';
 import { formatCents } from '@/lib/format';
@@ -56,8 +55,9 @@ export function AdjustStockModal({ open, onOpenChange, product }: AdjustStockMod
       await update.mutateAsync({ id: product.id, data: values });
       toast.success(fr.buvette.productUpdated);
       onOpenChange(false);
-    } catch (e) {
-      toast.error('Erreur', extractErrorMessage(e));
+    } catch {
+      /* Erreur deja signalee par useApiMutation : un second toast
+         ferait doublon a l'ecran. */
     }
   };
 

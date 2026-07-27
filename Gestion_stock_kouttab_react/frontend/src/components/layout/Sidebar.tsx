@@ -33,7 +33,12 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   const { can } = useAuth();
 
   const items: NavItem[] = [
-    { to: '/dashboard', label: fr.nav.dashboard, icon: LayoutDashboard, visible: can(ACTIONS.DASHBOARD_VIEW) },
+    {
+      to: '/dashboard',
+      label: fr.nav.dashboard,
+      icon: LayoutDashboard,
+      visible: can(ACTIONS.DASHBOARD_VIEW),
+    },
     { to: '/stock', label: fr.nav.stock, icon: Package, visible: can(ACTIONS.STOCK_VIEW) },
     { to: '/buvette', label: fr.nav.buvette, icon: Beer, visible: can(ACTIONS.BUVETTE_VIEW) },
     {

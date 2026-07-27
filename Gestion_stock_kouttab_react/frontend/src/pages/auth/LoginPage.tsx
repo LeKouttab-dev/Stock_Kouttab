@@ -106,15 +106,9 @@ export function LoginPage() {
               )}
             </div>
 
-            {loginError && (
-              <ErrorAlert error={loginError} title="Connexion refusée" />
-            )}
+            {loginError && <ErrorAlert error={loginError} title="Connexion refusée" />}
 
-            <Button
-              type="submit"
-              fullWidth
-              loading={isSubmitting || loginMutation.isPending}
-            >
+            <Button type="submit" fullWidth loading={isSubmitting || loginMutation.isPending}>
               {fr.auth.login}
             </Button>
           </form>

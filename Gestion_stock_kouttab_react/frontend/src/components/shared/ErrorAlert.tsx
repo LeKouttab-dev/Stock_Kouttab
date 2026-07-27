@@ -1,9 +1,5 @@
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import {
-  getErrorCode,
-  getErrorMessage,
-  getErrorStatus,
-} from '@/lib/errors';
+import { getErrorCode, getErrorMessage, getErrorStatus } from '@/lib/errors';
 
 interface ErrorAlertProps {
   /** Erreur brute (axios, Error, …) ou rien si on veut juste afficher un message custom. */

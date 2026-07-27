@@ -97,9 +97,7 @@ export function EventsManagementSection() {
                 <span className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">{event.nom}</span>
                   {event.date_evenement && (
-                    <span className="text-xs text-muted-foreground">
-                      {event.date_evenement}
-                    </span>
+                    <span className="text-xs text-muted-foreground">{event.date_evenement}</span>
                   )}
                   <Badge variant={event.source === 'manuel' ? 'secondary' : 'outline'}>
                     {event.source === 'manuel' ? fr.events.manuel : fr.events.helloasso}

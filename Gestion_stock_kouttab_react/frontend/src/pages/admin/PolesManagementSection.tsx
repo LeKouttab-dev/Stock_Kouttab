@@ -103,12 +103,8 @@ export function PolesManagementSection() {
                   <>
                     <span className="flex items-center gap-2 font-medium">
                       {pole.nom}
-                      {pole.is_default && (
-                        <Badge variant="secondary">{fr.poles.parDefaut}</Badge>
-                      )}
-                      {!pole.is_active && (
-                        <Badge variant="outline">{fr.poles.inactif}</Badge>
-                      )}
+                      {pole.is_default && <Badge variant="secondary">{fr.poles.parDefaut}</Badge>}
+                      {!pole.is_active && <Badge variant="outline">{fr.poles.inactif}</Badge>}
                     </span>
                     <div className="flex gap-1">
                       <Button

@@ -6,14 +6,17 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useImportCsv } from '@/api/endpoints/stock';
 import { useToast } from '@/hooks/useToast';
-import { extractErrorMessage } from '@/api/client';
 
 export function ImportCsvSection() {
   const importMut = useImportCsv();
   const toast = useToast();
   const [file, setFile] = useState<File | null>(null);
   const [skiprows, setSkiprows] = useState(6);
-  const [report, setReport] = useState<{ imported: number; skipped: number; errors: string[] } | null>(null);
+  const [report, setReport] = useState<{
+    imported: number;
+    skipped: number;
+    errors: string[];
+  } | null>(null);
 
   const handleSubmit = async () => {
     if (!file) {
@@ -27,8 +30,9 @@ export function ImportCsvSection() {
         'Import terminé',
         `${res.imported} importés, ${res.skipped} ignorés, ${res.errors.length} erreurs`,
       );
-    } catch (e) {
-      toast.error('Erreur', extractErrorMessage(e));
+    } catch {
+      /* Erreur deja signalee par useApiMutation : un second toast
+         ferait doublon a l'ecran. */
     }
   };
 
@@ -40,7 +44,8 @@ export function ImportCsvSection() {
       <CardContent className="space-y-4">
         <Alert variant="info">
           <AlertDescription>
-            Colonnes attendues : <code>Catégorie, Sous-catégorie, Nom de l&apos;article, Quantité initiale</code>
+            Colonnes attendues :{' '}
+            <code>Catégorie, Sous-catégorie, Nom de l&apos;article, Quantité initiale</code>
           </AlertDescription>
         </Alert>
 

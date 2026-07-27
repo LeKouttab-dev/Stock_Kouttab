@@ -5,11 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/shared/EmptyState';
-import {
-  useBarcodeLookup,
-  useCategories,
-  useStockItems,
-} from '@/api/endpoints/stock';
+import { useBarcodeLookup, useCategories, useStockItems } from '@/api/endpoints/stock';
 import { ICONS } from '@/lib/constants';
 import { fr } from '@/lib/i18n/fr';
 import { useAuth } from '@/hooks/useAuth';
@@ -86,11 +82,7 @@ export function StockCategoriesPage() {
           <p className="text-sm text-muted-foreground">Naviguez par catégorie.</p>
         </div>
         {canScan && (
-          <Button
-            variant="outline"
-            onClick={() => setScannerOpen(true)}
-            loading={lookup.isPending}
-          >
+          <Button variant="outline" onClick={() => setScannerOpen(true)} loading={lookup.isPending}>
             <ScanLine className="h-4 w-4" />
             {fr.scanner.scan}
           </Button>

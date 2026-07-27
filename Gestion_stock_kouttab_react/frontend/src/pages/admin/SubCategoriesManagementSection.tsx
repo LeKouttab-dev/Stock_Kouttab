@@ -21,7 +21,6 @@ import {
   useUpdateSubcategory,
 } from '@/api/endpoints/stock';
 import { useToast } from '@/hooks/useToast';
-import { extractErrorMessage } from '@/api/client';
 
 export function SubCategoriesManagementSection() {
   const { data: categories = [] } = useCategories();
@@ -45,8 +44,9 @@ export function SubCategoriesManagementSection() {
       });
       toast.success('Sous-catégorie ajoutée');
       setNewName('');
-    } catch (e) {
-      toast.error('Erreur', extractErrorMessage(e));
+    } catch {
+      /* Erreur deja signalee par useApiMutation : un second toast
+         ferait doublon a l'ecran. */
     }
   };
 
@@ -56,8 +56,9 @@ export function SubCategoriesManagementSection() {
       await update.mutateAsync({ id, data: { nom_sous_categorie: editValue.trim() } });
       toast.success('Sous-catégorie renommée');
       setEditing(null);
-    } catch (e) {
-      toast.error('Erreur', extractErrorMessage(e));
+    } catch {
+      /* Erreur deja signalee par useApiMutation : un second toast
+         ferait doublon a l'ecran. */
     }
   };
 
@@ -66,8 +67,9 @@ export function SubCategoriesManagementSection() {
     try {
       await remove.mutateAsync(id);
       toast.success('Sous-catégorie supprimée');
-    } catch (e) {
-      toast.error('Erreur', extractErrorMessage(e));
+    } catch {
+      /* Erreur deja signalee par useApiMutation : un second toast
+         ferait doublon a l'ecran. */
     }
   };
 

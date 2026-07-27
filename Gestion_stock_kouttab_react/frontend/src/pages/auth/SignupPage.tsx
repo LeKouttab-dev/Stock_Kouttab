@@ -125,9 +125,7 @@ export function SignupPage() {
               {fr.auth.roleAssignedByAdmin}
             </p>
 
-            <p className="text-sm font-medium text-muted-foreground pt-2">
-              {fr.auth.personalInfo}
-            </p>
+            <p className="text-sm font-medium text-muted-foreground pt-2">{fr.auth.personalInfo}</p>
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-1.5">
@@ -157,9 +155,7 @@ export function SignupPage() {
                   hasError={Boolean(errors.email)}
                   {...register('email')}
                 />
-                {errors.email && (
-                  <p className="text-xs text-destructive">{errors.email.message}</p>
-                )}
+                {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="telephone">{fr.auth.telephone}</Label>
@@ -167,12 +163,7 @@ export function SignupPage() {
               </div>
             </div>
 
-            {signupError && (
-              <ErrorAlert
-                error={signupError}
-                title="Création du compte refusée"
-              />
-            )}
+            {signupError && <ErrorAlert error={signupError} title="Création du compte refusée" />}
 
             <Button type="submit" fullWidth loading={isSubmitting || signupMutation.isPending}>
               {fr.auth.signup}

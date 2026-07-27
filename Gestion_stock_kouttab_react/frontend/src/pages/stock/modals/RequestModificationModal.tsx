@@ -14,12 +14,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useCreateStockModification } from '@/api/endpoints/stock';
-import {
-  requestModificationSchema,
-  type RequestModificationFormValues,
-} from '@/lib/schemas/stock';
+import { requestModificationSchema, type RequestModificationFormValues } from '@/lib/schemas/stock';
 import { useToast } from '@/hooks/useToast';
-import { extractErrorMessage } from '@/api/client';
 import { fr } from '@/lib/i18n/fr';
 import type { StockItem } from '@/types/api';
 
@@ -52,8 +48,9 @@ export function RequestModificationModal({
       await create.mutateAsync({ id_stock: item.id, quantite_demandee: values.quantite_demandee });
       toast.success(fr.stock.demandeEnvoyee);
       onOpenChange(false);
-    } catch (e) {
-      toast.error('Erreur', extractErrorMessage(e));
+    } catch {
+      /* Erreur deja signalee par useApiMutation : un second toast
+         ferait doublon a l'ecran. */
     }
   };
 

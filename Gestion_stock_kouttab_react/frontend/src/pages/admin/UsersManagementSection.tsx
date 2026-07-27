@@ -24,7 +24,6 @@ import { useDeleteUser, useUpdateUserRole, useUsers } from '@/api/endpoints/user
 import { useAuth } from '@/hooks/useAuth';
 import { ROLES, ROLE_LABELS, type Role } from '@/lib/constants';
 import { useToast } from '@/hooks/useToast';
-import { extractErrorMessage } from '@/api/client';
 import { fr } from '@/lib/i18n/fr';
 
 export function UsersManagementSection() {
@@ -44,8 +43,9 @@ export function UsersManagementSection() {
     try {
       await updateRole.mutateAsync({ id, role: newRole });
       toast.success(`Rôle mis à jour`);
-    } catch (e) {
-      toast.error('Erreur', extractErrorMessage(e));
+    } catch {
+      /* Erreur deja signalee par useApiMutation : un second toast
+         ferait doublon a l'ecran. */
     }
   };
 
@@ -55,8 +55,9 @@ export function UsersManagementSection() {
       await remove.mutateAsync(confirmDelete);
       toast.success('Utilisateur supprimé');
       setConfirmDelete(null);
-    } catch (e) {
-      toast.error('Erreur', extractErrorMessage(e));
+    } catch {
+      /* Erreur deja signalee par useApiMutation : un second toast
+         ferait doublon a l'ecran. */
     }
   };
 
@@ -82,7 +83,8 @@ export function UsersManagementSection() {
                   >
                     <div>
                       <p className="font-medium">
-                        {u.prenom} {u.nom} <span className="text-muted-foreground">@{u.username}</span>
+                        {u.prenom} {u.nom}{' '}
+                        <span className="text-muted-foreground">@{u.username}</span>
                       </p>
                       <p className="text-xs text-muted-foreground">{u.email}</p>
                     </div>

@@ -12,7 +12,6 @@ import {
   useRenameCategory,
 } from '@/api/endpoints/stock';
 import { useToast } from '@/hooks/useToast';
-import { extractErrorMessage } from '@/api/client';
 
 export function CategoriesManagementSection() {
   const { data: categories = [], isLoading } = useCategories();
@@ -31,8 +30,9 @@ export function CategoriesManagementSection() {
       await create.mutateAsync(newName.trim());
       toast.success('Catégorie ajoutée');
       setNewName('');
-    } catch (e) {
-      toast.error('Erreur', extractErrorMessage(e));
+    } catch {
+      /* Erreur deja signalee par useApiMutation : un second toast
+         ferait doublon a l'ecran. */
     }
   };
 
@@ -45,8 +45,9 @@ export function CategoriesManagementSection() {
       await rename.mutateAsync({ oldName, newName: editValue.trim() });
       toast.success('Catégorie renommée');
       setEditing(null);
-    } catch (e) {
-      toast.error('Erreur', extractErrorMessage(e));
+    } catch {
+      /* Erreur deja signalee par useApiMutation : un second toast
+         ferait doublon a l'ecran. */
     }
   };
 
@@ -55,8 +56,9 @@ export function CategoriesManagementSection() {
     try {
       await remove.mutateAsync(name);
       toast.success('Catégorie supprimée');
-    } catch (e) {
-      toast.error('Erreur', extractErrorMessage(e));
+    } catch {
+      /* Erreur deja signalee par useApiMutation : un second toast
+         ferait doublon a l'ecran. */
     }
   };
 

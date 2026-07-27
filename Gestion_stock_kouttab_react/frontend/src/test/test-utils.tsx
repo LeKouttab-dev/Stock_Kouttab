@@ -29,9 +29,7 @@ interface AllProvidersProps {
 function AllProviders({ children, options }: AllProvidersProps) {
   const qc = options.queryClient ?? createTestQueryClient();
   const Router = options.routerEntries ? MemoryRouter : BrowserRouter;
-  const routerProps = options.routerEntries
-    ? { initialEntries: options.routerEntries }
-    : {};
+  const routerProps = options.routerEntries ? { initialEntries: options.routerEntries } : {};
   return (
     <QueryClientProvider client={qc}>
       <Router {...(routerProps as Record<string, unknown>)}>{children}</Router>
@@ -40,8 +38,7 @@ function AllProviders({ children, options }: AllProvidersProps) {
 }
 
 export interface RenderWithProvidersOptions
-  extends Omit<RenderOptions, 'wrapper'>,
-    ProvidersOptions {}
+  extends Omit<RenderOptions, 'wrapper'>, ProvidersOptions {}
 
 /**
  * Render un composant React enveloppé dans QueryClientProvider + Router,

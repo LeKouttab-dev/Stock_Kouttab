@@ -60,8 +60,7 @@ export function InvoiceUploadPage() {
   const previewNames = useMemo(() => {
     if (files.length === 0) return [];
     const eventLabel =
-      selectedEventName ??
-      (eventId !== null ? (fr.events.selected as string) : null);
+      selectedEventName ?? (eventId !== null ? (fr.events.selected as string) : null);
     const base = files.map(() =>
       buildAttachmentFilename([selectedPole?.nom, eventLabel], dateEvenement || null),
     );
@@ -128,9 +127,7 @@ export function InvoiceUploadPage() {
                   </SelectContent>
                 </Select>
                 {form.formState.errors.poleId && (
-                  <p className="text-xs text-destructive">
-                    {form.formState.errors.poleId.message}
-                  </p>
+                  <p className="text-xs text-destructive">{form.formState.errors.poleId.message}</p>
                 )}
               </div>
 
@@ -139,12 +136,8 @@ export function InvoiceUploadPage() {
                 <EventSelect
                   eventId={eventId ?? null}
                   freeText={eventLibre ?? ''}
-                  onEventIdChange={(id) =>
-                    form.setValue('eventId', id, { shouldValidate: true })
-                  }
-                  onFreeTextChange={(v) =>
-                    form.setValue('eventLibre', v, { shouldValidate: true })
-                  }
+                  onEventIdChange={(id) => form.setValue('eventId', id, { shouldValidate: true })}
+                  onFreeTextChange={(v) => form.setValue('eventLibre', v, { shouldValidate: true })}
                   onEventDate={(d) => {
                     if (d && !form.getValues('dateEvenement')) {
                       form.setValue('dateEvenement', d, { shouldValidate: true });
@@ -162,11 +155,7 @@ export function InvoiceUploadPage() {
                 <Label htmlFor="dateEvenement" required>
                   {fr.invoices.dateEvenement}
                 </Label>
-                <Input
-                  id="dateEvenement"
-                  type="date"
-                  {...form.register('dateEvenement')}
-                />
+                <Input id="dateEvenement" type="date" {...form.register('dateEvenement')} />
                 {form.formState.errors.dateEvenement && (
                   <p className="text-xs text-destructive">
                     {form.formState.errors.dateEvenement.message}

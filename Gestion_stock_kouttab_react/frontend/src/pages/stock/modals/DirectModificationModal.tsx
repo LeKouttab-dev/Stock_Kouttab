@@ -14,12 +14,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useUpdateStockItem } from '@/api/endpoints/stock';
-import {
-  directModificationSchema,
-  type DirectModificationFormValues,
-} from '@/lib/schemas/stock';
+import { directModificationSchema, type DirectModificationFormValues } from '@/lib/schemas/stock';
 import { useToast } from '@/hooks/useToast';
-import { extractErrorMessage } from '@/api/client';
 import { fr } from '@/lib/i18n/fr';
 import type { StockItem } from '@/types/api';
 
@@ -54,13 +50,11 @@ export function DirectModificationModal({
     }
     try {
       await update.mutateAsync({ id: item.id, data: { quantite: values.quantite } });
-      toast.success(
-        'Quantité mise à jour',
-        `${item.quantite} → ${values.quantite}`,
-      );
+      toast.success('Quantité mise à jour', `${item.quantite} → ${values.quantite}`);
       onOpenChange(false);
-    } catch (e) {
-      toast.error('Erreur', extractErrorMessage(e));
+    } catch {
+      /* Erreur deja signalee par useApiMutation : un second toast
+         ferait doublon a l'ecran. */
     }
   };
 

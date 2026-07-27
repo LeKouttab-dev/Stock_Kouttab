@@ -5,7 +5,6 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import { RoleBadge } from '@/components/shared/RoleBadge';
 import { usePendingUsers, useValidateUser, useDeleteUser } from '@/api/endpoints/users';
 import { useToast } from '@/hooks/useToast';
-import { extractErrorMessage } from '@/api/client';
 import { fr } from '@/lib/i18n/fr';
 
 export function PendingUsersSection() {
@@ -18,8 +17,9 @@ export function PendingUsersSection() {
     try {
       await validate.mutateAsync({ id, status: 'active' });
       toast.success('Compte validé');
-    } catch (e) {
-      toast.error('Erreur', extractErrorMessage(e));
+    } catch {
+      /* Erreur deja signalee par useApiMutation : un second toast
+         ferait doublon a l'ecran. */
     }
   };
 
@@ -27,8 +27,9 @@ export function PendingUsersSection() {
     try {
       await remove.mutateAsync(id);
       toast.info('Compte refusé et supprimé');
-    } catch (e) {
-      toast.error('Erreur', extractErrorMessage(e));
+    } catch {
+      /* Erreur deja signalee par useApiMutation : un second toast
+         ferait doublon a l'ecran. */
     }
   };
 
@@ -57,7 +58,11 @@ export function PendingUsersSection() {
                 </div>
                 <RoleBadge role={u.role} />
                 <div className="flex gap-2">
-                  <Button size="sm" onClick={() => handleApprove(u.id)} loading={validate.isPending}>
+                  <Button
+                    size="sm"
+                    onClick={() => handleApprove(u.id)}
+                    loading={validate.isPending}
+                  >
                     {fr.admin.approuver}
                   </Button>
                   <Button

@@ -37,12 +37,14 @@ export function StockItemsList({ items }: StockItemsListProps) {
   const sorted = useMemo(() => [...items].sort((a, b) => a.nom.localeCompare(b.nom)), [items]);
 
   const handleDelete = async (item: StockItem) => {
-    if (!confirm(`Supprimer définitivement « ${item.nom} » ? Cette action est irréversible.`)) return;
+    if (!confirm(`Supprimer définitivement « ${item.nom} » ? Cette action est irréversible.`))
+      return;
     try {
       await deleteMut.mutateAsync(item.id);
       toast.success(`« ${item.nom} » supprimé`);
-    } catch (e) {
-      toast.error('Erreur', extractErrorMessage(e));
+    } catch {
+      /* Erreur deja signalee par useApiMutation : un second toast
+         ferait doublon a l'ecran. */
     }
   };
 
@@ -68,9 +70,7 @@ export function StockItemsList({ items }: StockItemsListProps) {
                 </div>
 
                 <div className="flex items-center justify-between rounded-md bg-muted/30 px-3 py-2">
-                  <span className="text-xs text-muted-foreground">
-                    {fr.stock.quantiteEnStock}
-                  </span>
+                  <span className="text-xs text-muted-foreground">{fr.stock.quantiteEnStock}</span>
                   <span className="text-2xl font-bold">{item.quantite}</span>
                 </div>
 

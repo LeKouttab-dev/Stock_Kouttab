@@ -18,7 +18,6 @@ import {
   type StockItemFromBarcodeFormValues,
 } from '@/lib/schemas/stock';
 import { useToast } from '@/hooks/useToast';
-import { extractErrorMessage } from '@/api/client';
 import { fr } from '@/lib/i18n/fr';
 import { EMOJI_OPTIONS } from '@/lib/constants';
 import type { BarcodeLookupResponse } from '@/types/api';
@@ -94,8 +93,9 @@ export function AddItemFromBarcodeModal({
       });
       toast.success('Article créé', `${values.nom} ajouté au stock.`);
       onOpenChange(false);
-    } catch (e) {
-      toast.error('Erreur', extractErrorMessage(e));
+    } catch {
+      /* Erreur deja signalee par useApiMutation : un second toast
+         ferait doublon a l'ecran. */
     }
   };
 
@@ -114,9 +114,7 @@ export function AddItemFromBarcodeModal({
 
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">{fr.scanner.barcode} :</span>
-          <span className="rounded bg-muted px-2 py-1 font-mono text-sm">
-            {lookup.barcode}
-          </span>
+          <span className="rounded bg-muted px-2 py-1 font-mono text-sm">{lookup.barcode}</span>
         </div>
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -234,9 +232,7 @@ export function AddItemFromBarcodeModal({
             ))}
           </div>
 
-          {hasOff && (
-            <p className="text-xs text-muted-foreground">{fr.scanner.enrichedFromOFF}</p>
-          )}
+          {hasOff && <p className="text-xs text-muted-foreground">{fr.scanner.enrichedFromOFF}</p>}
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

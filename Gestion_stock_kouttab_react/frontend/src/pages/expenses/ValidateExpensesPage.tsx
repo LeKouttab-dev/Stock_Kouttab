@@ -29,9 +29,9 @@ import { EXPENSE_STATUS } from '@/lib/constants';
 import type { Expense } from '@/types/api';
 import { copyToClipboard } from '@/lib/utils';
 import { useToast } from '@/hooks/useToast';
-import { extractErrorMessage } from '@/api/client';
 import { formatCurrency, formatDate } from '@/lib/format';
 import { fr } from '@/lib/i18n/fr';
+import { expenseTotal } from '@/lib/money';
 
 export function ValidateExpensesPage() {
   const { data: expenses = [], isLoading } = useAllExpenses();
@@ -51,7 +51,7 @@ export function ValidateExpensesPage() {
       ) : (
         <div className="space-y-3">
           {expenses.map((exp) => {
-            const total = exp.montant - exp.remboursement_deja_emis - exp.remise;
+            const total = expenseTotal(exp);
             const isOpen = expanded === exp.id;
             return (
               <Card key={exp.id}>
@@ -109,8 +109,9 @@ function ValidateExpenseDetail({ expense, total }: DetailProps) {
         payload: { status: values.status, commentaires_compta: values.commentaires_compta },
       });
       toast.success(fr.expenses.noteUpdated);
-    } catch (e) {
-      toast.error('Erreur', extractErrorMessage(e));
+    } catch {
+      /* Erreur deja signalee par useApiMutation : un second toast
+         ferait doublon a l'ecran. */
     }
   };
 
@@ -125,8 +126,9 @@ function ValidateExpenseDetail({ expense, total }: DetailProps) {
     try {
       await remove.mutateAsync(expense.id);
       toast.success(fr.expenses.noteSupprimee);
-    } catch (e) {
-      toast.error('Erreur', extractErrorMessage(e));
+    } catch {
+      /* Erreur deja signalee par useApiMutation : un second toast
+         ferait doublon a l'ecran. */
     }
   };
 
@@ -152,7 +154,8 @@ function ValidateExpenseDetail({ expense, total }: DetailProps) {
           {fr.expenses.montantBrut} : <strong>{formatCurrency(expense.montant)}</strong>
         </p>
         <p>
-          Remboursement déjà émis : <strong>-{formatCurrency(expense.remboursement_deja_emis)}</strong>
+          Remboursement déjà émis :{' '}
+          <strong>-{formatCurrency(expense.remboursement_deja_emis)}</strong>
         </p>
         <p>
           Remise : <strong>-{formatCurrency(expense.remise)}</strong>
@@ -204,7 +207,10 @@ function ValidateExpenseDetail({ expense, total }: DetailProps) {
         </Alert>
       )}
 
-      <form onSubmit={form.handleSubmit(onValidate)} className="space-y-3 rounded-md border bg-background p-3">
+      <form
+        onSubmit={form.handleSubmit(onValidate)}
+        className="space-y-3 rounded-md border bg-background p-3"
+      >
         <div>
           <Label>{fr.expenses.commentaireCompta}</Label>
           <Textarea rows={2} {...form.register('commentaires_compta')} />

@@ -15,7 +15,6 @@ import { useCategories, useCreateStockItem, useSubcategories } from '@/api/endpo
 import { stockItemSchema, type StockItemFormValues } from '@/lib/schemas/stock';
 import { EMOJI_OPTIONS } from '@/lib/constants';
 import { useToast } from '@/hooks/useToast';
-import { extractErrorMessage } from '@/api/client';
 import { fr } from '@/lib/i18n/fr';
 
 export function AddItemSection() {
@@ -50,8 +49,9 @@ export function AddItemSection() {
         seuil_alerte: 5,
         emoji: '📦',
       });
-    } catch (e) {
-      toast.error('Erreur', extractErrorMessage(e));
+    } catch {
+      /* Erreur deja signalee par useApiMutation : un second toast
+         ferait doublon a l'ecran. */
     }
   };
 
@@ -64,10 +64,7 @@ export function AddItemSection() {
         <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 md:grid-cols-2">
           <div className="space-y-1.5 md:col-span-2">
             <Label required>{fr.admin.nomArticle}</Label>
-            <Input
-              hasError={Boolean(form.formState.errors.nom)}
-              {...form.register('nom')}
-            />
+            <Input hasError={Boolean(form.formState.errors.nom)} {...form.register('nom')} />
             {form.formState.errors.nom && (
               <p className="text-xs text-destructive">{form.formState.errors.nom.message}</p>
             )}

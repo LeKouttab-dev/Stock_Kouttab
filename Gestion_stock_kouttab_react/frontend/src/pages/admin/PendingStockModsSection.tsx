@@ -8,7 +8,6 @@ import {
   useStockModifications,
 } from '@/api/endpoints/stock';
 import { useToast } from '@/hooks/useToast';
-import { extractErrorMessage } from '@/api/client';
 import { fr } from '@/lib/i18n/fr';
 
 export function PendingStockModsSection() {
@@ -21,8 +20,9 @@ export function PendingStockModsSection() {
     try {
       await approve.mutateAsync(id);
       toast.success('Modification approuvée');
-    } catch (e) {
-      toast.error('Erreur', extractErrorMessage(e));
+    } catch {
+      /* Erreur deja signalee par useApiMutation : un second toast
+         ferait doublon a l'ecran. */
     }
   };
 
@@ -30,8 +30,9 @@ export function PendingStockModsSection() {
     try {
       await refuse.mutateAsync(id);
       toast.info('Modification refusée');
-    } catch (e) {
-      toast.error('Erreur', extractErrorMessage(e));
+    } catch {
+      /* Erreur deja signalee par useApiMutation : un second toast
+         ferait doublon a l'ecran. */
     }
   };
 

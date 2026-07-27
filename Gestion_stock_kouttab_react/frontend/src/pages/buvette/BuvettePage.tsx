@@ -80,11 +80,15 @@ export function BuvettePage() {
     const totalStock = list.reduce((acc, p) => acc + p.quantity, 0);
     const productsAlert = list.filter((p) => p.quantity <= p.seuil_alerte).length;
     const today = startOfTodayIso();
-    const salesToday = (sales.data ?? []).filter(
-      (s) => (s.sold_at ?? s.processed_at) >= today,
-    );
+    const salesToday = (sales.data ?? []).filter((s) => (s.sold_at ?? s.processed_at) >= today);
     const salesTodayCents = salesToday.reduce((acc, s) => acc + s.amount_cents, 0);
-    return { totalProducts, totalStock, productsAlert, salesTodayCents, salesTodayCount: salesToday.length };
+    return {
+      totalProducts,
+      totalStock,
+      productsAlert,
+      salesTodayCents,
+      salesTodayCount: salesToday.length,
+    };
   }, [list, sales.data]);
 
   const handleSync = async () => {
@@ -106,8 +110,9 @@ export function BuvettePage() {
     try {
       await remove.mutateAsync(p.id);
       toast.success(fr.buvette.productDeleted);
-    } catch (e) {
-      toast.error('Erreur', extractErrorMessage(e));
+    } catch {
+      /* Erreur deja signalee par useApiMutation : un second toast
+         ferait doublon a l'ecran. */
     }
   };
 

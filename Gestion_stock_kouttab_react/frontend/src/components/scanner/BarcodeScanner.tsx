@@ -120,9 +120,7 @@ export function BarcodeScanner({
         ) {
           setError(fr.scanner.permissionDenied);
         } else if (name === 'NotFoundError' || name === 'OverconstrainedError') {
-          setError(
-            'Aucune caméra disponible sur cet appareil ou contrainte non supportée.',
-          );
+          setError('Aucune caméra disponible sur cet appareil ou contrainte non supportée.');
         } else {
           setError(err?.message ?? 'Impossible de démarrer le scanner.');
         }
@@ -180,13 +178,7 @@ export function BarcodeScanner({
           </Alert>
         ) : (
           <div className="relative w-full overflow-hidden rounded-md bg-black">
-            <video
-              ref={videoRef}
-              className="h-auto w-full"
-              autoPlay
-              muted
-              playsInline
-            />
+            <video ref={videoRef} className="h-auto w-full" autoPlay muted playsInline />
             {/* Cadre de visée */}
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
               <div className="h-1/3 w-3/4 rounded-md border-2 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.25)]" />

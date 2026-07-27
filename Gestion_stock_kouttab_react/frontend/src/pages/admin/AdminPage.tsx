@@ -17,7 +17,6 @@ import {
   useInvitations,
 } from '@/api/endpoints/invitations';
 import { useToast } from '@/hooks/useToast';
-import { extractErrorMessage } from '@/api/client';
 import { formatDateTime } from '@/lib/format';
 import { fr } from '@/lib/i18n/fr';
 import { PendingUsersSection } from './PendingUsersSection';
@@ -134,8 +133,9 @@ function InvitationsSection() {
       await create.mutateAsync({ email: values.email });
       toast.success('Invitation envoyée par email');
       form.reset();
-    } catch (e) {
-      toast.error('Erreur', extractErrorMessage(e));
+    } catch {
+      /* Erreur deja signalee par useApiMutation : un second toast
+         ferait doublon a l'ecran. */
     }
   };
 
@@ -144,8 +144,9 @@ function InvitationsSection() {
     try {
       await remove.mutateAsync(id);
       toast.success('Invitation révoquée');
-    } catch (e) {
-      toast.error('Erreur', extractErrorMessage(e));
+    } catch {
+      /* Erreur deja signalee par useApiMutation : un second toast
+         ferait doublon a l'ecran. */
     }
   };
 

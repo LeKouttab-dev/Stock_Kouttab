@@ -13,6 +13,7 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
 import { FileUploader } from '@/components/forms/FileUploader';
 import { EventSelect } from '@/components/forms/EventSelect';
+import { ProfileForm } from '@/components/forms/ProfileForm';
 import {
   Select,
   SelectContent,
@@ -22,17 +23,11 @@ import {
 } from '@/components/ui/select';
 import { usePoles } from '@/api/endpoints/referentials';
 import { buildAttachmentFilename, deduplicateFilenames } from '@/lib/naming';
-import {
-  useCreateExpense,
-  useMyExpenses,
-  useUpdateExpense,
-} from '@/api/endpoints/expenses';
-import { useProfile, useUpdateProfile } from '@/api/endpoints/auth';
+import { useCreateExpense, useMyExpenses, useUpdateExpense } from '@/api/endpoints/expenses';
 import { expenseSchema, type ExpenseFormValues } from '@/lib/schemas/expense';
-import { profileSchema, type ProfileFormValues } from '@/lib/schemas/auth';
 import { useToast } from '@/hooks/useToast';
-import { extractErrorMessage } from '@/api/client';
 import { fr } from '@/lib/i18n/fr';
+import { expenseTotal } from '@/lib/money';
 import { formatCurrency, formatDate } from '@/lib/format';
 import type { Expense } from '@/types/api';
 
@@ -127,8 +122,9 @@ function SubmitExpenseTab() {
       toast.success(fr.expenses.soumissionOK);
       form.reset();
       setFiles([]);
-    } catch (e) {
-      toast.error('Erreur', extractErrorMessage(e));
+    } catch {
+      /* Erreur deja signalee par useApiMutation : un second toast
+         ferait doublon a l'ecran. */
     }
   };
 
@@ -151,7 +147,9 @@ function SubmitExpenseTab() {
                 {...form.register('date_depense')}
               />
               {form.formState.errors.date_depense && (
-                <p className="text-xs text-destructive">{form.formState.errors.date_depense.message}</p>
+                <p className="text-xs text-destructive">
+                  {form.formState.errors.date_depense.message}
+                </p>
               )}
             </div>
             <div className="space-y-1.5">
@@ -164,7 +162,9 @@ function SubmitExpenseTab() {
                 {...form.register('rattachement')}
               />
               {form.formState.errors.rattachement && (
-                <p className="text-xs text-destructive">{form.formState.errors.rattachement.message}</p>
+                <p className="text-xs text-destructive">
+                  {form.formState.errors.rattachement.message}
+                </p>
               )}
             </div>
           </div>
@@ -334,15 +334,16 @@ function MyExpensesList() {
       await update.mutateAsync({ id, data: values });
       toast.success(fr.expenses.noteUpdated);
       setEditing(null);
-    } catch (e) {
-      toast.error('Erreur', extractErrorMessage(e));
+    } catch {
+      /* Erreur deja signalee par useApiMutation : un second toast
+         ferait doublon a l'ecran. */
     }
   };
 
   return (
     <div className="space-y-3">
       {expenses.map((exp) => {
-        const total = exp.montant - exp.remboursement_deja_emis - exp.remise;
+        const total = expenseTotal(exp);
         const isEditing = editing === exp.id;
 
         return (
@@ -380,9 +381,7 @@ function MyExpensesList() {
                   onSubmit={editForm.handleSubmit(() => onSubmitEdit(exp.id))}
                   className="space-y-3 border-t pt-3"
                 >
-                  <p className="text-xs text-muted-foreground">
-                    {fr.expenses.pourModifierTickets}
-                  </p>
+                  <p className="text-xs text-muted-foreground">{fr.expenses.pourModifierTickets}</p>
                   <div className="grid gap-3 md:grid-cols-2">
                     <div>
                       <Label required>{fr.expenses.date}</Label>
@@ -452,70 +451,8 @@ function MyExpensesList() {
   );
 }
 
+// L'onglet « Profil » et la page /profile affichaient deux copies du meme
+// formulaire : un champ ajoute d'un cote manquait de l'autre.
 function ProfileTab() {
-  const { data: profile, isLoading } = useProfile();
-  const update = useUpdateProfile();
-  const toast = useToast();
-
-  const form = useForm<ProfileFormValues>({
-    resolver: zodResolver(profileSchema),
-    values: profile
-      ? {
-          nom: profile.nom,
-          prenom: profile.prenom,
-          email: profile.email,
-          telephone: profile.telephone ?? '',
-          rib: profile.rib ?? '',
-        }
-      : undefined,
-  });
-
-  if (isLoading) return <LoadingSpinner fullPage />;
-
-  const onSubmit = async (values: ProfileFormValues) => {
-    try {
-      await update.mutateAsync(values);
-      toast.success(fr.expenses.profilUpdated);
-    } catch (e) {
-      toast.error('Erreur', extractErrorMessage(e));
-    }
-  };
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">{fr.expenses.informationsRemboursement}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <Label required>{fr.auth.nom}</Label>
-              <Input {...form.register('nom')} />
-            </div>
-            <div>
-              <Label required>{fr.auth.prenom}</Label>
-              <Input {...form.register('prenom')} />
-            </div>
-            <div>
-              <Label required>{fr.auth.email}</Label>
-              <Input type="email" {...form.register('email')} />
-            </div>
-            <div>
-              <Label>{fr.auth.telephone}</Label>
-              <Input type="tel" {...form.register('telephone')} />
-            </div>
-            <div className="md:col-span-2">
-              <Label>{fr.expenses.iban}</Label>
-              <Input placeholder="FR76 …" {...form.register('rib')} />
-            </div>
-          </div>
-          <Button type="submit" loading={update.isPending}>
-            {fr.common.update}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
-  );
+  return <ProfileForm />;
 }
-
