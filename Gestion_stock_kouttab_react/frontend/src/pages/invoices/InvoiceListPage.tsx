@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, Download, Search } from 'lucide-react';
+import { ChevronDown, ChevronRight, Download, Search, Send } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,6 +18,7 @@ import { KpiCard } from '@/components/shared/KpiCard';
 import {
   getInvoiceFileUrl,
   useInvoices,
+  useResendComptaEmail,
   useUpdateInvoiceStatus,
 } from '@/api/endpoints/invoices';
 import { INVOICE_STATUS, type InvoiceStatus } from '@/lib/constants';
@@ -145,7 +146,9 @@ export function InvoiceListPage() {
 function InvoiceDetail({ invoice }: { invoice: Invoice }) {
   const { can } = useAuth();
   const canChange = can(ACTIONS.INVOICES_CHANGE_STATUS);
+  const canResend = can(ACTIONS.COMPTA_RESEND_EMAIL);
   const update = useUpdateInvoiceStatus();
+  const resend = useResendComptaEmail();
   const toast = useToast();
   const [status, setStatus] = useState<InvoiceStatus>(invoice.status);
 
@@ -156,6 +159,11 @@ function InvoiceDetail({ invoice }: { invoice: Invoice }) {
     } catch (e) {
       toast.error('Erreur', extractErrorMessage(e));
     }
+  };
+
+  const onResend = async () => {
+    await resend.mutateAsync(invoice.id);
+    toast.success(fr.invoices.renvoiSucces);
   };
 
   return (
@@ -170,6 +178,28 @@ function InvoiceDetail({ invoice }: { invoice: Invoice }) {
         <p>
           <strong>{fr.invoices.nombreFichiers} :</strong> {invoice.files?.length ?? 0}
         </p>
+        {/* Rattachement comptable — absent des factures antérieures au module. */}
+        {invoice.pole && (
+          <p>
+            <strong>{fr.invoices.pole} :</strong> {invoice.pole}
+          </p>
+        )}
+        {invoice.evenement && (
+          <p>
+            <strong>{fr.invoices.evenement} :</strong> {invoice.evenement}
+          </p>
+        )}
+        {invoice.date_evenement && (
+          <p>
+            <strong>{fr.invoices.dateEvenement} :</strong>{' '}
+            {formatDate(invoice.date_evenement)}
+          </p>
+        )}
+        {invoice.fournisseur && (
+          <p>
+            <strong>{fr.invoices.fournisseur} :</strong> {invoice.fournisseur}
+          </p>
+        )}
       </div>
 
       {invoice.commentaire && (
@@ -218,6 +248,24 @@ function InvoiceDetail({ invoice }: { invoice: Invoice }) {
           </div>
           <Button onClick={onUpdate} loading={update.isPending}>
             {fr.common.update}
+          </Button>
+        </div>
+      )}
+
+      {/* Relance de l'envoi au comptable.
+          Utile quand le serveur mail était injoignable au moment du dépôt, ou
+          quand le comptable signale ne pas avoir reçu la pièce : on renvoie
+          celle déjà déposée plutôt que de demander un second dépôt, qui créerait
+          un doublon en base. La file réessaie seule pendant environ 2 h 30 puis
+          abandonne — ce bouton reprend la main ensuite. */}
+      {canResend && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-background p-3">
+          <p className="text-xs text-muted-foreground">
+            {fr.invoices.renvoyerAide}
+          </p>
+          <Button variant="outline" onClick={onResend} loading={resend.isPending}>
+            <Send className="mr-1 h-4 w-4" />
+            {fr.invoices.renvoyerMail}
           </Button>
         </div>
       )}

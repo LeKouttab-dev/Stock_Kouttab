@@ -27,6 +27,8 @@ import { AddItemSection } from './AddItemSection';
 import { ImportCsvSection } from './ImportCsvSection';
 import { CategoriesManagementSection } from './CategoriesManagementSection';
 import { SubCategoriesManagementSection } from './SubCategoriesManagementSection';
+import { PolesManagementSection } from './PolesManagementSection';
+import { EventsManagementSection } from './EventsManagementSection';
 
 const invitationFormSchema = z.object({
   email: z.string().email('Email invalide'),
@@ -41,6 +43,8 @@ export function AdminPage() {
   const isSuperAdmin = can(ACTIONS.ADMIN_VALIDATE_USERS);
   const isStockAdmin = can(ACTIONS.STOCK_CRUD);
   const canImportCsv = can(ACTIONS.ADMIN_IMPORT_CSV);
+  const canManagePoles = can(ACTIONS.POLES_MANAGE);
+  const canManageEvents = can(ACTIONS.EVENTS_MANAGE);
 
   return (
     <div className="space-y-6">
@@ -87,7 +91,16 @@ export function AdminPage() {
         </>
       )}
 
-      {!isSuperAdmin && !isStockAdmin && (
+      {/* Référentiels comptables : ils alimentent le nom des pièces envoyées
+          au comptable, d'où leur place à côté de la gestion des données. */}
+      {(canManagePoles || canManageEvents) && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {canManagePoles && <PolesManagementSection />}
+          {canManageEvents && <EventsManagementSection />}
+        </div>
+      )}
+
+      {!isSuperAdmin && !isStockAdmin && !canManagePoles && !canManageEvents && (
         <EmptyState
           title="Aucune section accessible"
           description="Votre rôle ne donne pas accès aux sections d'administration."

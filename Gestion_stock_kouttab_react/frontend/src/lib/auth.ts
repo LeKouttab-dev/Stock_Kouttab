@@ -26,6 +26,9 @@ export const ACTIONS = {
   BUVETTE_SYNC: 'buvette:sync',
   BUVETTE_CRUD: 'buvette:crud',
   BUVETTE_WEBHOOK: 'buvette:webhook',
+  POLES_MANAGE: 'poles:manage',
+  EVENTS_MANAGE: 'events:manage',
+  COMPTA_RESEND_EMAIL: 'compta:resend_email',
 } as const;
 
 export type Action = (typeof ACTIONS)[keyof typeof ACTIONS];
@@ -52,6 +55,11 @@ const PERMISSIONS: Record<Action, Role[]> = {
   [ACTIONS.BUVETTE_SYNC]: ['Super Admin', 'AdminBenevoles'],
   [ACTIONS.BUVETTE_CRUD]: ['Super Admin', 'AdminBenevoles'],
   [ACTIONS.BUVETTE_WEBHOOK]: ['Super Admin'],
+  // Doivent refléter exactement les dépendances de rôle côté serveur :
+  // _POLE_ADMIN_ROLES et _EVENT_ADMIN_ROLES dans les endpoints correspondants.
+  [ACTIONS.POLES_MANAGE]: ['Super Admin'],
+  [ACTIONS.EVENTS_MANAGE]: ['Super Admin', 'AdminBenevoles'],
+  [ACTIONS.COMPTA_RESEND_EMAIL]: ['Super Admin', 'Compta'],
 };
 
 export function canAccess(role: Role | null | undefined, action: Action): boolean {

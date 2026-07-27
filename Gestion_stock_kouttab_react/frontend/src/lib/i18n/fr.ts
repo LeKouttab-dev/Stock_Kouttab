@@ -166,6 +166,8 @@ export const fr = {
     mailComptaAttente: "En attente d'envoi",
     mailComptaEchec: "Échec de l'envoi",
     renvoyerMail: 'Renvoyer au comptable',
+    renvoyerAide:
+      "Si le service comptable n'a pas reçu cette pièce, relancez l'envoi sans demander un nouveau dépôt.",
     renvoiSucces: 'Envoi au service comptable relancé.',
     viewTab: 'Visionner les factures',
     important: 'Important',
