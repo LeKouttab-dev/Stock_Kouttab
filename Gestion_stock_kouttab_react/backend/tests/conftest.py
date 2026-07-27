@@ -31,7 +31,6 @@ from app.core.security import create_access_token  # noqa: E402
 from app.crud import pole as pole_crud  # noqa: E402
 from app.crud import user as user_crud  # noqa: E402
 from app.db.base import Base  # noqa: E402
-from app.db.models import LoginAttempt, RefreshToken  # noqa: E402
 from app.db.session import get_db  # noqa: E402
 from app.main import app  # noqa: E402
 
@@ -125,28 +124,39 @@ def client() -> Generator[TestClient, None, None]:
 
 
 @pytest.fixture(autouse=True)
-def _reset_auth_state() -> Generator[None, None, None]:
-    """Isole l'etat d'authentification entre les tests.
+def _isolate_test_state() -> Generator[None, None, None]:
+    """Remet la base a son etat initial entre chaque test.
 
-    Le lockout et les refresh tokens sont desormais persistes en base : sans ce
-    nettoyage, un test qui verrouille un compte contaminerait les suivants.
+    La suite partageait une base SQLite unique sans jamais rien nettoyer,
+    contrairement a ce qu'annonce le CLAUDE.md. Les tests etaient donc
+    sensibles a leur ordre d'execution — un pole cree par un test faisait par
+    exemple echouer une assertion d'un autre.
 
-    Le limiteur de debit est desactive par defaut, car ``TestClient`` presente
-    toujours la meme IP : les quotas seraient consommes par l'accumulation des
-    tests plutot que par le scenario teste. Le test dedie au rate limiting le
-    reactive explicitement.
+    On vide les tables plutot que d'envelopper chaque test dans une transaction
+    a annuler : les endpoints committent, les traitements differes ouvrent leur
+    propre session, et une transaction externe partagee via ``StaticPool``
+    donnerait des interactions difficiles a diagnostiquer. Le nettoyage
+    explicite est plus lent de quelques millisecondes, mais previsible.
+
+    Le limiteur de debit est desactive par defaut : ``TestClient`` presente
+    toujours la meme IP, les quotas seraient consommes par l'accumulation des
+    tests plutot que par le scenario teste.
     """
     limiter.enabled = False
-    db = _TestingSessionLocal()
-    try:
-        db.query(LoginAttempt).delete()
-        db.query(RefreshToken).delete()
-        db.commit()
-    finally:
-        db.close()
     yield
     limiter.reset()
     limiter.enabled = settings.rate_limit_enabled
+
+    db = _TestingSessionLocal()
+    try:
+        # Ordre inverse des dependances : les tables filles d'abord.
+        for table in reversed(Base.metadata.sorted_tables):
+            db.execute(table.delete())
+        db.commit()
+        # Le referentiel de base fait partie de l'etat initial attendu.
+        pole_crud.ensure_default_poles(db)
+    finally:
+        db.close()
 
 
 # ---------------------------------------------------------------------------
