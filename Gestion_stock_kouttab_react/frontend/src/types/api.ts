@@ -184,6 +184,13 @@ export interface ExpenseCreateRequest {
   commentaires?: string;
   remboursement_deja_emis?: number;
   remise?: number;
+  /* Rattachement comptable, facultatif : une dépense courante peut n'être
+     rattachée à aucun événement. Les valeurs nulles ou vides sont écartées
+     avant l'envoi du FormData. */
+  id_pole?: number | null;
+  id_event?: number | null;
+  evenement_libre?: string;
+  date_evenement?: string;
 }
 
 export interface ExpenseUpdateRequest extends Partial<ExpenseCreateRequest> {}

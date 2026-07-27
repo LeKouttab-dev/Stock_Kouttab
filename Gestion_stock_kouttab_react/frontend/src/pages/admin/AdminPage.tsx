@@ -29,6 +29,7 @@ import { CategoriesManagementSection } from './CategoriesManagementSection';
 import { SubCategoriesManagementSection } from './SubCategoriesManagementSection';
 import { PolesManagementSection } from './PolesManagementSection';
 import { EventsManagementSection } from './EventsManagementSection';
+import { OutboundEmailsSection } from './OutboundEmailsSection';
 
 const invitationFormSchema = z.object({
   email: z.string().email('Email invalide'),
@@ -45,6 +46,7 @@ export function AdminPage() {
   const canImportCsv = can(ACTIONS.ADMIN_IMPORT_CSV);
   const canManagePoles = can(ACTIONS.POLES_MANAGE);
   const canManageEvents = can(ACTIONS.EVENTS_MANAGE);
+  const canSuperviseOutbox = can(ACTIONS.COMPTA_RESEND_EMAIL);
 
   return (
     <div className="space-y-6">
@@ -100,12 +102,18 @@ export function AdminPage() {
         </div>
       )}
 
-      {!isSuperAdmin && !isStockAdmin && !canManagePoles && !canManageEvents && (
-        <EmptyState
-          title="Aucune section accessible"
-          description="Votre rôle ne donne pas accès aux sections d'administration."
-        />
-      )}
+      {canSuperviseOutbox && <OutboundEmailsSection />}
+
+      {!isSuperAdmin &&
+        !isStockAdmin &&
+        !canManagePoles &&
+        !canManageEvents &&
+        !canSuperviseOutbox && (
+          <EmptyState
+            title="Aucune section accessible"
+            description="Votre rôle ne donne pas accès aux sections d'administration."
+          />
+        )}
     </div>
   );
 }
@@ -199,7 +207,6 @@ function InvitationsSection() {
             })}
           </ul>
         )}
-
       </CardContent>
     </Card>
   );

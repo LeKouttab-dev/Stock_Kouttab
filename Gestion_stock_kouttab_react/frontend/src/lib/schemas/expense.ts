@@ -10,6 +10,12 @@ export const expenseSchema = z.object({
   commentaires: z.string().optional().or(z.literal('')),
   remboursement_deja_emis: z.coerce.number().min(0).default(0),
   remise: z.coerce.number().min(0).default(0),
+  // Rattachement comptable, facultatif : une dépense courante n'a pas toujours
+  // d'événement associé. Le nom du ticket retombe alors sur le rattachement.
+  id_pole: z.number().int().positive().nullable().optional(),
+  id_event: z.number().int().positive().nullable().optional(),
+  evenement_libre: z.string().optional().or(z.literal('')),
+  date_evenement: z.string().optional().or(z.literal('')),
 });
 
 export type ExpenseFormValues = z.infer<typeof expenseSchema>;

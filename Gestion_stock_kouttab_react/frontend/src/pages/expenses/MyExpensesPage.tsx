@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -12,6 +12,16 @@ import { StatusBadge } from '@/components/shared/StatusBadge';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
 import { FileUploader } from '@/components/forms/FileUploader';
+import { EventSelect } from '@/components/forms/EventSelect';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { usePoles } from '@/api/endpoints/referentials';
+import { buildAttachmentFilename, deduplicateFilenames } from '@/lib/naming';
 import {
   useCreateExpense,
   useMyExpenses,
@@ -60,6 +70,7 @@ export function MyExpensesPage() {
 function SubmitExpenseTab() {
   const create = useCreateExpense();
   const toast = useToast();
+  const { data: poles } = usePoles();
   const [files, setFiles] = useState<File[]>([]);
 
   const form = useForm<ExpenseFormValues>({
@@ -73,8 +84,42 @@ function SubmitExpenseTab() {
       commentaires: '',
       remboursement_deja_emis: 0,
       remise: 0,
+      id_pole: null,
+      id_event: null,
+      evenement_libre: '',
+      date_evenement: '',
     },
   });
+
+  const poleId = form.watch('id_pole');
+  const eventId = form.watch('id_event');
+  const eventLibre = form.watch('evenement_libre');
+  const dateEvenement = form.watch('date_evenement');
+  const dateDepense = form.watch('date_depense');
+  const rattachement = form.watch('rattachement');
+
+  const selectedPole = poles?.find((p) => p.id === poleId) ?? null;
+
+  /**
+   * Aperçu du nom transmis à la comptabilité.
+   *
+   * Même règle de repli que le serveur : à défaut d'événement, on retombe sur
+   * le rattachement, et à défaut de date d'événement sur la date de dépense.
+   */
+  const previewNames = useMemo(() => {
+    if (files.length === 0) return [];
+    const eventLabel =
+      eventLibre?.trim() ||
+      (eventId !== null && eventId !== undefined ? fr.events.selected : null) ||
+      rattachement;
+    const base = files.map(() =>
+      buildAttachmentFilename(
+        [selectedPole?.nom, eventLabel],
+        dateEvenement || dateDepense || null,
+      ),
+    );
+    return deduplicateFilenames(base);
+  }, [files, selectedPole, eventLibre, eventId, rattachement, dateEvenement, dateDepense]);
 
   const onSubmit = async (values: ExpenseFormValues) => {
     try {
@@ -174,6 +219,48 @@ function SubmitExpenseTab() {
             </div>
           </div>
 
+          {/* Rattachement comptable : facultatif ici, contrairement aux
+              factures. Une dépense courante n'a pas toujours d'événement, et
+              le nom du ticket retombe alors sur le rattachement. */}
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="space-y-1.5">
+              <Label>{fr.invoices.pole}</Label>
+              <Select
+                value={poleId ? String(poleId) : ''}
+                onValueChange={(v) => form.setValue('id_pole', Number(v))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={fr.invoices.polePlaceholder} />
+                </SelectTrigger>
+                <SelectContent>
+                  {(poles ?? []).map((pole) => (
+                    <SelectItem key={pole.id} value={String(pole.id)}>
+                      {pole.nom}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>{fr.invoices.evenement}</Label>
+              <EventSelect
+                eventId={eventId ?? null}
+                freeText={eventLibre ?? ''}
+                onEventIdChange={(id) => form.setValue('id_event', id)}
+                onFreeTextChange={(v) => form.setValue('evenement_libre', v)}
+                onEventDate={(d) => {
+                  if (d && !form.getValues('date_evenement')) {
+                    form.setValue('date_evenement', d);
+                  }
+                }}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="date_evenement">{fr.invoices.dateEvenement}</Label>
+              <Input id="date_evenement" type="date" {...form.register('date_evenement')} />
+            </div>
+          </div>
+
           <div className="space-y-1.5">
             <Label htmlFor="commentaires">{fr.expenses.commentaires}</Label>
             <Textarea id="commentaires" rows={3} {...form.register('commentaires')} />
@@ -188,6 +275,19 @@ function SubmitExpenseTab() {
               helperText="PNG, JPG. 10 Mo max par fichier, 5 fichiers max."
             />
           </div>
+
+          {previewNames.length > 0 && (
+            <div className="rounded-md border bg-muted/40 p-3">
+              <p className="text-xs font-medium">{fr.invoices.apercuNomFichier}</p>
+              <ul className="mt-1 space-y-0.5">
+                {previewNames.map((name) => (
+                  <li key={name} className="font-mono text-xs text-muted-foreground">
+                    {name}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           <Button type="submit" loading={create.isPending}>
             {fr.expenses.soumettre}

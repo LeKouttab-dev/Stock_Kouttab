@@ -193,6 +193,22 @@ export const fr = {
     dateDepot: 'Date de dépôt',
     nombreFichiers: 'Nombre de fichiers',
   },
+  outbox: {
+    title: 'Envois au service comptable',
+    subtitle:
+      "Suivi des pièces transmises. Un envoi en échec est réessayé automatiquement, puis relançable à la main.",
+    pending: "En attente d'envoi",
+    sending: 'Envoi en cours',
+    sent: 'Envoyé',
+    failed: 'Échec',
+    abandoned: 'Abandonné',
+    retry: 'Relancer',
+    empty: 'Aucun envoi enregistré.',
+    noRecipient: 'Aucun destinataire configuré (COMPTA_EMAIL)',
+    attachments: 'pièce(s) jointe(s)',
+    sentOn: 'envoyé le',
+  },
+
   poles: {
     title: 'Pôles de rattachement',
     subtitle:
@@ -350,6 +366,7 @@ export const fr = {
   common: {
     loading: 'Chargement…',
     error: 'Une erreur est survenue.',
+    refresh: 'Actualiser',
     save: 'Enregistrer',
     cancel: 'Annuler',
     delete: 'Supprimer',
