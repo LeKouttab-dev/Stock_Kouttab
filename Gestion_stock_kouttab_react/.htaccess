@@ -1,0 +1,87 @@
+# ============================================================
+# .htaccess racine — Kouttab Stock React (production O2Switch)
+# A déployer dans /www/stock.lekouttab.fr/
+# ============================================================
+
+# Compression (Brotli si dispo, sinon gzip)
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json application/xml image/svg+xml
+</IfModule>
+
+# Cache des assets immuables (Vite ajoute un hash dans le nom)
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css "access plus 1 year"
+    ExpiresByType application/javascript "access plus 1 year"
+    ExpiresByType image/svg+xml "access plus 1 month"
+    ExpiresByType image/png "access plus 1 month"
+    ExpiresByType image/jpeg "access plus 1 month"
+    ExpiresByType image/x-icon "access plus 1 month"
+</IfModule>
+
+# index.html ne doit JAMAIS être caché
+<IfModule mod_headers.c>
+    <FilesMatch "index\.html$">
+        Header set Cache-Control "no-cache, no-store, must-revalidate"
+        Header set Pragma "no-cache"
+        Header set Expires "0"
+    </FilesMatch>
+    <FilesMatch "\.(js|css|svg|png|jpg|jpeg|woff2?)$">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
+</IfModule>
+
+# Headers de sécurité
+<IfModule mod_headers.c>
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "DENY"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+    Header always set Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+</IfModule>
+
+# HTTPS forcé
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{HTTPS} off
+    RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
+
+# ============================================================
+# ROUTING : /api/* → app FastAPI Passenger
+#           sinon → SPA React (index.html)
+# ============================================================
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # /api/* est traité par l'application Python Passenger (rien à faire ici,
+    # cPanel se charge de router vers passenger_wsgi.py)
+    RewriteCond %{REQUEST_URI} ^/api/
+    RewriteRule .* - [L]
+
+    # Ne pas réécrire les fichiers existants (assets buildés)
+    RewriteCond %{REQUEST_FILENAME} -f
+    RewriteRule .* - [L]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule .* - [L]
+
+    # Toutes les autres URLs → index.html (React Router prend le relais)
+    RewriteRule ^ index.html [L]
+</IfModule>
+
+# Bloquer les fichiers sensibles
+<FilesMatch "\.(env|env\..*|ini|log|md|toml|yml|yaml|sql|sh|bat|py|pyc)$">
+    Require all denied
+</FilesMatch>
+
+# Bloquer les dossiers sensibles
+RedirectMatch 404 /\.git
+RedirectMatch 404 /node_modules
+RedirectMatch 404 /backend(?!/uploads/)
+
+# Empêcher l'indexation de répertoires
+Options -Indexes
+
+# Limite upload (sera doublée par les contrôles applicatifs côté FastAPI)
+LimitRequestBody 10485760
