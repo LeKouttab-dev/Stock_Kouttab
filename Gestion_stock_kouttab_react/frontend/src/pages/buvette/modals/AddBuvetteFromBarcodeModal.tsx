@@ -19,6 +19,7 @@ import {
 } from '@/lib/schemas/buvette';
 import { useToast } from '@/hooks/useToast';
 import { fr } from '@/lib/i18n/fr';
+import { ScannedBarcodeLine, ScannedProductRow } from '@/components/scanner/ScannedProductPreview';
 import { eurosToCents } from '@/lib/money';
 import { EMOJI_OPTIONS } from '@/lib/constants';
 import type { BarcodeLookupResponse } from '@/types/api';
@@ -105,35 +106,22 @@ export function AddBuvetteFromBarcodeModal({
           <DialogDescription>{fr.scanner.notFound}</DialogDescription>
         </DialogHeader>
 
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">{fr.scanner.barcode} :</span>
-          <span className="rounded bg-muted px-2 py-1 font-mono text-sm">{lookup.barcode}</span>
-        </div>
+        <ScannedBarcodeLine barcode={lookup.barcode} />
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          <div className="flex gap-3">
-            {off?.image_url ? (
-              <img
-                src={off.image_url}
-                alt={off.name ?? 'Produit'}
-                className="h-20 w-20 flex-shrink-0 rounded-md border border-border object-cover"
-              />
-            ) : null}
-
-            <div className="flex-1 space-y-1.5">
-              <Label htmlFor="name" required>
-                {fr.buvette.name}
-              </Label>
-              <Input
-                id="name"
-                hasError={Boolean(form.formState.errors.name)}
-                {...form.register('name')}
-              />
-              {form.formState.errors.name && (
-                <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>
-              )}
-            </div>
-          </div>
+          <ScannedProductRow lookup={lookup}>
+            <Label htmlFor="name" required>
+              {fr.buvette.name}
+            </Label>
+            <Input
+              id="name"
+              hasError={Boolean(form.formState.errors.name)}
+              {...form.register('name')}
+            />
+            {form.formState.errors.name && (
+              <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>
+            )}
+          </ScannedProductRow>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
