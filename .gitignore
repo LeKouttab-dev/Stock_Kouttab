@@ -22,10 +22,18 @@ ENV/
 data/
 
 # Fichiers secrets et configuration
+# NB : regle large volontaire — .env.development avait ete commite avec le
+# mot de passe SMTP de production faute d'etre couvert ici.
 .streamlit/secrets.toml
+secrets.toml
 .env
-.env.local
-.env.production
+.env.*
+!.env.example
+create_env.sh
+
+# Archives de deploiement (contiennent des secrets)
+o2switch_deployment_*/
+o2switch_deployment_*.zip
 
 # Logs
 *.log
