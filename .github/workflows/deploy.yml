@@ -1,0 +1,125 @@
+# ---------------------------------------------------------------------------
+# Construction des images, publication sur GHCR, déploiement sur le VPS.
+#
+# Secrets attendus (Settings → Secrets and variables → Actions) :
+#   VPS_HOST         adresse du VPS
+#   VPS_USER         utilisateur de déploiement (non-root)
+#   VPS_SSH_KEY      clé privée ed25519 dédiée au déploiement
+#   VPS_KNOWN_HOSTS  sortie de `ssh-keyscan <VPS_HOST>`
+# Variable attendue :
+#   SITE_DOMAIN      ex. stock.lekouttab.fr
+#
+# Le .env de production vit sur le VPS et n'est jamais lu ici.
+# ---------------------------------------------------------------------------
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Deux déploiements simultanés se marcheraient dessus (migrations comprises).
+# `cancel-in-progress: false` : on laisse finir celui qui est en cours.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Construire et publier les images
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      owner: ${{ steps.owner.outputs.value }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # GHCR n'accepte que des noms en minuscules, or un compte GitHub peut
+      # comporter des majuscules.
+      - id: owner
+        run: echo "value=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image API
+        uses: docker/build-push-action@v6
+        with:
+          context: Gestion_stock_kouttab_react/backend
+          push: true
+          tags: |
+            ghcr.io/${{ steps.owner.outputs.value }}/kouttab-api:${{ github.sha }}
+            ghcr.io/${{ steps.owner.outputs.value }}/kouttab-api:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # VITE_API_URL est figé DANS le bundle à la construction : le front et
+      # l'API partagent l'origine, d'où le chemin relatif.
+      - name: Image Web
+        uses: docker/build-push-action@v6
+        with:
+          context: Gestion_stock_kouttab_react/frontend
+          push: true
+          build-args: VITE_API_URL=/api/v1
+          tags: |
+            ghcr.io/${{ steps.owner.outputs.value }}/kouttab-web:${{ github.sha }}
+            ghcr.io/${{ steps.owner.outputs.value }}/kouttab-web:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Déployer sur le VPS
+    needs: build
+    runs-on: ubuntu-24.04
+    environment: production
+    steps:
+      - name: Préparer la connexion SSH
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          # Empreinte connue à l'avance : sans elle, on accepterait n'importe
+          # quel serveur se présentant à cette adresse.
+          printf '%s\n' "${{ secrets.VPS_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Tirer les images et redémarrer
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+              "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+              "IMAGE_TAG='${{ github.sha }}' bash -s" <<'REMOTE'
+          set -euo pipefail
+          # Le VPS est mutualisé : chaque projet vit sous /opt/projets/<nom>.
+          # Voir /opt/CLAUDE.md sur le serveur.
+          cd /opt/projets/kouttab-stock
+
+          # Épingler la version déployée. Le tag précédent est conservé pour
+          # permettre un retour arrière (cf. DEPLOIEMENT-VPS.md).
+          cp .env .env.precedent
+          sed -i "s|^IMAGE_TAG=.*|IMAGE_TAG=${IMAGE_TAG}|" .env
+
+          docker compose pull
+
+          # Migrations avant le redémarrage : le nouveau code suppose le
+          # nouveau schéma. Conteneur jetable, l'API tourne encore.
+          docker compose run --rm api alembic upgrade head
+
+          docker compose up -d
+
+          # Pas de `docker image prune` : il agit sur TOUTE la machine, qui
+          # héberge d'autres projets. Même filtré sur l'ancienneté, il
+          # supprimerait leurs images inutilisées — et leur retour arrière avec.
+          # Le ménage se fait à la main, en connaissance de cause.
+          REMOTE
+
+      - name: Vérifier que le site répond
+        run: |
+          curl -fsS --retry 6 --retry-delay 5 --retry-connrefused \
+            "https://${{ vars.SITE_DOMAIN }}/api/v1/health"

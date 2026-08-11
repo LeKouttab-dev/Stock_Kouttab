@@ -1,0 +1,94 @@
+# ---------------------------------------------------------------------------
+# Production — VPS IONOS mutualisé, Ubuntu 24.04.
+#
+# ⚠️ Ce VPS héberge PLUSIEURS projets indépendants. Les règles de cohabitation
+# sont décrites dans `/opt/CLAUDE.md` sur le serveur ; les trois qui contraignent
+# ce fichier :
+#
+#   1. AUCUN `ports:` ici. Un unique Caddy, dans /opt/infra, détient 80 et 443
+#      pour toute la machine. Publier un port le volerait à un autre projet et
+#      exposerait l'API directement sur Internet.
+#   2. Réseau `web` déclaré `external` — il est créé par le socle. Sans cela,
+#      Compose fabrique un réseau isolé et Caddy ne voit jamais nos conteneurs :
+#      502 Bad Gateway.
+#   3. `container_name` préfixé par le projet : Caddy résout les conteneurs par
+#      leur nom, deux projets nommant leur service `api` entrent en collision.
+#
+# Aucune section `build:` : les images sont construites par GitHub Actions et
+# tirées depuis GHCR. Le VPS n'a donc ni Node, ni compilateur Python, et le
+# build ne peut plus le saturer en mémoire.
+#
+# La base MySQL reste chez O2Switch (`sauterelle.o2switch.net`), jointe en
+# direct : l'IP du VPS est déjà autorisée dans cPanel → « MySQL distant », et
+# tous les conteneurs sortent avec cette IP. Pas de tunnel à monter.
+#
+# Usage : docker compose pull && docker compose up -d
+# Routage : voir deploy/site.caddy
+# ---------------------------------------------------------------------------
+name: kouttab-stock
+
+x-api-image: &api-image ghcr.io/${GHCR_OWNER:?GHCR_OWNER manquant dans .env}/kouttab-api:${IMAGE_TAG:-latest}
+
+services:
+  # Fichiers statiques du front. Jamais exposé directement : le Caddy du socle
+  # le joint par le réseau `web`, sous le nom `kouttab-stock-web`.
+  web:
+    image: ghcr.io/${GHCR_OWNER}/kouttab-web:${IMAGE_TAG:-latest}
+    container_name: kouttab-stock-web
+    restart: unless-stopped
+    expose: ["80"]
+    networks: [web]
+    mem_limit: 128m
+    security_opt:
+      - no-new-privileges:true
+
+  api:
+    image: *api-image
+    container_name: kouttab-stock-api
+    restart: unless-stopped
+    env_file: [.env]
+    expose: ["8000"]
+    volumes:
+      - uploads:/app/uploads # justificatifs — À SAUVEGARDER
+      - outbox:/app/outbox # PDF en attente d'envoi comptable
+    networks: [web]
+    mem_limit: 768m
+    security_opt:
+      - no-new-privileges:true
+
+  # File d'envoi comptable. Remplace le cron O2Switch de DEPLOIEMENT.md.
+  #
+  # Même image que l'API, commande différente : le worker et l'API ne peuvent
+  # donc pas diverger de version, ce qui arriverait avec deux images séparées.
+  #
+  # Pas de `expose` : il ne sert aucune requête, il dépile la file.
+  outbox-worker:
+    image: *api-image
+    container_name: kouttab-stock-outbox
+    restart: unless-stopped
+    env_file: [.env]
+    volumes:
+      - uploads:/app/uploads
+      - outbox:/app/outbox
+    # `|| true` : un échec SMTP ne doit pas tuer la boucle, la file gère déjà
+    # son propre backoff (5/10/20/40/80 min) et reprendra au tour suivant.
+    command: >
+      sh -c 'while true; do
+               python scripts/process_outbound_emails.py || true;
+               sleep ${OUTBOX_INTERVAL_SECONDS:-600};
+             done'
+    networks: [web]
+    mem_limit: 512m
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  uploads:
+  outbox:
+
+# `external: true` : le réseau appartient au socle (/opt/infra), il n'est ni
+# créé ni supprimé par ce projet. `docker compose down` ici ne doit en aucun cas
+# emporter le réseau des autres applications de la machine.
+networks:
+  web:
+    external: true

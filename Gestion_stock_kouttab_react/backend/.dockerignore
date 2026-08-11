@@ -1,0 +1,31 @@
+# Secrets — ne doivent jamais entrer dans une couche d'image.
+.env
+.env.*
+!.env.example
+
+# Données locales : elles vivent dans des volumes, pas dans l'image.
+uploads/
+outbox/
+logs/
+data/
+
+# Spécifique O2Switch/Passenger, sans objet en conteneur.
+passenger_wsgi.py
+
+# Développement et tests.
+tests/
+pytest.ini
+requirements-dev.txt
+.pytest_cache/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.coverage
+htmlcov/
+
+.git/
+.gitignore
+README.md
+Dockerfile
+.dockerignore

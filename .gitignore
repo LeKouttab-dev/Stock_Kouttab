@@ -11,27 +11,63 @@ ENV/
 
 # Fichiers de configuration de l'IDE
 .idea/
+.vscode/
+*.swp
+*.swo
 
 # Fichiers de base de données
 *.db
 *.sqlite
 *.sqlite3
+data/
 
 # Fichiers secrets et configuration
+# NB : regle large volontaire — .env.development avait ete commite avec le
+# mot de passe SMTP de production faute d'etre couvert ici.
 .streamlit/secrets.toml
+secrets.toml
 .env
-.env.local
-.env.production
-.env.development
+.env.*
+
+# Exception etroite : les modeles, qui ne contiennent aucune valeur reelle,
+# doivent rester versionnes puisque ce sont eux qui documentent les variables
+# attendues. La regle large ci-dessus continue de couvrir tout le reste.
+!.env.example
+!.env.deploy.example
+!.env.example
+create_env.sh
+
+# Archives de deploiement (contiennent des secrets)
+o2switch_deployment_*/
+o2switch_deployment_*.zip
+
+# Logs
+*.log
+logs/
+security.log
 
 # Dossier d'uploads
 uploads/
+uploads/*
 
-# Scripts de basculement d'environnement
+# Fichiers temporaires
+*.tmp
+*.temp
+*.backup
+
+# Fichiers de déploiement
+DEPLOYMENT_CHECKLIST.md
+INSTALLATION.md
+
+# Système
+.DS_Store
+Thumbs.db
+
+# Residus de l'application Streamlit et de l'ancien deploiement O2Switch.
+# Ces fichiers ne sont plus produits, mais ils trainent encore sur d'anciens
+# postes : la regle evite qu'un `git add -A` les fasse revenir.
 switch_env.sh
 switch_env.bat
-
-# Fichiers de test et diagnostic
 simple_test.py
 test_app.py
 debug_app.py
@@ -41,4 +77,3 @@ start_streamlit.sh
 minimal_app.py
 .htaccess_correct
 .htaccess_simple
-o2switch_deployment_*

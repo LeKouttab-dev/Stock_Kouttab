@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+.venv/
+venv/
+.eggs/
+*.egg
+build/
+dist/
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Logs
+logs/
+*.log
+
+# Tests
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Uploads (keep folder via .gitkeep)
+uploads/*
+!uploads/.gitkeep
+
+# PDF prets a l'envoi comptable (regeneres a la demande)
+outbox/
+
+# Alembic versions are tracked but pycache isn't
+alembic/versions/__pycache__/
+
+# OS
+.DS_Store
+Thumbs.db

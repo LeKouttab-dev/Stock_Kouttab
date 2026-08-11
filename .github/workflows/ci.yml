@@ -1,0 +1,93 @@
+# ---------------------------------------------------------------------------
+# Contrôles automatiques sur chaque proposition de modification.
+#
+# Aucun service de base de données n'est nécessaire : les tests backend
+# tournent sur SQLite en mémoire (cf. tests/conftest.py).
+# ---------------------------------------------------------------------------
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, prod-ready]
+
+# Une nouvelle poussée annule la vérification précédente de la même branche :
+# inutile de payer pour un état déjà dépassé.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend — types, lint, tests
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: Gestion_stock_kouttab_react/frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: Gestion_stock_kouttab_react/frontend/package-lock.json
+
+      # `npm ci` et non `npm install` : installation reproductible depuis le
+      # lockfile, et échec si package.json et lockfile divergent.
+      - run: npm ci
+
+      - name: Vérification des types
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Tests unitaires
+        run: npm run test:run
+
+  backend:
+    name: Backend — tests
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: Gestion_stock_kouttab_react/backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: Gestion_stock_kouttab_react/backend/requirements-dev.txt
+
+      - run: pip install -r requirements-dev.txt
+
+      - name: Tests
+        run: pytest -q
+
+  # Vérifie que les images se construisent, sans les publier : casser le
+  # Dockerfile ne doit pas se découvrir au moment du déploiement.
+  images:
+    name: Construction des images (sans publication)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Image API
+        uses: docker/build-push-action@v6
+        with:
+          context: Gestion_stock_kouttab_react/backend
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Image Web
+        uses: docker/build-push-action@v6
+        with:
+          context: Gestion_stock_kouttab_react/frontend
+          push: false
+          build-args: VITE_API_URL=/api/v1
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

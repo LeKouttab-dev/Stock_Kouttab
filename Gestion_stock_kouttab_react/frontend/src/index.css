@@ -1,0 +1,70 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /**
+   * Charte "Le Kouttâb" — variables sémantiques HSL.
+   * Conversions hex → HSL (approximatives, ajustées pour cohérence visuelle) :
+   *   forest      #3d4f3d  → 120 13% 28%
+   *   terracotta  #ac724a  → 24  41% 48%
+   *   sage        #c4d7b2  → 90  35% 77%
+   *   sand        #d7bd9a  → 32  47% 73%
+   *   cream       #eee4d3  → 36  47% 88%
+   */
+  :root {
+    --background: 36 47% 88%; /* cream */
+    --foreground: 120 13% 28%; /* forest */
+    --card: 0 0% 100%; /* white pur, lisibilité maximale */
+    --card-foreground: 120 13% 28%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 120 13% 28%;
+    --primary: 24 41% 48%; /* terracotta */
+    --primary-foreground: 36 47% 96%; /* cream très clair */
+    --secondary: 90 35% 77%; /* sage */
+    --secondary-foreground: 120 13% 28%;
+    --muted: 32 35% 84%; /* sand clair, pour fonds secondaires */
+    --muted-foreground: 120 10% 38%;
+    --accent: 90 35% 77%; /* sage */
+    --accent-foreground: 120 13% 28%;
+    --destructive: 0 65% 48%; /* rouge système maintenu */
+    --destructive-foreground: 0 0% 100%;
+    --border: 32 30% 70%; /* sand */
+    --input: 32 30% 80%;
+    --ring: 24 41% 48%; /* terracotta */
+    --radius: 0.6rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family:
+      'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell,
+      'Helvetica Neue', sans-serif;
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: 'Fraunces', ui-serif, Georgia, serif;
+    letter-spacing: -0.01em;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-muted-foreground/30;
+  }
+}

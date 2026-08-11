@@ -1,0 +1,63 @@
+# Fragment de routage pour stock.lekouttab.fr.
+#
+# Déposé sur le VPS dans /opt/infra/sites/kouttab-stock.caddy, puis activé
+# À CHAUD par :
+#
+#     cd /opt/infra && docker compose exec caddy \
+#       caddy reload --config /etc/caddy/Caddyfile
+#
+# ⚠️ JAMAIS `docker compose restart caddy` pour cela : un redémarrage coupe
+# brièvement TOUS les sites de la machine, question.lekouttab.fr compris.
+#
+# ⚠️ Le DNS de stock.lekouttab.fr doit pointer sur 85.215.168.239 AVANT ce
+# rechargement. Caddy demande le certificat immédiatement, et Let's Encrypt
+# bloque un domaine après plusieurs validations échouées.
+# Vérifier avant : nslookup stock.lekouttab.fr
+
+stock.lekouttab.fr {
+	encode zstd gzip
+
+	header {
+		# HSTS : un an, sous-domaines compris. À ne poser qu'une fois le TLS
+		# confirmé — un navigateur qui l'a mémorisé refusera tout retour en
+		# HTTP clair pendant toute la durée annoncée.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options    "nosniff"
+		X-Frame-Options           "DENY"
+		Referrer-Policy           "strict-origin-when-cross-origin"
+
+		# `camera=(self)` — contrairement au projet questions, cette application
+		# ouvre bien la caméra : lecture des codes-barres du stock et scanner de
+		# justificatifs comptables. La permission est donc nécessaire, mais
+		# restreinte à notre propre origine.
+		Permissions-Policy        "camera=(self), microphone=(), geolocation=()"
+		-Server
+	}
+
+	# L'API d'abord. `handle` et non `handle_path` : le backend expose bien ses
+	# routes sous /api/v1, le préfixe doit donc lui parvenir intact. Le retirer
+	# provoquerait un 404 sur chaque appel.
+	handle /api/* {
+		reverse_proxy kouttab-stock-api:8000
+	}
+
+	# Sonde de santé, utile pour vérifier un déploiement sans ouvrir un client.
+	handle /health {
+		reverse_proxy kouttab-stock-api:8000
+	}
+
+	# Tout le reste : le front statique, qui gère lui-même le repli SPA.
+	handle {
+		reverse_proxy kouttab-stock-web:80
+	}
+
+	# Les justificatifs comptables transportent des RIB : le corps des requêtes
+	# n'est jamais journalisé, seules les méta-données le sont.
+	log {
+		output file /data/access-kouttab-stock.log {
+			roll_size 50mb
+			roll_keep 5
+		}
+		format json
+	}
+}

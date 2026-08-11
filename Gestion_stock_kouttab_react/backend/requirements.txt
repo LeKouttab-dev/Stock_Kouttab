@@ -1,0 +1,31 @@
+fastapi>=0.110
+uvicorn[standard]>=0.27
+sqlalchemy>=2.0
+pymysql>=1.1
+cryptography>=41.0
+alembic>=1.13
+pydantic>=2.5
+pydantic-settings>=2.1
+python-jose[cryptography]>=3.3
+bcrypt>=4.0
+python-multipart>=0.0.9
+fastapi-mail>=1.4
+# Normalisation des justificatifs en PDF avant envoi au comptable.
+# img2pdf embarque le flux JPEG sans re-encodage (pas de perte sur les tickets
+# photographies) ; Pillow ne sert qu'a l'orientation EXIF et aux modes de
+# couleur qu'img2pdf refuse. Pur Python : compatible O2Switch mutualise.
+img2pdf>=0.5
+Pillow>=10.0
+# Detection des bords et correction de perspective sur les justificatifs
+# photographies (app/services/document_scan.py). Variante "headless" : sans les
+# dependances GTK/X11 d'opencv-python, inutiles dans un conteneur sans ecran.
+opencv-python-headless>=4.9
+numpy>=1.26
+slowapi>=0.1.9
+python-dotenv>=1.0
+a2wsgi>=1.10
+pandas>=2.0
+email-validator>=2.0
+httpx>=0.27
+# Les outils de test vivent dans requirements-dev.txt : les embarquer ici les
+# ferait entrer dans l'image de production, sans usage et avec leur surface.

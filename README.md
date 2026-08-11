@@ -1,88 +1,45 @@
-# Gestion de Stock et Notes de Frais - Le Kouttâb
+# Kouttâb Stock
 
-Cette application, développée avec Streamlit, permet de gérer les stocks et les notes de frais de l'institut.
+Application de gestion des stocks, notes de frais et factures de l'institut
+associatif **Le Kouttâb**.
 
-## Prérequis
+L'application vit dans **[`Gestion_stock_kouttab_react/`](./Gestion_stock_kouttab_react/)** :
 
-- Avoir Python installé sur votre machine (version 3.8 ou supérieure). Vous pouvez le télécharger depuis [python.org](https://www.python.org/downloads/).
-- Avoir un compte Gmail pour l'envoi des e-mails d'alerte (facultatif).
+- **Frontend** : React 18 + TypeScript (Vite), Tailwind CSS, TanStack Query, Zustand
+- **Backend** : FastAPI, SQLAlchemy 2, MySQL (PyMySQL), JWT
+- **Hébergement** : O2Switch (cPanel + Passenger) — `stock.lekouttab.fr`
 
-## Installation
+Voir [`Gestion_stock_kouttab_react/README.md`](./Gestion_stock_kouttab_react/README.md)
+pour le démarrage rapide, et [`CLAUDE.md`](./Gestion_stock_kouttab_react/CLAUDE.md)
+pour la documentation technique complète.
 
-Suivez ces étapes pour lancer l'application sur votre ordinateur.
+---
 
-### 1. Cloner ou Télécharger le Projet
+## Fichiers conservés à la racine
 
-- **Si vous avez Git :** Ouvrez un terminal et clonez le projet avec la commande suivante :
-  ```sh
-  git clone https://github.com/oumss91370/Gestion_Stock_Kouttab.git
-  ```
-- **Sinon :** Téléchargez le projet en format ZIP depuis la page GitHub et décompressez-le dans un dossier de votre choix.
+| Fichier | Rôle |
+|---|---|
+| `create_mysql_structure.sql` | Schéma MySQL de référence de la base de production |
+| `.htaccess` | Configuration Apache **actuellement en production** : redirection vers Streamlit Cloud. À remplacer par `Gestion_stock_kouttab_react/.htaccess` lors de la bascule. |
 
-### 2. Se Placer dans le Dossier du Projet
+## Version historique (Streamlit)
 
-Ouvrez un terminal (ou une invite de commandes) et naviguez jusqu'au dossier du projet que vous venez de cloner ou de décompresser.
+Une première version de l'application, écrite en **Streamlit/Python**, occupait
+la racine de ce dépôt. Elle a été remplacée par la version React/FastAPI puis
+retirée de l'arborescence.
 
-```sh
-cd chemin/vers/le/dossier/Gestion_Stock_Kouttab
+Elle reste consultable :
+
+```bash
+git checkout legacy-streamlit     # tag d'archive
+git checkout archive/streamlit    # branche d'archive
 ```
 
-### 3. Créer un Environnement Virtuel (Recommandé)
+Aucune fonctionnalité n'a été perdue : la couverture a été vérifiée fonction par
+fonction avant retrait (stock, notes de frais, factures, administration,
+export/import de la base, envois d'e-mails).
 
-C'est une bonne pratique pour isoler les dépendances du projet.
-
-```sh
-python -m venv .venv
-```
-
-Activez ensuite l'environnement :
-- **Sur Windows :**
-  ```sh
-  .venv\Scripts\activate
-  ```
-- **Sur macOS / Linux :**
-  ```sh
-  source .venv/bin/activate
-  ```
-
-### 4. Installer les Bibliothèques
-
-Installez toutes les bibliothèques nécessaires en une seule commande grâce au fichier `requirements.txt`.
-
-```sh
-pip install -r requirements.txt
-```
-
-### 5. Configurer les E-mails (Facultatif)
-
-Si vous souhaitez que l'application envoie des e-mails d'alerte de stock bas :
-
-1.  Créez un dossier nommé `.streamlit` à la racine du projet.
-2.  À l'intérieur de ce dossier, créez un fichier nommé `secrets.toml`.
-3.  Copiez-y le contenu suivant et remplacez par vos informations :
-
-    ```toml
-    # .streamlit/secrets.toml
-    [email_credentials]
-    sender_email = "votre_email@gmail.com"
-    sender_password = "votre_mot_de_passe_application_a_16_lettres"
-    ```
-    **Note :** Pour des raisons de sécurité, il est fortement recommandé d'utiliser un **"Mot de passe d'application"** généré par Google plutôt que votre mot de passe habituel.
-
-## Lancement de l'Application
-
-Une fois l'installation terminée, lancez l'application avec la commande suivante dans votre terminal :
-
-```sh
-streamlit run app.py
-```
-
-L'application devrait s'ouvrir automatiquement dans votre navigateur web.
-
-## Accès à l'Application
-
-- **Compte Super Administrateur par défaut :**
-  - **Nom d'utilisateur :** `admin`
-  - **Mot de passe :** `kouttab_admin`
-
-Vous pouvez ensuite créer d'autres comptes directement depuis l'interface.
+> ⚠️ Les commits antérieurs à ce retrait contiennent des identifiants de
+> production (mot de passe SMTP, `SECRET_KEY`, mot de passe d'application Gmail).
+> Ces secrets sont à considérer comme compromis et doivent être révoqués :
+> retirer les fichiers du suivi ne les efface pas de l'historique.
