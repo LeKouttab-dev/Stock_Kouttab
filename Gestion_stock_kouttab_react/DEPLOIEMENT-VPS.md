@@ -6,16 +6,61 @@ La **base MySQL reste chez O2Switch** ; le VPS n'héberge que le front et l'API.
 > `DEPLOIEMENT.md` documente l'ancienne cible (O2Switch / Passenger). Il est
 > conservé pour l'historique mais n'est plus la procédure en vigueur.
 
+## ⚠️ Le VPS est mutualisé — lire `/opt/CLAUDE.md` sur le serveur
+
+Cette machine héberge **plusieurs projets indépendants**, dont
+`question.lekouttab.fr`, en production. Le serveur porte sa propre
+documentation, `/opt/CLAUDE.md`, qui fait autorité sur tout ce qui suit :
+
+```bash
+ssh <compte>@85.215.168.239 'cat /opt/CLAUDE.md'
+```
+
+### L'architecture à deux étages
+
+```
+   Internet ──443──▶  infra-caddy  ──┬──▶ kouttab-stock-web
+                      /opt/infra     ├──▶ kouttab-stock-api
+                      ports 80/443   └──▶ kouttab-questions-…
+                                          réseau Docker `web`
+```
+
+| Étage | Chemin | Qui y touche |
+|---|---|---|
+| **Socle** | `/opt/infra` | intervention rare, impacte **tous** les projets |
+| **Projets** | `/opt/projets/<nom>` | chaque projet, indépendamment |
+
+**Ce que cela impose à ce projet** — c'est déjà appliqué dans `compose.yml` :
+
+1. **Aucun `ports:`.** Un unique Caddy détient 80 et 443 pour la machine
+   entière. Une version antérieure de ce fichier embarquait son propre Caddy
+   publiant ces ports : la déployer telle quelle aurait mis
+   `question.lekouttab.fr` hors ligne.
+2. **Réseau `web` en `external: true`.** Sans cela, Compose crée un réseau isolé
+   et Caddy ne voit jamais nos conteneurs — symptôme : `502 Bad Gateway`.
+3. **`container_name` préfixés** (`kouttab-stock-api`, `kouttab-stock-web`) :
+   Caddy résout les conteneurs par leur nom, deux projets nommant leur service
+   `api` entrent en collision.
+4. **Jamais de `docker compose down -v` dans `/opt/infra`** : le volume
+   `caddy_data` contient les certificats TLS de *tous* les projets.
+
+### La base n'a pas besoin de tunnel
+
+`85.215.168.239` est **déjà** autorisée dans cPanel → *Bases de données* →
+*MySQL distant*, et tous les conteneurs du VPS sortent avec cette IP. La
+connexion à `sauterelle.o2switch.net:3306` est directe. Le service `db-tunnel`
+a été retiré du `compose.yml` : il répondait à un besoin qui n'existe pas ici.
+
 ## Ce qui change
 
 | | Avant (O2Switch) | Maintenant |
 |---|---|---|
 | Build du front | à la main, en local | GitHub Actions |
 | Livraison | FTP | images GHCR + `docker compose` |
-| Serveur web | Apache + `.htaccess` | Caddy (TLS auto) + nginx |
+| Serveur web | Apache + `.htaccess` | Caddy **du socle** + nginx |
 | Process Python | Passenger WSGI | uvicorn en conteneur |
 | Cron comptable | cron cPanel | service `outbox-worker` |
-| Base MySQL | locale au serveur | **distante, via tunnel SSH** |
+| Base MySQL | locale au serveur | **distante, accès direct autorisé par IP** |
 | Sauvegarde base | O2Switch | **O2Switch (inchangé)** |
 | Sauvegarde `uploads/` | O2Switch | **à ta charge — §11** |
 
@@ -127,17 +172,32 @@ sudo usermod -aG docker deploy      # se reconnecter pour que le groupe prenne e
 
 ## 3. Déposer les fichiers
 
+Le projet vit dans `/opt/projets/`, à côté des autres — jamais dans `/opt`
+directement, et **jamais dans `/opt/infra`**, qui appartient au socle.
+
 ```bash
-sudo mkdir -p /opt/kouttab && sudo chown deploy:deploy /opt/kouttab
-cd /opt/kouttab
-# Seuls compose.yml, Caddyfile et deploy/ sont nécessaires ici : le code
-# applicatif arrive par les images.
+sudo mkdir -p /opt/projets/kouttab-stock
+sudo chown "$USER:$USER" /opt/projets/kouttab-stock
+cd /opt/projets/kouttab-stock
+
+# Seuls compose.yml, deploy/ et le .env sont nécessaires ici : le code
+# applicatif arrive par les images GHCR.
 git clone --depth 1 <URL_DU_DEPOT> repo
 cp repo/Gestion_stock_kouttab_react/compose.yml .
-cp repo/Gestion_stock_kouttab_react/Caddyfile .
 cp -r repo/Gestion_stock_kouttab_react/deploy .
 cp repo/Gestion_stock_kouttab_react/.env.deploy.example .env
-mkdir -p secrets && chmod 700 secrets
+chmod 600 .env
+```
+
+> Le `Caddyfile` du projet n'est **pas** copié : le TLS et le routage sont
+> assurés par le Caddy du socle. Notre seule contribution au routage est le
+> fragment `deploy/site.caddy`, déposé au §9.
+
+Le compte qui pilote Docker doit appartenir au groupe `docker` — sinon chaque
+commande répond `permission denied ... docker.sock` :
+
+```bash
+sudo usermod -aG docker "$USER"    # puis se déconnecter/reconnecter
 ```
 
 ## 4. Mesurer la latence vers O2Switch
@@ -269,31 +329,59 @@ Le schéma existe déjà en base : il ne faut **pas** rejouer les migrations
 initiales, seulement déclarer où l'on en est.
 
 ```bash
-cd /opt/kouttab
-docker compose pull --ignore-buildable && docker compose build db-tunnel
+cd /opt/projets/kouttab-stock
+docker compose pull
 
 # 1. Sauvegarder la base depuis cPanel AVANT toute migration.
-# 2. Marquer les révisions déjà appliquées (cf. DEPLOIEMENT.md §5 pour la liste).
+# 2. Constater l'état réel plutôt que de le supposer :
+docker compose run --rm api alembic current
+#    - une révision s'affiche  -> passer directement à `upgrade head` ;
+#    - rien ne s'affiche mais les tables existent (schéma hérité du legacy
+#      Streamlit) -> marquer la révision déjà en place AVANT d'appliquer :
 docker compose run --rm api alembic stamp <revision_deja_appliquee>
 # 3. Appliquer le reste.
 docker compose run --rm api alembic upgrade head
 
 docker compose up -d
-docker compose ps          # les 5 services doivent être "running"/"healthy"
+docker compose ps          # les 3 services doivent être "running"
 ```
 
-## 9. Bascule DNS et TLS
+> **Ne jamais lancer `alembic upgrade head` sans avoir regardé `alembic current`.**
+> Rejouer une migration initiale sur un schéma déjà en place échoue au mieux,
+> et laisse la base à moitié migrée au pire.
 
-Caddy demande le certificat au premier appel : le DNS doit pointer sur le VPS
-**avant** de le démarrer, sinon la validation échoue.
+## 9. Routage et TLS
 
-1. Enregistrement `A` `stock.lekouttab.fr` → `85.215.168.239` (baisser le TTL
-   à 300 s la veille pour pouvoir revenir en arrière vite).
-2. `dig +short stock.lekouttab.fr` doit renvoyer l'IP du VPS.
-3. `docker compose logs caddy` → « certificate obtained successfully ».
+Le certificat est demandé par le Caddy **du socle**, dès qu'il lit notre
+fragment. Le DNS doit donc pointer sur le VPS **avant** le rechargement.
 
-En cas d'échec répété, décommenter `acme_ca` (staging) dans le `Caddyfile` :
-Let's Encrypt limite à 5 échecs par domaine et par heure.
+```bash
+# 1. Enregistrement A : stock.lekouttab.fr -> 85.215.168.239
+#    (baisser le TTL à 300 s la veille pour pouvoir revenir en arrière vite)
+nslookup stock.lekouttab.fr        # doit renvoyer 85.215.168.239
+
+# 2. Déposer notre fragment — un fichier À NOUS, on ne touche pas aux autres
+cp /opt/projets/kouttab-stock/deploy/site.caddy \
+   /opt/infra/sites/kouttab-stock.caddy
+
+# 3. Recharger À CHAUD
+cd /opt/infra
+docker compose exec caddy caddy validate --config /etc/caddy/Caddyfile
+docker compose exec caddy caddy reload   --config /etc/caddy/Caddyfile
+
+# 4. Vérifier l'obtention du certificat
+docker compose logs --tail 50 caddy | grep -i certificate
+```
+
+> ⚠️ **`docker compose restart caddy` est interdit pour cela** : un redémarrage
+> coupe brièvement *tous* les sites de la machine. `reload` recharge à chaud,
+> sans interruption.
+>
+> ⚠️ `caddy validate` vérifie la syntaxe, **pas** que le routage fonctionne.
+> La seule preuve est une requête réelle (§10).
+>
+> Let's Encrypt limite les échecs de validation par domaine et par heure : un
+> DNS qui ne pointe pas encore sur le VPS bloque le domaine pour un moment.
 
 ## 10. Vérifications de bout en bout
 
