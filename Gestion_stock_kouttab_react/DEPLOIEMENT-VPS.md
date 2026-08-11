@@ -21,6 +21,59 @@ La **base MySQL reste chez O2Switch** ; le VPS n'héberge que le front et l'API.
 
 ---
 
+## 0. Avant de toucher à SSH — lire ceci
+
+> **Une tentative de connexion échouée coûte cher.** `fail2ban` surveille le
+> port 22 et bannit l'adresse IP au bout de quelques échecs d'authentification.
+> Le bannissement **survit au redémarrage** : il est conservé dans
+> `/var/lib/fail2ban/fail2ban.sqlite3` et rejoué au démarrage du service.
+>
+> C'est arrivé le 2026-08-11 : neuf essais successifs pour trouver la bonne clé
+> ont fermé le port 22 à toute l'adresse IP du bureau — poste de l'opérateur
+> compris. Le serveur tournait parfaitement (Caddy répondait sur 80 et 443),
+> mais plus personne ne pouvait s'y connecter, et redémarrer n'y a rien changé.
+>
+> **La règle : au premier `Permission denied (publickey)`, on s'arrête.**
+> Essayer une deuxième clé « pour voir » consomme un essai sur le compteur.
+> Chercher d'abord quelle clé est censée ouvrir ce serveur — voir §7, la clé de
+> déploiement vit dans le secret GitHub `VPS_SSH_KEY`, pas forcément sur le
+> poste.
+
+### Symptôme et remède
+
+Port 22 muet alors que 80/443 répondent : c'est un bannissement, pas une panne.
+`fail2ban` ne filtre que le service concerné, le reste du serveur reste servi.
+
+```bash
+# Diagnostic depuis le poste : 22 injoignable, 80/443 ouverts => banni.
+for p in 22 80 443; do
+  timeout 5 bash -c "echo > /dev/tcp/<IP_DU_VPS>/$p" 2>/dev/null \
+    && echo "port $p ouvert" || echo "port $p injoignable"
+done
+```
+
+Deux portes de sortie, dans cet ordre :
+
+1. **La console distante IONOS** (panneau → serveur → « Console distante »).
+   Elle ne passe pas par le réseau SSH : elle fonctionne même banni. C'est la
+   seule voie fiable.
+2. **Une autre adresse IP** (partage de connexion mobile, autre réseau) : le ban
+   porte sur l'IP, pas sur le compte.
+
+Puis, une fois connecté — `fail2ban-client` exige les droits root :
+
+```bash
+sudo fail2ban-client status sshd            # liste les IP bannies
+sudo fail2ban-client set sshd unbanip <IP>  # lève le bannissement
+```
+
+> `root` n'est pas joignable en SSH une fois le §1 appliqué
+> (`PermitRootLogin no`) : c'est voulu. Passer par un compte sudoer.
+> Et `sudo echo ... >> fichier` **n'écrit rien** — la redirection est exécutée
+> par le shell appelant, qui n'est pas root. Utiliser `| sudo tee -a`.
+
+---
+
 ## 1. Durcir le VPS (à faire en premier)
 
 Connexion initiale en `root`, puis on referme derrière soi.

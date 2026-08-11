@@ -662,3 +662,10 @@ objet ici, l'application existe et tourne.
   se fait sur une base de production réelle : sauvegarde d'abord.
 - Toucher au déploiement ⇒ mettre à jour `DEPLOIEMENT-VPS.md`, pas
   `DEPLOIEMENT.md` (ce dernier documente l'ancienne cible O2Switch/Passenger).
+- **Ne jamais enchaîner les tentatives SSH vers le VPS.** `fail2ban` y bannit
+  l'adresse IP après quelques échecs d'authentification, et le bannissement
+  survit au redémarrage. Le 2026-08-11, neuf essais pour trouver la bonne clé
+  ont coupé le port 22 à tout le bureau, opérateur compris — le serveur
+  fonctionnait, mais plus personne ne pouvait s'y connecter. **Au premier
+  `Permission denied (publickey)`, s'arrêter et demander.** Le remède passe par
+  la console distante IONOS ; procédure complète dans `DEPLOIEMENT-VPS.md` §0.
