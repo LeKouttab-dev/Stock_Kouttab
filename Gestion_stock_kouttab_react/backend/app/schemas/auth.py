@@ -13,8 +13,26 @@ ROLE_LITERAL = Literal["Super Admin", "AdminBenevoles", "Compta", "Benevole"]
 
 
 class LoginIn(BaseModel):
-    username: str = Field(min_length=3, max_length=20)
+    """Identifiant **ou** adresse e-mail.
+
+    La borne haute etait celle d'un identifiant (20 caracteres) : une adresse
+    e-mail etait donc rejetee en 422 « Donnees invalides » avant meme d'etre
+    cherchee en base, sans que rien n'indique pourquoi. Cf. `get_user_by_login`.
+    """
+
+    username: str = Field(min_length=3, max_length=254)
     password: str = Field(min_length=1, max_length=200)
+
+
+class ForgotPasswordIn(BaseModel):
+    """Identifiant **ou** adresse e-mail, comme a la connexion."""
+
+    identifiant: str = Field(min_length=3, max_length=254)
+
+
+class ResetPasswordIn(BaseModel):
+    token: str = Field(min_length=10, max_length=255)
+    password: str = Field(min_length=8, max_length=200)
 
 
 class TokenOut(BaseModel):

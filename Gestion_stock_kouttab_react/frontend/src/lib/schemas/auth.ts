@@ -17,19 +17,37 @@ export const usernameSchema = z
   .max(20, "Le nom d'utilisateur ne peut pas dépasser 20 caractères")
   .regex(/^[a-zA-Z0-9_-]+$/, 'Caractères autorisés : lettres, chiffres, tirets et underscores');
 
-// Les bornes reprennent celles de `LoginIn` cote backend (schemas/auth.py).
-// Sans elles, une saisie hors bornes — typiquement une adresse email, plus
-// longue que 20 caracteres — partait a l'API et revenait en 422 « Donnees
-// invalides », incomprehensible pour qui essaie juste de se connecter.
-// Le regex de `usernameSchema` n'est volontairement pas repris : il contraint
-// la creation d'un compte, pas la connexion d'un compte existant.
+// Bornes alignées sur `LoginIn` (backend/app/schemas/auth.py), qui accepte
+// désormais un identifiant **ou** une adresse e-mail : les bénévoles retiennent
+// leur adresse, rarement l'identifiant choisi à l'inscription.
+//
+// La borne haute était de 20 caractères, celle d'un identifiant : toute adresse
+// repartait en 422 « Données invalides » sans que rien n'indique pourquoi.
+// Le regex de `usernameSchema` n'est pas repris ici : il contraint la création
+// d'un compte, pas la connexion d'un compte existant.
 export const loginSchema = z.object({
-  username: z
-    .string()
-    .min(3, "Le nom d'utilisateur doit contenir au moins 3 caractères")
-    .max(20, "Le nom d'utilisateur ne peut pas dépasser 20 caractères"),
+  username: z.string().min(3, 'Au moins 3 caractères').max(254, 'Saisie trop longue'),
   password: z.string().min(1, 'Champ obligatoire'),
 });
+
+/** Demande de réinitialisation : identifiant ou adresse, comme à la connexion. */
+export const forgotPasswordSchema = z.object({
+  identifiant: z.string().min(3, 'Au moins 3 caractères').max(254, 'Saisie trop longue'),
+});
+
+export type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>;
+
+export const resetPasswordSchema = z
+  .object({
+    password: passwordSchema,
+    confirmPassword: z.string().min(1, 'Champ obligatoire'),
+  })
+  .refine((v) => v.password === v.confirmPassword, {
+    message: 'Les mots de passe ne correspondent pas',
+    path: ['confirmPassword'],
+  });
+
+export type ResetPasswordFormValues = z.infer<typeof resetPasswordSchema>;
 
 export type LoginFormValues = z.infer<typeof loginSchema>;
 

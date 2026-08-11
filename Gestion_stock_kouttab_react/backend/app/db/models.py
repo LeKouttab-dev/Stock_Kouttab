@@ -144,6 +144,39 @@ class AdminInvitation(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
+class PasswordReset(Base):
+    """Jeton de reinitialisation de mot de passe.
+
+    Meme patron que ``AdminInvitation`` : seul le SHA256 du jeton est stocke, si
+    bien qu'une fuite de la base ne permet pas de fabriquer un lien valide.
+
+    Table distincte plutot que reutilisation des invitations : une invitation
+    *cree* un compte, une reinitialisation en *modifie* un existant. Les
+    confondre reviendrait a laisser un lien d'invitation changer le mot de passe
+    d'un compte deja en place.
+
+    ``id_user`` et non l'adresse : elle peut changer entre la demande et le
+    clic, et le jeton doit rester rattache au compte, pas a une chaine.
+    """
+
+    __tablename__ = "PasswordResets"
+    __table_args__ = (
+        Index("idx_reset_token", "token_hash"),
+        Index("idx_reset_user", "id_user"),
+        Index("idx_reset_expires", "expires_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id_user: Mapped[int] = mapped_column(
+        Integer, ForeignKey("Admins.id", ondelete="CASCADE"), nullable=False
+    )
+    token_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    requested_ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
 class LoginAttempt(Base):
     """Compteur d'echecs de connexion, persiste en base.
 

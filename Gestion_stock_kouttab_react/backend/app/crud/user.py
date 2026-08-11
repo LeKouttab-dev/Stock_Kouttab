@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -25,6 +25,35 @@ def get_user(db: Session, user_id: int) -> Admin | None:
 
 def get_user_by_username(db: Session, username: str) -> Admin | None:
     return db.execute(select(Admin).where(Admin.username == username)).scalar_one_or_none()
+
+
+def get_user_by_login(db: Session, identifiant: str) -> Admin | None:
+    """Retrouve un compte par son identifiant **ou** son adresse e-mail.
+
+    Les benevoles retiennent leur adresse, rarement l'identifiant choisi a
+    l'inscription : imposer le second etait une cause d'echec de connexion
+    evitable.
+
+    L'identifiant est essaye en premier. Une adresse ne peut pas etre confondue
+    avec un identifiant — `validate_username` interdit le caractere `@` — donc
+    l'ordre ne cree pas d'ambiguite.
+
+    La comparaison d'adresse est insensible a la casse : les clients de
+    messagerie capitalisent volontiers la premiere lettre.
+    """
+    identifiant = (identifiant or "").strip()
+    if not identifiant:
+        return None
+
+    trouve = get_user_by_username(db, identifiant)
+    if trouve is not None:
+        return trouve
+
+    if "@" not in identifiant:
+        return None
+    return db.execute(
+        select(Admin).where(func.lower(Admin.email) == identifiant.lower())
+    ).scalars().first()
 
 
 def list_users(db: Session, exclude_id: int | None = None) -> list[Admin]:

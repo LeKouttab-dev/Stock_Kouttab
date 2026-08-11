@@ -243,3 +243,44 @@ def test_me_without_token_returns_token_missing(client: TestClient) -> None:
     body = resp.json()
     # Either TOKEN_MISSING or TOKEN_INVALID depending on the path taken.
     assert body["code"] in ("AUTH_1012", "AUTH_1011")
+
+
+# ---- Connexion par adresse e-mail -------------------------------------------
+
+
+def test_login_accepts_the_email_address(client: TestClient, benevole_user) -> None:
+    """Les benevoles retiennent leur adresse, rarement leur identifiant.
+
+    L'ancienne borne de 20 caracteres rejetait toute adresse en 422 avant meme
+    de chercher en base.
+    """
+    resp = client.post(
+        "/api/v1/auth/login/json",
+        json={"username": benevole_user.email, "password": "Strong#Pass1"},
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["user"]["username"] == benevole_user.username
+
+
+def test_login_by_email_ignores_case(client: TestClient, benevole_user) -> None:
+    resp = client.post(
+        "/api/v1/auth/login/json",
+        json={"username": benevole_user.email.upper(), "password": "Strong#Pass1"},
+    )
+    assert resp.status_code == 200, resp.text
+
+
+def test_login_still_accepts_the_username(client: TestClient, benevole_user) -> None:
+    resp = client.post(
+        "/api/v1/auth/login/json",
+        json={"username": benevole_user.username, "password": "Strong#Pass1"},
+    )
+    assert resp.status_code == 200, resp.text
+
+
+def test_login_rejects_an_unknown_email(client: TestClient) -> None:
+    resp = client.post(
+        "/api/v1/auth/login/json",
+        json={"username": "personne@example.com", "password": "Strong#Pass1"},
+    )
+    assert resp.status_code == 401

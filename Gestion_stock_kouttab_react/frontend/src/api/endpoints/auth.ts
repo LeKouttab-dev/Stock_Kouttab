@@ -33,6 +33,52 @@ async function fetchMe(): Promise<User> {
   return data;
 }
 
+/* ---------- Mot de passe oublié ---------- */
+
+/**
+ * La réponse est volontairement identique que le compte existe ou non : le
+ * serveur ne dit jamais si une adresse est enregistrée. L'écran affiche donc
+ * toujours le même message de confirmation.
+ */
+async function forgotPassword(identifiant: string): Promise<{ message: string }> {
+  const { data } = await api.post<{ message: string }>('/auth/forgot-password', {
+    identifiant,
+  });
+  return data;
+}
+
+async function resetPassword(params: {
+  token: string;
+  password: string;
+}): Promise<{ message: string }> {
+  const { data } = await api.post<{ message: string }>('/auth/reset-password', params);
+  return data;
+}
+
+export function useForgotPassword() {
+  return useApiMutation({ mutationFn: forgotPassword });
+}
+
+export function useResetPassword() {
+  return useApiMutation({ mutationFn: resetPassword });
+}
+
+/** Pré-vérifie le lien pour ne pas afficher un formulaire voué à l'échec. */
+export function useResetTokenValidity(token: string | null) {
+  return useQuery({
+    queryKey: ['auth', 'reset-token', token],
+    enabled: Boolean(token),
+    retry: false,
+    queryFn: async () => {
+      const { data } = await api.get<{ valid: boolean; message: string }>(
+        '/auth/reset-password/validate',
+        { params: { token } },
+      );
+      return data;
+    },
+  });
+}
+
 async function adminSetup(payload: AdminSetupRequest): Promise<LoginResponse> {
   const { data } = await api.post<LoginResponse>('/auth/admin-setup', payload);
   return data;

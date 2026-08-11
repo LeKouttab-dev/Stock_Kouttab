@@ -19,14 +19,7 @@
  * du flux initial si rien de mieux ne se présente.
  */
 
-const INDICES_ULTRA_WIDE = [
-  'ultra',
-  'wide angle',
-  'grand angle',
-  'grand-angle',
-  '0.5',
-  '0,5',
-];
+const INDICES_ULTRA_WIDE = ['ultra', 'wide angle', 'grand angle', 'grand-angle', '0.5', '0,5'];
 
 function estUltraWide(label: string): boolean {
   const l = label.toLowerCase();

@@ -265,6 +265,32 @@ async def send_admin_invitation(
     await _send(subject, body, [email])
 
 
+async def send_password_reset(
+    *,
+    email: str,
+    reset_url: str,
+    expires_at: str,
+) -> None:
+    """Lien de reinitialisation, a usage unique.
+
+    Le message rappelle que le mot de passe actuel reste valable tant que le
+    lien n'a pas ete ouvert : sans cette precision, une demande faite par erreur
+    laisse croire que le compte est deja inaccessible.
+    """
+    subject = "Reinitialisation de votre mot de passe — Le Kouttab"
+    body = (
+        "Bonjour,\n\n"
+        "Une reinitialisation de mot de passe a ete demandee pour votre compte "
+        "sur l'application de gestion de stock du Kouttab.\n\n"
+        f"Cliquez sur ce lien pour choisir un nouveau mot de passe : {reset_url}\n\n"
+        f"Ce lien est valable jusqu'au {expires_at} et ne fonctionne qu'une fois.\n\n"
+        "Si vous n'etes pas a l'origine de cette demande, ignorez ce message : "
+        "votre mot de passe actuel reste valable et rien n'a ete modifie.\n\n"
+        "Cordialement,\nLe Kouttab."
+    )
+    await _send(subject, body, [email])
+
+
 async def send_status_change(
     *,
     recipient: str,

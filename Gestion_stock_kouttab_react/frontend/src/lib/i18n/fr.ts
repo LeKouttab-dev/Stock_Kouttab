@@ -44,6 +44,21 @@ export const fr = {
     passwordStrength: 'Force du mot de passe',
     passwordRequirements: 'Exigences de sécurité',
     forgotPassword: 'Mot de passe oublié ?',
+    showPassword: 'Afficher le mot de passe',
+    hidePassword: 'Masquer le mot de passe',
+    loginIdentifier: "Nom d'utilisateur ou adresse e-mail",
+    forgotTitle: 'Réinitialiser mon mot de passe',
+    forgotHelp:
+      "Indiquez votre nom d'utilisateur ou votre adresse e-mail. Vous recevrez un lien pour choisir un nouveau mot de passe.",
+    forgotSubmit: 'Envoyer le lien',
+    forgotSent:
+      "Si un compte correspond, un lien vient d'être envoyé à l'adresse associée. Pensez à vérifier vos courriers indésirables.",
+    resetTitle: 'Choisir un nouveau mot de passe',
+    resetSubmit: 'Enregistrer le nouveau mot de passe',
+    resetDone: 'Mot de passe mis à jour. Vous pouvez vous connecter.',
+    resetInvalid:
+      "Ce lien est invalide ou a expiré. Les liens ne sont valables qu'une heure et ne servent qu'une fois.",
+    resetChecking: 'Vérification du lien…',
     backToLogin: 'Retour à la connexion',
     adminSetupTitle: "Finalisation de l'invitation Super Admin",
     adminSetupSubtitle: 'Créez votre compte administrateur',

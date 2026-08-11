@@ -2,9 +2,10 @@ import { useEffect } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Lock, User as UserIcon } from 'lucide-react';
+import { User as UserIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ErrorAlert } from '@/components/shared/ErrorAlert';
@@ -68,14 +69,14 @@ export function LoginPage() {
           <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
             <div className="space-y-1.5">
               <Label htmlFor="username" required>
-                {fr.auth.username}
+                {fr.auth.loginIdentifier}
               </Label>
               <div className="relative">
                 <UserIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   id="username"
                   type="text"
-                  autoComplete="username"
+                  autoComplete="username email"
                   className="pl-10"
                   hasError={Boolean(errors.username)}
                   {...register('username')}
@@ -87,20 +88,23 @@ export function LoginPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="password" required>
-                {fr.auth.password}
-              </Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  id="password"
-                  type="password"
-                  autoComplete="current-password"
-                  className="pl-10"
-                  hasError={Boolean(errors.password)}
-                  {...register('password')}
-                />
+              <div className="flex items-baseline justify-between gap-2">
+                <Label htmlFor="password" required>
+                  {fr.auth.password}
+                </Label>
+                <Link
+                  to="/forgot-password"
+                  className="text-xs font-medium text-primary hover:underline"
+                >
+                  {fr.auth.forgotPassword}
+                </Link>
               </div>
+              <PasswordInput
+                id="password"
+                autoComplete="current-password"
+                hasError={Boolean(errors.password)}
+                {...register('password')}
+              />
               {errors.password && (
                 <p className="text-xs text-destructive">{errors.password.message}</p>
               )}

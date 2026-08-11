@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
+from urllib.parse import quote
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request
 from fastapi.security import OAuth2PasswordRequestForm
@@ -13,6 +15,7 @@ from app.api.deps import get_current_user
 from app.core.errors import ErrorCode
 from app.core.exceptions import AppException
 from app.core.logger import get_logger
+from app.core.config import settings
 from app.core.rate_limit import limiter
 from app.core.security import (
     create_access_token,
@@ -26,16 +29,19 @@ from app.core.security import (
 )
 from app.crud import auth_security
 from app.crud import invitation as invitation_crud
+from app.crud import password_reset as password_reset_crud
 from app.crud import user as user_crud
 from app.db.models import Admin
 from app.db.session import SessionLocal, get_db
 from app.schemas.auth import (
     AdminSetupIn,
+    ForgotPasswordIn,
     InvitationValidateOut,
     LoginIn,
     LogoutIn,
     MessageOut,
     RefreshIn,
+    ResetPasswordIn,
     SignupIn,
     TokenOut,
 )
@@ -131,6 +137,108 @@ async def _notify_account_request_safe(
         logger.warning("Notification de demande de compte non envoyee : %s", exc)
 
 
+# ---- Mot de passe oublie ----------------------------------------------------
+
+
+@router.post("/forgot-password", response_model=MessageOut)
+@limiter.limit("5/hour")
+def forgot_password(
+    request: Request,
+    payload: ForgotPasswordIn,
+    background: BackgroundTasks,
+    db: Session = Depends(get_db),
+) -> Any:
+    """Envoie un lien de reinitialisation, si le compte existe.
+
+    **La reponse est identique dans tous les cas.** Repondre « compte inconnu »
+    transformerait cet endpoint en oracle : n'importe qui pourrait verifier si
+    une adresse est enregistree dans l'association. Le message reste donc au
+    conditionnel, que le compte existe ou non.
+
+    Rien n'est modifie ici : le mot de passe actuel reste valable tant que le
+    lien n'a pas ete ouvert.
+    """
+    reponse = MessageOut(
+        message=(
+            "Si un compte correspond, un lien de reinitialisation vient d'etre "
+            "envoye a l'adresse associee."
+        )
+    )
+
+    utilisateur = user_crud.get_user_by_login(db, payload.identifiant)
+    if utilisateur is None or not utilisateur.email:
+        logger.info(
+            "Reinitialisation demandee pour %r : aucun compte ou aucune adresse.",
+            payload.identifiant[:60],
+        )
+        return reponse
+
+    if utilisateur.validation_status != "active":
+        # Un compte en attente ou refuse ne doit pas pouvoir se donner un mot de
+        # passe : il n'a pas encore ete valide par un administrateur.
+        logger.info("Reinitialisation refusee : compte %s non actif.", utilisateur.id)
+        return reponse
+
+    token = password_reset_crud.create_reset_token(
+        db, utilisateur, ip=_client_ip(request)
+    )
+    lien = f"{settings.frontend_url.rstrip('/')}/reset-password?token={quote(token)}"
+    expiration = (
+        datetime.utcnow() + password_reset_crud.DUREE_VALIDITE
+    ).strftime("%d/%m/%Y a %H:%M UTC")
+
+    background.add_task(
+        _send_reset_safe,
+        email=utilisateur.email,
+        reset_url=lien,
+        expires_at=expiration,
+    )
+    return reponse
+
+
+async def _send_reset_safe(*, email: str, reset_url: str, expires_at: str) -> None:
+    """Un envoi rate ne doit pas reveler l'existence du compte par une 500."""
+    try:
+        await email_service.send_password_reset(
+            email=email, reset_url=reset_url, expires_at=expires_at
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Courriel de reinitialisation non envoye : %s", exc)
+
+
+@router.get("/reset-password/validate", response_model=InvitationValidateOut)
+def validate_reset_token(token: str = Query(...), db: Session = Depends(get_db)) -> Any:
+    """Pre-verifie le lien, pour ne pas afficher un formulaire voue a l'echec."""
+    valide = password_reset_crud.token_is_valid(db, token)
+    return InvitationValidateOut(
+        valid=valide,
+        message=(
+            "Lien valide." if valide else "Ce lien est invalide ou a expire."
+        ),
+    )
+
+
+@router.post("/reset-password", response_model=MessageOut)
+@limiter.limit("10/hour")
+def reset_password(
+    request: Request,
+    payload: ResetPasswordIn,
+    db: Session = Depends(get_db),
+) -> Any:
+    """Consomme le jeton et pose le nouveau mot de passe.
+
+    Toutes les sessions du compte sont revoquees : si la demande fait suite a
+    une compromission, laisser vivre les jetons de rafraichissement existants
+    rendrait la reinitialisation inutile.
+    """
+    utilisateur = password_reset_crud.reset_password(db, payload.token, payload.password)
+    auth_security.revoke_all_for_user(db, utilisateur.id)
+    logger.info("Mot de passe reinitialise, sessions revoquees (compte %s).", utilisateur.id)
+    return MessageOut(
+        message="Mot de passe mis a jour. Vous pouvez desormais vous connecter."
+    )
+
+
 # ---- Login -----------------------------------------------------------------
 
 
@@ -175,7 +283,7 @@ def _do_login(
             extras={"retry_after_seconds": remaining},
         )
 
-    user = user_crud.get_user_by_username(db, username)
+    user = user_crud.get_user_by_login(db, username)
     if user is None:
         auth_security.record_failure(db, username, ip)
         raise AppException(ErrorCode.INVALID_CREDENTIALS)
