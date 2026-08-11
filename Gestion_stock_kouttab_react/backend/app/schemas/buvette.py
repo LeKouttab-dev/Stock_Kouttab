@@ -118,8 +118,22 @@ class WebhookConfigureIn(BaseModel):
 
 
 class WebhookStatusOut(BaseModel):
-    configured: bool
+    """Etat du webhook HelloAsso, tel qu'on peut honnetement le connaitre.
+
+    HelloAsso n'expose aucun moyen de relire l'URL de notification enregistree
+    (``GET`` sur la route repond 405). ``configured`` ne peut donc pas etre
+    affirme : le declarer ``false`` faisait passer un webhook parfaitement
+    fonctionnel pour absent.
+
+    ``last_sale_at`` est la seule preuve verifiable qu'il fonctionne : une vente
+    recue est une notification que HelloAsso nous a bel et bien envoyee.
+    """
+
+    configured: bool | None = None
+    verifiable: bool = False
     url: str | None = None
+    last_sale_at: datetime | None = None
+    sales_count: int = 0
     raw: dict[str, Any] | None = None
 
 

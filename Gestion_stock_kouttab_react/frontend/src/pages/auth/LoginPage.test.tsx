@@ -35,8 +35,30 @@ describe('pages/auth/LoginPage', () => {
 
     await user.click(screen.getByRole('button', { name: /Se connecter/i }));
 
-    const errors = await screen.findAllByText(/Champ obligatoire/);
-    expect(errors.length).toBeGreaterThanOrEqual(2);
+    expect(await screen.findByText(/au moins 3 caractères/)).toBeInTheDocument();
+    expect(screen.getByText(/Champ obligatoire/)).toBeInTheDocument();
+  });
+
+  it('rejects an email as username without calling the API', async () => {
+    // Le backend borne `username` a 20 caracteres : une adresse email partait
+    // en 422 « Donnees invalides », sans indiquer quel champ posait probleme.
+    const called = vi.fn();
+    server.use(
+      http.post(`${BASE_URL}/auth/login/json`, () => {
+        called();
+        return HttpResponse.json({}, { status: 422 });
+      }),
+    );
+
+    const user = userEvent.setup();
+    renderLogin();
+
+    await user.type(screen.getByLabelText(/Nom d'utilisateur/i), 'benfdila.omir@gmail.com');
+    await user.type(screen.getByLabelText(/Mot de passe/i), 'Admin1234!');
+    await user.click(screen.getByRole('button', { name: /Se connecter/i }));
+
+    expect(await screen.findByText(/ne peut pas dépasser 20 caractères/)).toBeInTheDocument();
+    expect(called).not.toHaveBeenCalled();
   });
 
   it('redirects to /dashboard on successful login', async () => {

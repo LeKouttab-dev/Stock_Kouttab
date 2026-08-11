@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, Download, Search, Send } from 'lucide-react';
+import { ChevronDown, ChevronRight, ClipboardList, Download, Search, Send } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,7 +16,6 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { KpiCard } from '@/components/shared/KpiCard';
 import {
-  getInvoiceFileUrl,
   useInvoices,
   useResendComptaEmail,
   useUpdateInvoiceStatus,
@@ -25,6 +24,8 @@ import { INVOICE_STATUS, type InvoiceStatus } from '@/lib/constants';
 import type { Invoice } from '@/types/api';
 import { useAuth } from '@/hooks/useAuth';
 import { ACTIONS } from '@/lib/auth';
+import { buildAttachmentFilename, deduplicateFilenames } from '@/lib/naming';
+import { useDownloadAttachment } from '@/hooks/useDownloadAttachment';
 import { useToast } from '@/hooks/useToast';
 import { formatDate } from '@/lib/format';
 import { fr } from '@/lib/i18n/fr';
@@ -54,7 +55,10 @@ export function InvoiceListPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold">📋 {fr.invoices.listeFactures}</h1>
+        <h1 className="flex items-center gap-2 text-2xl font-bold">
+          <ClipboardList className="h-6 w-6" aria-hidden />
+          {fr.invoices.listeFactures}
+        </h1>
         <p className="text-sm text-muted-foreground">Filtrez et consultez les factures déposées.</p>
       </div>
 
@@ -124,7 +128,7 @@ export function InvoiceListPage() {
                         <ChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
                       )}
                       <span className="truncate font-medium">
-                        📄 Facture #{inv.id} — {inv.files?.[0]?.nom_fichier ?? '—'} (
+                        Facture #{inv.id} — {inv.files?.[0]?.nom_fichier ?? '—'} (
                         {formatDate(inv.date_depot)})
                       </span>
                     </div>
@@ -148,21 +152,33 @@ function InvoiceDetail({ invoice }: { invoice: Invoice }) {
   const update = useUpdateInvoiceStatus();
   const resend = useResendComptaEmail();
   const toast = useToast();
+  const { download, downloadingId } = useDownloadAttachment();
+
+  // Mêmes noms que ceux reçus par le comptable, cf. ValidateExpensesPage.
+  const comptaNames = useMemo(() => {
+    const files = invoice.files ?? [];
+    if (files.length === 0) return [];
+    return deduplicateFilenames(
+      files.map((f) =>
+        buildAttachmentFilename(
+          [invoice.pole, invoice.evenement],
+          invoice.date_evenement || invoice.date_depot || null,
+          f.nom_fichier.split('.').pop() || 'pdf',
+        ),
+      ),
+    );
+  }, [invoice]);
   const [status, setStatus] = useState<InvoiceStatus>(invoice.status);
 
-  const onUpdate = async () => {
-    try {
-      await update.mutateAsync({ id: invoice.id, status });
-      toast.success('Statut mis à jour');
-    } catch {
-      /* Erreur deja signalee par useApiMutation : un second toast
-         ferait doublon a l'ecran. */
-    }
+  const onUpdate = () => {
+    update.mutate(
+      { id: invoice.id, status },
+      { onSuccess: () => toast.success('Statut mis à jour') },
+    );
   };
 
-  const onResend = async () => {
-    await resend.mutateAsync(invoice.id);
-    toast.success(fr.invoices.renvoiSucces);
+  const onResend = () => {
+    resend.mutate(invoice.id, { onSuccess: () => toast.success(fr.invoices.renvoiSucces) });
   };
 
   return (
@@ -210,19 +226,24 @@ function InvoiceDetail({ invoice }: { invoice: Invoice }) {
         <div className="space-y-1">
           <p className="font-medium">Fichiers :</p>
           <ul className="space-y-1">
-            {invoice.files.map((f) => (
-              <li key={f.id}>
-                <a
-                  href={getInvoiceFileUrl(invoice.id, f.id)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-primary hover:underline"
-                >
-                  <Download className="h-3.5 w-3.5" />
-                  {f.nom_fichier}
-                </a>
-              </li>
-            ))}
+            {invoice.files.map((f, index) => {
+              const nomComptable = comptaNames[index] ?? f.nom_fichier;
+              return (
+                <li key={f.id}>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      download(`/invoices/${invoice.id}/files/${f.id}`, nomComptable, f.id)
+                    }
+                    disabled={downloadingId === f.id}
+                    className="inline-flex items-center gap-1 text-primary hover:underline disabled:opacity-60"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    {nomComptable}
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}

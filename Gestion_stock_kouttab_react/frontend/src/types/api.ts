@@ -9,13 +9,7 @@ import type {
 // Re-export : plusieurs modules importent ces types depuis '@/types/api'
 // plutot que de connaitre '@/lib/constants'. Sans cette ligne, TypeScript
 // remonte TS2459 et le build echoue.
-export type {
-  ExpenseStatus,
-  InvoiceStatus,
-  Role,
-  StockModStatus,
-  ValidationStatus,
-};
+export type { ExpenseStatus, InvoiceStatus, Role, StockModStatus, ValidationStatus };
 
 /* Auth & users */
 export interface User {
@@ -162,7 +156,8 @@ export interface Expense {
   user_email?: string | null;
   user_rib?: string | null;
   date_depense: string;
-  rattachement: string;
+  /** Champ libre historique, remplacé par pôle + événement + date. */
+  rattachement?: string | null;
   fournisseur?: string | null;
   nature_charge?: string | null;
   montant: number;
@@ -172,25 +167,36 @@ export interface Expense {
   status: ExpenseStatus;
   commentaires_compta?: string | null;
   date_soumission?: string;
+  // Rattachement comptable, renvoyé par `ExpenseOut` mais absent de ce type
+  // jusqu'ici : l'écran de validation ne pouvait donc pas reconstituer le nom
+  // du justificatif transmis au comptable. Nullable, les notes antérieures à
+  // la mise en place du module ne le portent pas.
+  id_pole?: number | null;
+  pole?: string | null;
+  id_event?: number | null;
+  evenement?: string | null;
+  date_evenement?: string | null;
   files?: ExpenseFile[];
 }
 
 export interface ExpenseCreateRequest {
   date_depense: string;
-  rattachement: string;
-  fournisseur?: string;
-  nature_charge?: string;
+  fournisseur: string;
   montant: number;
+  /* Rattachement comptable : obligatoire, il compose le nom du justificatif
+     envoyé au comptable. L'événement accepte un identifiant HelloAsso ou une
+     saisie libre — l'un des deux, jamais aucun. Les valeurs nulles ou vides
+     sont écartées avant l'envoi du FormData. */
+  id_pole: number;
+  date_evenement: string;
+  id_event?: number | null;
+  evenement_libre?: string;
+  /** Champ libre historique, plus saisi mais toujours accepté par l'API. */
+  rattachement?: string;
+  nature_charge?: string;
   commentaires?: string;
   remboursement_deja_emis?: number;
   remise?: number;
-  /* Rattachement comptable, facultatif : une dépense courante peut n'être
-     rattachée à aucun événement. Les valeurs nulles ou vides sont écartées
-     avant l'envoi du FormData. */
-  id_pole?: number | null;
-  id_event?: number | null;
-  evenement_libre?: string;
-  date_evenement?: string;
 }
 
 export interface ExpenseUpdateRequest extends Partial<ExpenseCreateRequest> {}
@@ -265,12 +271,7 @@ export interface EventSyncResult {
   errors: string[];
 }
 
-export type OutboundEmailStatus =
-  | 'pending'
-  | 'sending'
-  | 'sent'
-  | 'failed'
-  | 'abandoned';
+export type OutboundEmailStatus = 'pending' | 'sending' | 'sent' | 'failed' | 'abandoned';
 
 export interface OutboundEmail {
   id: number;
@@ -390,11 +391,34 @@ export interface SyncResult {
 
 export interface WebhookStatus {
   url: string | null;
-  isConfigured: boolean;
+  /**
+   * `null` quand l'état est indéterminable : HelloAsso ne permet pas de relire
+   * l'URL de notification enregistrée. Ne jamais traiter `null` comme `false`,
+   * ce serait annoncer « non configuré » pour un webhook qui fonctionne.
+   */
+  configured: boolean | null;
+  /** `false` tant que HelloAsso n'expose pas la lecture de sa configuration. */
+  verifiable: boolean;
+  /** Dernière vente reçue : preuve directe que le webhook nous appelle. */
+  last_sale_at: string | null;
+  sales_count: number;
 }
 
 export interface WebhookConfigureRequest {
   url?: string;
+}
+
+/* Scan de justificatifs */
+
+/** Un coin du document, en pixels de la photo d'origine. */
+export interface ScanCorner {
+  x: number;
+  y: number;
+}
+
+export interface ScanDetectResponse {
+  detected: boolean;
+  corners: ScanCorner[] | null;
 }
 
 /* Barcode lookup */

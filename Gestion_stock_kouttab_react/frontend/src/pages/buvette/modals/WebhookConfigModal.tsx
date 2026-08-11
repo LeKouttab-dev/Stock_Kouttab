@@ -11,6 +11,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { useConfigureWebhook, useDeleteWebhook, useWebhookStatus } from '@/api/endpoints/buvette';
 import { useToast } from '@/hooks/useToast';
+import { formatDateTime } from '@/lib/format';
 import { fr } from '@/lib/i18n/fr';
 
 interface WebhookConfigModalProps {
@@ -24,26 +25,18 @@ export function WebhookConfigModal({ open, onOpenChange }: WebhookConfigModalPro
   const remove = useDeleteWebhook();
   const toast = useToast();
 
-  const isConfigured = status.data?.isConfigured ?? false;
+  // Trois etats, pas deux : HelloAsso ne permet pas de relire l'URL enregistree,
+  // donc l'absence de confirmation n'est pas une absence de webhook.
+  const configured = status.data?.configured ?? null;
+  const salesCount = status.data?.sales_count ?? 0;
+  const lastSaleAt = status.data?.last_sale_at ?? null;
 
-  const handleActivate = async () => {
-    try {
-      await configure.mutateAsync(undefined);
-      toast.success(fr.buvette.webhookActivated);
-    } catch {
-      /* Erreur deja signalee par useApiMutation : un second toast
-         ferait doublon a l'ecran. */
-    }
+  const handleActivate = () => {
+    configure.mutate(undefined, { onSuccess: () => toast.success(fr.buvette.webhookActivated) });
   };
 
-  const handleDeactivate = async () => {
-    try {
-      await remove.mutateAsync();
-      toast.success(fr.buvette.webhookDeactivated);
-    } catch {
-      /* Erreur deja signalee par useApiMutation : un second toast
-         ferait doublon a l'ecran. */
-    }
+  const handleDeactivate = () => {
+    remove.mutate(undefined, { onSuccess: () => toast.success(fr.buvette.webhookDeactivated) });
   };
 
   return (
@@ -59,10 +52,12 @@ export function WebhookConfigModal({ open, onOpenChange }: WebhookConfigModalPro
             <span className="text-sm font-medium">Statut</span>
             {status.isLoading ? (
               <span className="text-xs text-muted-foreground">{fr.common.loading}</span>
-            ) : isConfigured ? (
+            ) : configured === true ? (
               <Badge variant="success">{fr.buvette.webhookConfigured}</Badge>
-            ) : (
+            ) : configured === false ? (
               <Badge variant="outline">{fr.buvette.webhookNotConfigured}</Badge>
+            ) : (
+              <Badge variant="outline">{fr.buvette.webhookUnknown}</Badge>
             )}
           </div>
 
@@ -74,13 +69,34 @@ export function WebhookConfigModal({ open, onOpenChange }: WebhookConfigModalPro
               </AlertDescription>
             </Alert>
           )}
+
+          {configured === null && (
+            <Alert variant="info">
+              <AlertTitle>{fr.buvette.webhookUnverifiableTitle}</AlertTitle>
+              <AlertDescription>{fr.buvette.webhookUnverifiable}</AlertDescription>
+            </Alert>
+          )}
+
+          {salesCount > 0 && (
+            <Alert variant="success">
+              <AlertTitle>{fr.buvette.webhookProofTitle}</AlertTitle>
+              <AlertDescription>
+                {salesCount} {fr.buvette.webhookProofSales}
+                {lastSaleAt
+                  ? ` ${fr.buvette.webhookProofLast} ${formatDateTime(lastSaleAt)}.`
+                  : '.'}
+              </AlertDescription>
+            </Alert>
+          )}
         </div>
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             {fr.common.close}
           </Button>
-          {isConfigured ? (
+          {/* Etat inconnu : on propose les deux actions plutot que de deviner.
+              Reenregistrer est sans risque, HelloAsso remplace simplement l'URL. */}
+          {configured !== false && (
             <Button
               type="button"
               variant="destructive"
@@ -89,7 +105,8 @@ export function WebhookConfigModal({ open, onOpenChange }: WebhookConfigModalPro
             >
               {fr.buvette.webhookDeactivate}
             </Button>
-          ) : (
+          )}
+          {configured !== true && (
             <Button type="button" loading={configure.isPending} onClick={handleActivate}>
               {fr.buvette.webhookActivate}
             </Button>

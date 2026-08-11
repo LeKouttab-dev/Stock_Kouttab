@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ChevronDown, ChevronRight, Copy, Trash2, Download } from 'lucide-react';
+import { ChevronDown, ChevronRight, ClipboardCheck, Copy, Download, Trash2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,16 +18,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  useAllExpenses,
-  useDeleteExpense,
-  useValidateExpense,
-  getExpenseFileUrl,
-} from '@/api/endpoints/expenses';
+import { useAllExpenses, useDeleteExpense, useValidateExpense } from '@/api/endpoints/expenses';
 import { expenseValidateSchema, type ExpenseValidateFormValues } from '@/lib/schemas/expense';
 import { EXPENSE_STATUS } from '@/lib/constants';
 import type { Expense } from '@/types/api';
 import { copyToClipboard } from '@/lib/utils';
+import { buildAttachmentFilename, deduplicateFilenames } from '@/lib/naming';
+import { useDownloadAttachment } from '@/hooks/useDownloadAttachment';
 import { useToast } from '@/hooks/useToast';
 import { formatCurrency, formatDate } from '@/lib/format';
 import { fr } from '@/lib/i18n/fr';
@@ -42,7 +39,10 @@ export function ValidateExpensesPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold">📝 {fr.expenses.dashboardCompta}</h1>
+        <h1 className="flex items-center gap-2 text-2xl font-bold">
+          <ClipboardCheck className="h-6 w-6" aria-hidden />
+          {fr.expenses.dashboardCompta}
+        </h1>
         <p className="text-sm text-muted-foreground">Validation et remboursement des notes.</p>
       </div>
 
@@ -93,6 +93,23 @@ function ValidateExpenseDetail({ expense, total }: DetailProps) {
   const validate = useValidateExpense();
   const remove = useDeleteExpense();
   const toast = useToast();
+  const { download, downloadingId } = useDownloadAttachment();
+
+  // Mêmes noms que ceux envoyés au comptable : pôle, événement, date, puis
+  // suffixe `-2`, `-3` quand un dépôt porte plusieurs pièces.
+  const comptaNames = useMemo(() => {
+    const files = expense.files ?? [];
+    if (files.length === 0) return [];
+    return deduplicateFilenames(
+      files.map((f) =>
+        buildAttachmentFilename(
+          [expense.pole, expense.evenement],
+          expense.date_evenement || expense.date_depense || null,
+          f.nom_fichier.split('.').pop() || 'pdf',
+        ),
+      ),
+    );
+  }, [expense]);
 
   const form = useForm<ExpenseValidateFormValues>({
     resolver: zodResolver(expenseValidateSchema),
@@ -102,17 +119,14 @@ function ValidateExpenseDetail({ expense, total }: DetailProps) {
     },
   });
 
-  const onValidate = async (values: ExpenseValidateFormValues) => {
-    try {
-      await validate.mutateAsync({
+  const onValidate = (values: ExpenseValidateFormValues) => {
+    validate.mutate(
+      {
         id: expense.id,
         payload: { status: values.status, commentaires_compta: values.commentaires_compta },
-      });
-      toast.success(fr.expenses.noteUpdated);
-    } catch {
-      /* Erreur deja signalee par useApiMutation : un second toast
-         ferait doublon a l'ecran. */
-    }
+      },
+      { onSuccess: () => toast.success(fr.expenses.noteUpdated) },
+    );
   };
 
   const onCopyRib = async () => {
@@ -121,15 +135,9 @@ function ValidateExpenseDetail({ expense, total }: DetailProps) {
     toast.success(fr.expenses.ribCopie);
   };
 
-  const onDelete = async () => {
+  const onDelete = () => {
     if (!confirm(fr.expenses.suppressionWarning)) return;
-    try {
-      await remove.mutateAsync(expense.id);
-      toast.success(fr.expenses.noteSupprimee);
-    } catch {
-      /* Erreur deja signalee par useApiMutation : un second toast
-         ferait doublon a l'ecran. */
-    }
+    remove.mutate(expense.id, { onSuccess: () => toast.success(fr.expenses.noteSupprimee) });
   };
 
   return (
@@ -186,19 +194,29 @@ function ValidateExpenseDetail({ expense, total }: DetailProps) {
         <div className="space-y-1">
           <p className="font-medium">Justificatifs :</p>
           <ul className="space-y-1">
-            {expense.files.map((f) => (
-              <li key={f.id}>
-                <a
-                  href={getExpenseFileUrl(expense.id, f.id)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-primary hover:underline"
-                >
-                  <Download className="h-3.5 w-3.5" />
-                  {f.nom_fichier}
-                </a>
-              </li>
-            ))}
+            {expense.files.map((f, index) => {
+              // Le comptable reçoit la pièce sous sa nomenclature ; l'afficher
+              // ici sous le nom brut du téléphone (`_p9.png`) l'obligerait à
+              // faire le rapprochement de tête. L'extension reste celle du
+              // fichier réellement servi : annoncer `.pdf` pour télécharger un
+              // PNG tromperait sur le contenu.
+              const nomComptable = comptaNames[index] ?? f.nom_fichier;
+              return (
+                <li key={f.id}>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      download(`/expenses/${expense.id}/files/${f.id}`, nomComptable, f.id)
+                    }
+                    disabled={downloadingId === f.id}
+                    className="inline-flex items-center gap-1 text-primary hover:underline disabled:opacity-60"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    {nomComptable}
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </div>
       ) : (
@@ -242,7 +260,10 @@ function ValidateExpenseDetail({ expense, total }: DetailProps) {
 
       {expense.status === 'Remboursée' && (
         <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 space-y-2">
-          <p className="text-sm font-semibold">🗑️ {fr.expenses.zoneSuppression}</p>
+          <p className="flex items-center gap-2 text-sm font-semibold">
+            <Trash2 className="h-4 w-4" aria-hidden />
+            {fr.expenses.zoneSuppression}
+          </p>
           <p className="text-xs text-muted-foreground">{fr.expenses.suppressionWarning}</p>
           <Button variant="destructive" size="sm" onClick={onDelete} loading={remove.isPending}>
             <Trash2 className="h-4 w-4" />

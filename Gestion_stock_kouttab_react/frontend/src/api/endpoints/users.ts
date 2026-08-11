@@ -19,8 +19,15 @@ async function fetchPendingUsers(): Promise<User[]> {
   return data;
 }
 
-async function validateUser(params: { id: number; status: Extract<ValidationStatus, 'active' | 'rejected'> }): Promise<User> {
-  const { data } = await api.patch<User>(`/users/${params.id}/validate`, { status: params.status });
+async function validateUser(params: {
+  id: number;
+  status: Extract<ValidationStatus, 'active' | 'rejected'>;
+}): Promise<User> {
+  // Le corps attendu est `validation_status` (cf. UserValidate, schemas/user.py).
+  // Envoyer `status` faisait echouer toute validation de compte en 422.
+  const { data } = await api.patch<User>(`/users/${params.id}/validate`, {
+    validation_status: params.status,
+  });
   return data;
 }
 

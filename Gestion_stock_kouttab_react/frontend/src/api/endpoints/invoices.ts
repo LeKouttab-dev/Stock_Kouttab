@@ -6,7 +6,8 @@ import type { Invoice, InvoiceStatus } from '@/types/api';
 export const invoiceQueryKeys = {
   all: ['invoices'] as const,
   mine: () => [...invoiceQueryKeys.all, 'mine'] as const,
-  list: (filters?: Record<string, unknown>) => [...invoiceQueryKeys.all, 'list', filters ?? {}] as const,
+  list: (filters?: Record<string, unknown>) =>
+    [...invoiceQueryKeys.all, 'list', filters ?? {}] as const,
 };
 
 async function fetchMyInvoices(): Promise<Invoice[]> {
@@ -14,7 +15,11 @@ async function fetchMyInvoices(): Promise<Invoice[]> {
   return data;
 }
 
-async function fetchAllInvoices(filters?: { status?: string; date?: string; search?: string }): Promise<Invoice[]> {
+async function fetchAllInvoices(filters?: {
+  status?: string;
+  date?: string;
+  search?: string;
+}): Promise<Invoice[]> {
   const { data } = await api.get<Invoice[]>('/invoices', { params: filters });
   return data;
 }
@@ -54,15 +59,18 @@ async function resendComptaEmail(invoiceId: number): Promise<{ message: string }
   return data;
 }
 
-async function updateInvoiceStatus(params: { id: number; status: InvoiceStatus }): Promise<Invoice> {
-  const { data } = await api.patch<Invoice>(`/invoices/${params.id}/status`, { status: params.status });
+async function updateInvoiceStatus(params: {
+  id: number;
+  status: InvoiceStatus;
+}): Promise<Invoice> {
+  const { data } = await api.patch<Invoice>(`/invoices/${params.id}/status`, {
+    status: params.status,
+  });
   return data;
 }
 
-export function getInvoiceFileUrl(invoiceId: number, fileId: number): string {
-  const baseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:8000/api/v1';
-  return `${baseUrl}/invoices/${invoiceId}/files/${fileId}`;
-}
+// Retiré pour la même raison que `getExpenseFileUrl` : une URL passée à un
+// `<a href>` perd le jeton JWT. Cf. `useDownloadAttachment`.
 
 export function useMyInvoices() {
   return useQuery({ queryKey: invoiceQueryKeys.mine(), queryFn: fetchMyInvoices });

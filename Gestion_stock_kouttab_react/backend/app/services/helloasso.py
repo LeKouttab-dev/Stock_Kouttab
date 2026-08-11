@@ -435,15 +435,26 @@ class HelloAssoClient:
 
     # ---------------------------------------------------------------- hooks
 
+    # L'URL de notification appartient au *client API*, pas a l'organisation :
+    # un meme client dessert potentiellement plusieurs organisations et
+    # n'expose qu'une seule URL de reception. `/v5/organizations/{slug}/
+    # notifications` — utilise jusqu'ici — n'existe pas : HelloAsso repond 404,
+    # et aucune vente ne pouvait donc decrementer le stock.
+    # Verifie le 2026-08-11 : GET sur ce chemin renvoie 405 (methode refusee,
+    # donc route existante) la ou l'ancien renvoyait 404.
+    _NOTIFICATIONS_PATH = "/v5/partners/me/api-notifications"
+
     def register_webhook(self, org_slug: str, url: str) -> dict[str, Any]:
-        path = f"/v5/organizations/{org_slug}/notifications"
         logger.info("HelloAsso webhook configure: org=%s url=%s", org_slug, url)
-        return self._put(path, json={"url": url})
+        return self._put(self._NOTIFICATIONS_PATH, json={"url": url})
 
     def get_webhook(self, org_slug: str) -> dict[str, Any] | None:
-        path = f"/v5/organizations/{org_slug}/notifications"
-        response = self._request("GET", path)
-        if response.status_code == 404:
+        response = self._request("GET", self._NOTIFICATIONS_PATH)
+        # 405 : la route n'accepte que PUT/DELETE. HelloAsso ne permet pas de
+        # relire l'URL configuree — on ne peut donc pas confirmer un
+        # enregistrement, seulement l'ecrire. A remonter tel quel a l'appelant
+        # plutot que de faire echouer l'ecran.
+        if response.status_code in (404, 405):
             return None
         if response.status_code >= 400:
             logger.warning(
@@ -464,9 +475,8 @@ class HelloAssoClient:
             return {"raw": response.text}
 
     def delete_webhook(self, org_slug: str) -> None:
-        path = f"/v5/organizations/{org_slug}/notifications"
         logger.info("HelloAsso webhook delete: org=%s", org_slug)
-        self._delete(path)
+        self._delete(self._NOTIFICATIONS_PATH)
 
 
 # ---------------------------------------------------------------------------

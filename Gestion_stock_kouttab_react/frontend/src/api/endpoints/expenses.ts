@@ -46,15 +46,18 @@ async function deleteExpense(id: number): Promise<void> {
   await api.delete(`/expenses/${id}`);
 }
 
-async function validateExpense(params: { id: number; payload: ExpenseValidateRequest }): Promise<Expense> {
+async function validateExpense(params: {
+  id: number;
+  payload: ExpenseValidateRequest;
+}): Promise<Expense> {
   const { data } = await api.patch<Expense>(`/expenses/${params.id}/validate`, params.payload);
   return data;
 }
 
-export function getExpenseFileUrl(expenseId: number, fileId: number): string {
-  const baseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:8000/api/v1';
-  return `${baseUrl}/expenses/${expenseId}/files/${fileId}`;
-}
+// `getExpenseFileUrl` a été retiré : il construisait une URL destinée à un
+// `<a href>`, or une navigation ne porte pas l'en-tête `Authorization` et le
+// téléchargement revenait toujours en `AUTH_1011`. Passer par
+// `useDownloadAttachment`, qui télécharge via axios.
 
 export function useMyExpenses() {
   return useQuery({ queryKey: expenseQueryKeys.mine(), queryFn: fetchMyExpenses });
