@@ -113,6 +113,30 @@ jobs:
 
           docker compose up -d
 
+          # Vérifier que les conteneurs tournent RÉELLEMENT sur l'image
+          # attendue. Deux déploiements successifs ont laissé les anciens
+          # conteneurs en place : `up -d` avait rendu la main sans les recréer,
+          # et le workflow se terminait en succès alors que la version livrée
+          # n'avait pas bougé. Le contrôle porte donc sur le résultat, pas sur
+          # le code de retour de la commande.
+          for service in api web; do
+            nom="kouttab-stock-${service}"
+            en_place=$(docker inspect --format '{{.Config.Image}}' "$nom" 2>/dev/null || echo absent)
+            case "$en_place" in
+              *"${IMAGE_TAG}") echo "OK  $nom -> ${IMAGE_TAG}" ;;
+              *)
+                echo "ECHEC $nom tourne sur '$en_place', attendu '${IMAGE_TAG}'" >&2
+                echo "Nouvelle tentative en forçant la recréation." >&2
+                docker compose up -d --force-recreate "$service"
+                en_place=$(docker inspect --format '{{.Config.Image}}' "$nom" 2>/dev/null || echo absent)
+                case "$en_place" in
+                  *"${IMAGE_TAG}") echo "OK après recréation : $nom" ;;
+                  *) echo "ECHEC définitif sur $nom ($en_place)" >&2; exit 1 ;;
+                esac
+                ;;
+            esac
+          done
+
           # Pas de `docker image prune` : il agit sur TOUTE la machine, qui
           # héberge d'autres projets. Même filtré sur l'ancienneté, il
           # supprimerait leurs images inutilisées — et leur retour arrière avec.
