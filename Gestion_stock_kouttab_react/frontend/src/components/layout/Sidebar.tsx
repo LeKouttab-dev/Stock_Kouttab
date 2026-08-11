@@ -16,6 +16,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { ACTIONS } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import { fr } from '@/lib/i18n/fr';
+import { Logo } from '@/components/shared/Logo';
 
 interface SidebarProps {
   open: boolean;
@@ -99,12 +100,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       >
         <div className="flex items-center justify-between border-b border-forest-700 px-5 py-4">
           <div className="flex items-center gap-2">
-            <span
-              className="flex h-9 w-9 items-center justify-center rounded-md bg-terracotta font-serif text-lg font-bold text-cream-50 shadow-sm"
-              aria-hidden
-            >
-              K
-            </span>
+            <Logo className="h-9 w-9 flex-shrink-0 rounded-md shadow-sm" />
             <div>
               <p className="font-serif text-base font-bold leading-tight text-cream-50">
                 Le Kouttâb

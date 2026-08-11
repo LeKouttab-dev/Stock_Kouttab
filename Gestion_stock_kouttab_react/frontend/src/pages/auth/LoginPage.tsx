@@ -12,6 +12,7 @@ import { ErrorAlert } from '@/components/shared/ErrorAlert';
 import { useLogin } from '@/api/endpoints/auth';
 import { loginSchema, type LoginFormValues } from '@/lib/schemas/auth';
 import { useAuth } from '@/hooks/useAuth';
+import { Logo } from '@/components/shared/Logo';
 import { fr } from '@/lib/i18n/fr';
 import { useToast } from '@/hooks/useToast';
 
@@ -59,9 +60,7 @@ export function LoginPage() {
     <div className="flex min-h-full items-center justify-center bg-gradient-to-br from-cream via-background to-sand-200 px-4 py-12">
       <Card className="w-full max-w-md border-border bg-card shadow-xl">
         <CardHeader className="space-y-2 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-terracotta font-serif text-2xl font-bold text-cream-50 shadow-md">
-            K
-          </div>
+          <Logo className="mx-auto h-16 w-16 rounded-full shadow-md" />
           <CardTitle className="font-serif text-2xl text-forest">{fr.app.title}</CardTitle>
           <CardDescription>{fr.auth.loginTitle}</CardDescription>
         </CardHeader>
