@@ -96,26 +96,27 @@ jobs:
               "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
               "IMAGE_TAG='${{ github.sha }}' bash -s" <<'REMOTE'
           set -euo pipefail
-          cd /opt/kouttab
+          # Le VPS est mutualisé : chaque projet vit sous /opt/projets/<nom>.
+          # Voir /opt/CLAUDE.md sur le serveur.
+          cd /opt/projets/kouttab-stock
 
           # Épingler la version déployée. Le tag précédent est conservé pour
           # permettre un retour arrière (cf. DEPLOIEMENT-VPS.md).
           cp .env .env.precedent
           sed -i "s|^IMAGE_TAG=.*|IMAGE_TAG=${IMAGE_TAG}|" .env
 
-          # --ignore-buildable : si le profil `tunnel` est actif, `db-tunnel`
-          # se construit sur place et n'est pas publié sur GHCR.
-          # Le conteneur du tunnel n'est pas redémarré ici : il ne dépend pas
-          # de la version applicative et une coupure de liaison n'apporterait
-          # rien de plus qu'un risque.
-          docker compose pull --ignore-buildable
+          docker compose pull
 
           # Migrations avant le redémarrage : le nouveau code suppose le
           # nouveau schéma. Conteneur jetable, l'API tourne encore.
           docker compose run --rm api alembic upgrade head
 
           docker compose up -d
-          docker image prune -f
+
+          # Pas de `docker image prune` : il agit sur TOUTE la machine, qui
+          # héberge d'autres projets. Même filtré sur l'ancienneté, il
+          # supprimerait leurs images inutilisées — et leur retour arrière avec.
+          # Le ménage se fait à la main, en connaissance de cause.
           REMOTE
 
       - name: Vérifier que le site répond
