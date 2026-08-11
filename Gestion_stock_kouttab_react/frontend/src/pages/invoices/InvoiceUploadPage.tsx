@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { FileText, ScanLine } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,6 +17,8 @@ import {
 } from '@/components/ui/select';
 import { FileUploader } from '@/components/forms/FileUploader';
 import { EventSelect } from '@/components/forms/EventSelect';
+import { AttachmentNamesPreview } from '@/components/forms/AttachmentNamesPreview';
+import { DocumentScanner } from '@/components/scanner/DocumentScanner';
 import { useCreateInvoice } from '@/api/endpoints/invoices';
 import { usePoles } from '@/api/endpoints/referentials';
 import { invoiceUploadSchema, type InvoiceUploadFormValues } from '@/lib/schemas/invoice';
@@ -28,6 +31,7 @@ export function InvoiceUploadPage() {
   const toast = useToast();
   const { data: poles } = usePoles();
   const [files, setFiles] = useState<File[]>([]);
+  const [scanOpen, setScanOpen] = useState(false);
 
   const form = useForm<InvoiceUploadFormValues>({
     resolver: zodResolver(invoiceUploadSchema),
@@ -67,31 +71,41 @@ export function InvoiceUploadPage() {
     return deduplicateFilenames(base);
   }, [files, selectedPole, selectedEventName, eventId, dateEvenement]);
 
-  const onSubmit = async (values: InvoiceUploadFormValues) => {
+  const onSubmit = (values: InvoiceUploadFormValues) => {
     if (files.length === 0) {
       toast.warning(fr.invoices.aucunFichier);
       return;
     }
-    // Pas de try/catch : `useApiMutation` affiche déjà le toast d'erreur.
-    await create.mutateAsync({
-      comment: values.comment,
-      files,
-      poleId: values.poleId!,
-      eventId: values.eventId ?? null,
-      eventLibre: values.eventLibre ?? '',
-      dateEvenement: values.dateEvenement,
-      fournisseur: values.fournisseur,
-      montant: values.montant,
-    });
-    toast.success(fr.invoices.envoiSucces);
-    form.reset();
-    setFiles([]);
+    // Les effets de succès passent par `onSuccess` : `useApiMutation` affiche
+    // déjà le toast d'erreur, il n'y a donc rien à rattraper ici.
+    create.mutate(
+      {
+        comment: values.comment,
+        files,
+        poleId: values.poleId!,
+        eventId: values.eventId ?? null,
+        eventLibre: values.eventLibre ?? '',
+        dateEvenement: values.dateEvenement,
+        fournisseur: values.fournisseur,
+        montant: values.montant,
+      },
+      {
+        onSuccess: () => {
+          toast.success(fr.invoices.envoiSucces);
+          form.reset();
+          setFiles([]);
+        },
+      },
+    );
   };
 
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold">🧾 {fr.invoices.title}</h1>
+        <h1 className="flex items-center gap-2 text-2xl font-bold">
+          <FileText className="h-6 w-6" aria-hidden />
+          {fr.invoices.title}
+        </h1>
         <p className="text-sm text-muted-foreground">{fr.invoices.subtitle}</p>
       </div>
 
@@ -181,7 +195,13 @@ export function InvoiceUploadPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label required>{fr.invoices.upload}</Label>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Label required>{fr.invoices.upload}</Label>
+                <Button type="button" variant="outline" size="sm" onClick={() => setScanOpen(true)}>
+                  <ScanLine className="h-4 w-4" />
+                  {fr.scanner.documentTitle}
+                </Button>
+              </div>
               <FileUploader
                 accept=".pdf,.png,.jpg,.jpeg"
                 files={files}
@@ -190,18 +210,13 @@ export function InvoiceUploadPage() {
               />
             </div>
 
-            {previewNames.length > 0 && (
-              <div className="rounded-md border bg-muted/40 p-3">
-                <p className="text-xs font-medium">{fr.invoices.apercuNomFichier}</p>
-                <ul className="mt-1 space-y-0.5">
-                  {previewNames.map((name) => (
-                    <li key={name} className="font-mono text-xs text-muted-foreground">
-                      {name}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+            <DocumentScanner
+              open={scanOpen}
+              onClose={() => setScanOpen(false)}
+              onScanned={(scanned) => setFiles((prev) => [...prev, scanned])}
+            />
+
+            <AttachmentNamesPreview names={previewNames} />
 
             <div className="space-y-1.5">
               <Label htmlFor="comment">{fr.invoices.comment}</Label>

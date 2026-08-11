@@ -37,28 +37,20 @@ export function UsersManagementSection() {
 
   const others = users.filter((u) => u.id !== currentUser?.id);
 
-  const handleRoleChange = async (id: number) => {
+  const handleRoleChange = (id: number) => {
     const newRole = pendingRole[id];
     if (!newRole) return;
-    try {
-      await updateRole.mutateAsync({ id, role: newRole });
-      toast.success(`Rôle mis à jour`);
-    } catch {
-      /* Erreur deja signalee par useApiMutation : un second toast
-         ferait doublon a l'ecran. */
-    }
+    updateRole.mutate({ id, role: newRole }, { onSuccess: () => toast.success('Rôle mis à jour') });
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (confirmDelete === null) return;
-    try {
-      await remove.mutateAsync(confirmDelete);
-      toast.success('Utilisateur supprimé');
-      setConfirmDelete(null);
-    } catch {
-      /* Erreur deja signalee par useApiMutation : un second toast
-         ferait doublon a l'ecran. */
-    }
+    remove.mutate(confirmDelete, {
+      onSuccess: () => {
+        toast.success('Utilisateur supprimé');
+        setConfirmDelete(null);
+      },
+    });
   };
 
   return (

@@ -49,16 +49,17 @@ export function AdjustStockModal({ open, onOpenChange, product }: AdjustStockMod
     }
   }, [product, form]);
 
-  const onSubmit = async (values: AdjustBuvetteProductFormValues) => {
+  const onSubmit = (values: AdjustBuvetteProductFormValues) => {
     if (!product) return;
-    try {
-      await update.mutateAsync({ id: product.id, data: values });
-      toast.success(fr.buvette.productUpdated);
-      onOpenChange(false);
-    } catch {
-      /* Erreur deja signalee par useApiMutation : un second toast
-         ferait doublon a l'ecran. */
-    }
+    update.mutate(
+      { id: product.id, data: values },
+      {
+        onSuccess: () => {
+          toast.success(fr.buvette.productUpdated);
+          onOpenChange(false);
+        },
+      },
+    );
   };
 
   if (!product) return null;

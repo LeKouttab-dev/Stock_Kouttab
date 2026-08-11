@@ -6,9 +6,7 @@ import { z } from 'zod';
  */
 export const createBuvetteProductSchema = z.object({
   name: z.string().min(1, 'Nom obligatoire').max(200),
-  price_euros: z.coerce
-    .number({ invalid_type_error: 'Prix invalide' })
-    .min(0, 'Doit être ≥ 0'),
+  price_euros: z.coerce.number({ invalid_type_error: 'Prix invalide' }).min(0, 'Doit être ≥ 0'),
   quantity: z.coerce.number().int().min(0, 'Doit être ≥ 0'),
   seuil_alerte: z.coerce.number().int().min(0, 'Doit être ≥ 0'),
   emoji: z.string().min(1, 'Emoji obligatoire').max(8),
@@ -41,17 +39,13 @@ export type AdjustBuvetteProductFormValues = z.infer<typeof adjustBuvetteProduct
 export const buvetteProductFromBarcodeSchema = z.object({
   barcode: z.string().min(1, 'Code-barres obligatoire'),
   name: z.string().min(1, 'Nom obligatoire').max(200),
-  price_euros: z.coerce
-    .number({ invalid_type_error: 'Prix invalide' })
-    .min(0, 'Doit être ≥ 0'),
+  price_euros: z.coerce.number({ invalid_type_error: 'Prix invalide' }).min(0, 'Doit être ≥ 0'),
   quantity: z.coerce.number().int().min(0, 'Doit être ≥ 0'),
   seuil_alerte: z.coerce.number().int().min(0, 'Doit être ≥ 0'),
   emoji: z.string().min(1, 'Emoji obligatoire').max(8),
 });
 
-export type BuvetteProductFromBarcodeFormValues = z.infer<
-  typeof buvetteProductFromBarcodeSchema
->;
+export type BuvetteProductFromBarcodeFormValues = z.infer<typeof buvetteProductFromBarcodeSchema>;
 
 /**
  * Schéma de configuration d'un webhook.

@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, AlertTriangle, ScanLine } from 'lucide-react';
+import { ArrowRight, AlertTriangle, Boxes, ScanLine } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { useBarcodeLookup, useCategories, useStockItems } from '@/api/endpoints/stock';
-import { ICONS } from '@/lib/constants';
+import { CategoryIcon } from '@/components/shared/CategoryIcon';
 import { fr } from '@/lib/i18n/fr';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/useToast';
@@ -78,7 +78,10 @@ export function StockCategoriesPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="font-serif text-2xl font-bold text-forest">📦 {fr.stock.title}</h1>
+          <h1 className="flex items-center gap-2 font-serif text-2xl font-bold text-forest">
+            <Boxes className="h-6 w-6" aria-hidden />
+            {fr.stock.title}
+          </h1>
           <p className="text-sm text-muted-foreground">Naviguez par catégorie.</p>
         </div>
         {canScan && (
@@ -91,7 +94,6 @@ export function StockCategoriesPage() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {categories.map((cat) => {
-          const icon = ICONS[cat.nom] ?? '📦';
           const s = stats.get(cat.nom) ?? { count: 0, alerts: 0 };
           return (
             <Card
@@ -101,8 +103,8 @@ export function StockCategoriesPage() {
             >
               <CardContent className="p-5 space-y-3">
                 <div className="flex items-start justify-between">
-                  <div className="text-4xl" aria-hidden>
-                    {icon}
+                  <div className="rounded-lg bg-forest/10 p-2.5 text-forest">
+                    <CategoryIcon nom={cat.nom} className="h-7 w-7" />
                   </div>
                   {s.alerts > 0 && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-terracotta-100 px-2 py-0.5 text-xs font-semibold text-terracotta-800">

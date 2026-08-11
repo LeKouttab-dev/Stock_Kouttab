@@ -206,6 +206,47 @@ def test_import_csv_success_and_skips_duplicates(db_session) -> None:
     assert result["skipped"] == 1
 
 
+def test_import_csv_registers_unknown_categories(db_session) -> None:
+    """Une categorie importee doit rejoindre le referentiel.
+
+    L'import creait les sous-categories manquantes mais jamais les categories.
+    Les articles atterrissaient donc dans une categorie absente de la table
+    ``Categories`` : l'ecran « Naviguer par categorie » ne l'affichait pas, et
+    la categorie ressaisie a la main — avec une faute de frappe — comptait
+    zero article alors que le stock en contenait vingt-deux.
+    """
+    categorie = _name("Cat")
+    csv_content = (
+        "header1\nheader2\nheader3\nheader4\nheader5\nheader6\n"
+        "Catégorie,Sous-catégorie,Nom de l'article,Quantité initiale\n"
+        f"{categorie},Boissons,{_name('a')},5\n"
+        f"{categorie},Snacks,{_name('b')},3\n"
+    )
+
+    result = import_inventory(db_session, content=csv_content.encode("utf-8"))
+    assert result["imported"] == 2
+
+    noms = {c.nom for c in stock_crud.list_categories(db_session)}
+    assert categorie in noms
+    # Deux lignes partagent la categorie : elle ne doit etre creee qu'une fois.
+    assert [c.nom for c in stock_crud.list_categories(db_session)].count(categorie) == 1
+
+
+def test_import_csv_reuses_an_existing_category(db_session) -> None:
+    categorie = _name("Cat")
+    stock_crud.add_category(db_session, nom=categorie)
+
+    csv_content = (
+        "header1\nheader2\nheader3\nheader4\nheader5\nheader6\n"
+        "Catégorie,Sous-catégorie,Nom de l'article,Quantité initiale\n"
+        f"{categorie},Boissons,{_name('c')},5\n"
+    )
+    result = import_inventory(db_session, content=csv_content.encode("utf-8"))
+
+    assert result["imported"] == 1
+    assert [c.nom for c in stock_crud.list_categories(db_session)].count(categorie) == 1
+
+
 # ---- Statistics & low stock ------------------------------------------------
 
 

@@ -1,4 +1,4 @@
-import { Package, AlertTriangle, PackageX, BarChart3 } from 'lucide-react';
+import { AlertTriangle, BarChart3, Clock, Package, PackageX, UtensilsCrossed } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -82,7 +82,10 @@ export function OverviewTab() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">🍔 {fr.dashboard.detailNourriture}</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <UtensilsCrossed className="h-4 w-4" aria-hidden />
+              {fr.dashboard.detailNourriture}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {stats.stats_nourriture_sous_categories.length > 0 ? (
@@ -109,7 +112,10 @@ export function OverviewTab() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">🕐 {fr.dashboard.dernieresActivites}</CardTitle>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Clock className="h-4 w-4" aria-hidden />
+            {fr.dashboard.dernieresActivites}
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
           {stats.dernieres_modifs && stats.dernieres_modifs.length > 0 ? (

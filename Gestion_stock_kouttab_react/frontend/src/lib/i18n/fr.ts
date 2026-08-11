@@ -34,7 +34,7 @@ export const fr = {
     requiredField: 'Champ obligatoire',
     role: 'Rôle',
     roleAssignedByAdmin:
-        "Votre rôle sera attribué par un administrateur lors de la validation de votre compte.",
+      'Votre rôle sera attribué par un administrateur lors de la validation de votre compte.',
     nom: 'Nom de famille',
     prenom: 'Prénom',
     email: 'Adresse e-mail',
@@ -50,7 +50,7 @@ export const fr = {
     accountPending: 'Compte créé. En attente de validation par un administrateur.',
   },
   dashboard: {
-    title: '📊 Tableau de Bord — État des Stocks',
+    title: 'Tableau de bord — État des stocks',
     overview: "Vue d'ensemble",
     history: 'Historique',
     alerts: 'Alertes',
@@ -114,12 +114,12 @@ export const fr = {
     date: 'Date',
     rattachement: 'Rattachement (évènement, activité…)',
     montant: 'Montant (€)',
-    fournisseur: 'Fournisseur',
+    fournisseur: 'Fournisseur (nom du magasin, du restaurant…)',
     natureCharge: 'Nature de la charge',
     commentaires: 'Commentaires (Nombre de repas, …)',
     rembEmis: 'Remboursement déjà émis (espèce)',
     remise: 'Remise (à préciser)',
-    tickets: 'Ticket(s) de caisse (PNG, JPG)',
+    tickets: 'Ticket(s) de caisse (PDF, PNG, JPG)',
     soumettre: 'Soumettre la demande',
     soumissionOK: 'Votre note de frais a été soumise avec succès !',
     historiqueDemandes: 'Historique de mes demandes',
@@ -145,9 +145,8 @@ export const fr = {
     supprimer: 'Supprimer définitivement cette note',
     noteSupprimee: 'Note de frais supprimée.',
     noteUpdated: 'Note de frais mise à jour.',
-    pourModifierTickets:
-      'Pour modifier les tickets, veuillez supprimer cette note et la recréer.',
-    commentaireUtilisateur: 'Commentaires de l\'utilisateur',
+    pourModifierTickets: 'Pour modifier les tickets, veuillez supprimer cette note et la recréer.',
+    commentaireUtilisateur: "Commentaires de l'utilisateur",
   },
   invoices: {
     title: 'Dépôt de Factures',
@@ -157,11 +156,10 @@ export const fr = {
     polePlaceholder: 'Sélectionnez un pôle',
     evenement: 'Événement',
     dateEvenement: "Date de l'événement",
-    fournisseur: 'Fournisseur (facultatif)',
+    fournisseur: 'Fournisseur (nom du magasin, du restaurant…) — facultatif',
     montant: 'Montant TTC (facultatif)',
     uploadHelper: 'PDF, PNG, JPG. 10 Mo max par fichier.',
-    apercuNomFichier:
-      'Nom du/des fichier(s) qui sera envoyé au service comptabilité :',
+    apercuNomFichier: 'Nom du/des fichier(s) qui sera envoyé au service comptabilité :',
     mailComptaEnvoye: 'Envoyé à la comptabilité',
     mailComptaAttente: "En attente d'envoi",
     mailComptaEchec: "Échec de l'envoi",
@@ -196,7 +194,7 @@ export const fr = {
   outbox: {
     title: 'Envois au service comptable',
     subtitle:
-      "Suivi des pièces transmises. Un envoi en échec est réessayé automatiquement, puis relançable à la main.",
+      'Suivi des pièces transmises. Un envoi en échec est réessayé automatiquement, puis relançable à la main.',
     pending: "En attente d'envoi",
     sending: 'Envoi en cours',
     sent: 'Envoyé',
@@ -211,8 +209,7 @@ export const fr = {
 
   poles: {
     title: 'Pôles de rattachement',
-    subtitle:
-      'Référentiel utilisé pour nommer les pièces envoyées à la comptabilité.',
+    subtitle: 'Référentiel utilisé pour nommer les pièces envoyées à la comptabilité.',
     nom: 'Nom du pôle',
     ajouter: 'Ajouter un pôle',
     ajoutSucces: 'Pôle ajouté.',
@@ -291,17 +288,16 @@ export const fr = {
     confirmImport: 'Je confirme vouloir importer les fichiers ci-dessous',
   },
   buvette: {
-    title: '🍺 Buvette — Stock en temps réel',
+    title: 'Buvette — Stock en temps réel',
     subtitle: 'Stock synchronisé avec HelloAsso en temps réel',
-    sync: '🔄 Synchroniser depuis HelloAsso',
+    sync: 'Synchroniser depuis HelloAsso',
     syncing: 'Synchronisation en cours…',
     syncSuccess: (r: SyncResult) =>
       `${r.created} créé(s), ${r.updated} mis à jour, ${r.skipped} ignoré(s)`,
-    addProduct: '➕ Ajouter un produit',
-    viewSales: '📊 Voir les ventes',
-    webhook: '⚙️ Webhook',
-    noProducts:
-      "Aucun produit. Lancez une synchronisation pour importer la boutique HelloAsso.",
+    addProduct: 'Ajouter un produit',
+    viewSales: 'Voir les ventes',
+    webhook: 'Webhook',
+    noProducts: 'Aucun produit. Lancez une synchronisation pour importer la boutique HelloAsso.',
     inStock: 'en stock',
     outOfStock: 'Rupture',
     lowStock: 'Stock bas',
@@ -309,10 +305,19 @@ export const fr = {
     helloassoLink: 'HelloAsso',
     webhookConfigured: 'Webhook actif',
     webhookNotConfigured: 'Webhook désactivé',
+    webhookUnknown: 'État non vérifiable',
+    webhookUnverifiableTitle: 'HelloAsso ne permet pas de relire cette configuration',
+    webhookUnverifiable:
+      "L'enregistrement du webhook ne peut être ni confirmé ni infirmé depuis ici : " +
+      "HelloAsso n'expose pas la lecture de l'URL de notification. Les ventes reçues " +
+      'ci-dessous sont la preuve directe que le webhook fonctionne.',
+    webhookProofTitle: 'Le webhook reçoit bien les ventes',
+    webhookProofSales: 'vente(s) reçue(s) de HelloAsso.',
+    webhookProofLast: 'Dernière le',
     webhookActivate: 'Activer le webhook',
     webhookDeactivate: 'Désactiver le webhook',
     webhookExplanation:
-      "Quand activé, chaque vente HelloAsso décrémentera automatiquement le stock.",
+      'Quand activé, chaque vente HelloAsso décrémentera automatiquement le stock.',
     webhookTitle: 'Configuration du webhook HelloAsso',
     salesTitle: 'Ventes HelloAsso',
     salesEmpty: 'Aucune vente enregistrée pour le moment.',
@@ -320,7 +325,7 @@ export const fr = {
     totalProducts: 'Total produits',
     totalStock: 'Total stock',
     productsAlert: 'Produits en alerte',
-    salesToday: "Ventes du jour",
+    salesToday: 'Ventes du jour',
     adjustStock: 'Ajuster le stock',
     createProduct: 'Nouveau produit',
     name: 'Nom du produit',
@@ -349,19 +354,29 @@ export const fr = {
   },
   scanner: {
     title: 'Scanner un code-barres',
-    scan: '📷 Scanner',
+    scan: 'Scanner',
     hint: 'Pointez la caméra sur le code-barres.',
     cancel: 'Annuler',
-    permissionDenied:
-      'Accès à la caméra refusé. Vérifiez les permissions du navigateur.',
+    permissionDenied: 'Accès à la caméra refusé. Vérifiez les permissions du navigateur.',
     httpsRequired: 'Le scanner nécessite une connexion HTTPS (ou localhost).',
-    notFound:
-      'Code-barres non trouvé en base. Voulez-vous créer un nouveau produit ?',
-    enrichedFromOFF: 'Données enrichies via Open Food Facts ❤️',
+    notFound: 'Code-barres non trouvé en base. Voulez-vous créer un nouveau produit ?',
+    enrichedFromOFF: 'Fiche produit reconnue via Open Food Facts',
     lookupError: 'Erreur lors de la recherche du code-barres.',
     lookupInProgress: 'Recherche en cours…',
     newProductScanned: 'Nouveau produit (scanné)',
     barcode: 'Code-barres',
+    cameraError: "Impossible d'ouvrir la caméra. Vérifiez les permissions du navigateur.",
+    documentTitle: 'Scanner un justificatif',
+    documentHelp:
+      'Posez le ticket ou la facture sur un fond contrasté, cadrez-le entièrement, puis prenez la photo.',
+    documentAdjust:
+      'Ajustez le cadrage : les gros points déplacent les coins, les petits déplacent un côté entier.',
+    capture: 'Prendre la photo',
+    retake: 'Reprendre',
+    validate: 'Valider le scan',
+    corner: 'Coin',
+    edge: 'Côté',
+    fullFrame: 'Toute la photo',
   },
   common: {
     loading: 'Chargement…',

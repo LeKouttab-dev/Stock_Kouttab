@@ -36,16 +36,10 @@ export function StockItemsList({ items }: StockItemsListProps) {
 
   const sorted = useMemo(() => [...items].sort((a, b) => a.nom.localeCompare(b.nom)), [items]);
 
-  const handleDelete = async (item: StockItem) => {
+  const handleDelete = (item: StockItem) => {
     if (!confirm(`Supprimer définitivement « ${item.nom} » ? Cette action est irréversible.`))
       return;
-    try {
-      await deleteMut.mutateAsync(item.id);
-      toast.success(`« ${item.nom} » supprimé`);
-    } catch {
-      /* Erreur deja signalee par useApiMutation : un second toast
-         ferait doublon a l'ecran. */
-    }
+    deleteMut.mutate(item.id, { onSuccess: () => toast.success(`« ${item.nom} » supprimé`) });
   };
 
   if (sorted.length === 0) return <EmptyState title={fr.stock.aucunSousCat} />;

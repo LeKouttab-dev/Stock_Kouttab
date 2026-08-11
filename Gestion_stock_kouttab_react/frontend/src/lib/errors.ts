@@ -15,12 +15,10 @@
 
 export const ERROR_MESSAGES: Record<string, string> = {
   // ---------------- Auth (1xxx) ----------------
-  AUTH_1001:
-    "Identifiants incorrects. Vérifiez votre nom d'utilisateur et votre mot de passe.",
+  AUTH_1001: "Identifiants incorrects. Vérifiez votre nom d'utilisateur et votre mot de passe.",
   AUTH_1002: 'Votre compte est en attente de validation par un administrateur.',
   AUTH_1003: 'Votre compte a été refusé. Contactez un administrateur.',
-  AUTH_1004:
-    'Compte temporairement verrouillé. Réessayez dans 15 minutes.',
+  AUTH_1004: 'Compte temporairement verrouillé. Réessayez dans 15 minutes.',
   AUTH_1010: 'Votre session a expiré. Reconnectez-vous.',
   AUTH_1011: 'Token invalide.',
   AUTH_1012: 'Vous devez être connecté pour effectuer cette action.',
@@ -40,8 +38,7 @@ export const ERROR_MESSAGES: Record<string, string> = {
   // ---------------- Permissions (2xxx) ----------------
   PERM_2001: "Vous n'avez pas les droits nécessaires pour effectuer cette action.",
   PERM_2002: 'Cette action nécessite un rôle spécifique.',
-  PERM_2003:
-    'Vous ne pouvez pas effectuer cette action sur votre propre compte.',
+  PERM_2003: 'Vous ne pouvez pas effectuer cette action sur votre propre compte.',
 
   // ---------------- Resources (3xxx) ----------------
   RES_3001: 'Ressource introuvable.',
@@ -59,13 +56,10 @@ export const ERROR_MESSAGES: Record<string, string> = {
   // ---------------- Conflicts (4xxx) ----------------
   CONF_4001: 'Conflit avec une ressource existante.',
   CONF_4002: 'Un article avec ce nom existe déjà.',
-  CONF_4003:
-    'Cette catégorie contient encore des articles. Déplacez-les avant de la supprimer.',
+  CONF_4003: 'Cette catégorie contient encore des articles. Déplacez-les avant de la supprimer.',
   CONF_4004: 'Cette sous-catégorie contient encore des articles.',
-  CONF_4005:
-    'Cette note de frais ne peut plus être modifiée (statut différent de « En attente »).',
-  CONF_4006:
-    'Seules les notes au statut « Remboursée » peuvent être supprimées.',
+  CONF_4005: 'Cette note de frais ne peut plus être modifiée (statut différent de « En attente »).',
+  CONF_4006: 'Seules les notes au statut « Remboursée » peuvent être supprimées.',
   CONF_4007: 'Cet utilisateur a des notes ou factures liées. Action impossible.',
   CONF_4008: 'Cette catégorie existe déjà.',
   CONF_4009: 'Cette sous-catégorie existe déjà.',
@@ -79,24 +73,21 @@ export const ERROR_MESSAGES: Record<string, string> = {
   VAL_5005: 'Date invalide.',
   VAL_5006: 'Type de fichier non autorisé.',
   VAL_5007: 'Fichier trop volumineux (10 Mo maximum).',
-  VAL_5008: "Trop de fichiers (5 maximum par envoi).",
+  VAL_5008: 'Trop de fichiers (5 maximum par envoi).',
   VAL_5009: 'Format CSV invalide. Vérifiez les colonnes attendues.',
   VAL_5010: "Le fichier n'est plus disponible sur le serveur.",
 
   // ---------------- External services (6xxx) ----------------
-  EXT_6001:
-    'Authentification HelloAsso échouée. Vérifiez les credentials dans les paramètres.',
+  EXT_6001: 'Authentification HelloAsso échouée. Vérifiez les credentials dans les paramètres.',
   EXT_6002: "Erreur lors de l'appel à HelloAsso. Réessayez plus tard.",
   EXT_6003: 'Payload webhook ignoré (format inattendu).',
   EXT_6004: "L'intégration HelloAsso n'est pas configurée.",
-  EXT_6010:
-    "L'envoi de l'email a échoué. L'action a quand même été enregistrée.",
+  EXT_6010: "L'envoi de l'email a échoué. L'action a quand même été enregistrée.",
   EXT_6020: "Erreur base de données. Contactez l'administrateur.",
 
   // ---------------- Rate limit (7xxx) ----------------
   RATE_7001: 'Trop de requêtes. Patientez quelques instants.',
-  RATE_7002:
-    'Trop de tentatives de connexion. Réessayez dans 15 minutes.',
+  RATE_7002: 'Trop de tentatives de connexion. Réessayez dans 15 minutes.',
 
   // ---------------- Generic (9xxx) ----------------
   GEN_9001: "Erreur interne, contactez l'administrateur.",
@@ -171,9 +162,7 @@ export function getErrorStatus(error: unknown): number | null {
 }
 
 /** Retourne les `extras` éventuels (champs invalides, retry_after_seconds, …). */
-export function getErrorExtras(
-  error: unknown,
-): Record<string, unknown> | null {
+export function getErrorExtras(error: unknown): Record<string, unknown> | null {
   const ax = asAxiosLike(error);
   const extras = ax?.response?.data?.extras;
   if (extras && typeof extras === 'object') {

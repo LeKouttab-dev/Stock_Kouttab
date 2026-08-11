@@ -1,4 +1,5 @@
 import { useForm } from 'react-hook-form';
+import { Plus } from 'lucide-react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -37,28 +38,29 @@ export function AddItemSection() {
   const selectedCategory = form.watch('categorie');
   const { data: subs = [] } = useSubcategories(selectedCategory);
 
-  const onSubmit = async (values: StockItemFormValues) => {
-    try {
-      await create.mutateAsync(values);
-      toast.success(`L'article "${values.nom}" ${fr.admin.articleAjoute}`);
-      form.reset({
-        nom: '',
-        categorie: values.categorie,
-        sous_categorie: null,
-        quantite: 0,
-        seuil_alerte: 5,
-        emoji: '📦',
-      });
-    } catch {
-      /* Erreur deja signalee par useApiMutation : un second toast
-         ferait doublon a l'ecran. */
-    }
+  const onSubmit = (values: StockItemFormValues) => {
+    create.mutate(values, {
+      onSuccess: () => {
+        toast.success(`L'article "${values.nom}" ${fr.admin.articleAjoute}`);
+        form.reset({
+          nom: '',
+          categorie: values.categorie,
+          sous_categorie: null,
+          quantite: 0,
+          seuil_alerte: 5,
+          emoji: '📦',
+        });
+      },
+    });
   };
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">➕ {fr.admin.ajouterArticle}</CardTitle>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Plus className="h-4 w-4" aria-hidden />
+          {fr.admin.ajouterArticle}
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 md:grid-cols-2">

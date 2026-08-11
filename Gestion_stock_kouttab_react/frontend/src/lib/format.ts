@@ -29,7 +29,10 @@ export function parseDateSafe(input: string | Date | null | undefined): Date | n
   }
 }
 
-export function formatDate(input: string | Date | null | undefined, pattern = 'dd/MM/yyyy'): string {
+export function formatDate(
+  input: string | Date | null | undefined,
+  pattern = 'dd/MM/yyyy',
+): string {
   const d = parseDateSafe(input);
   return d ? format(d, pattern, { locale: fr }) : '—';
 }

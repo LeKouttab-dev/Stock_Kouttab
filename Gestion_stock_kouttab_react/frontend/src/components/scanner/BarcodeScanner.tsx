@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { BrowserMultiFormatReader, type IScannerControls } from '@zxing/browser';
 import { BarcodeFormat, DecodeHintType, type Result } from '@zxing/library';
 import {
@@ -48,8 +48,18 @@ export function BarcodeScanner({
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
 
+  // Le contenu du dialogue est monté dans un portail : à l'ouverture, l'effet
+  // s'exécutait avant que le `<video>` existe, `videoRef.current` valait `null`
+  // et `start()` sortait en silence — écran noir, sans message d'erreur. Cette
+  // ref callback attend que l'élément soit réellement là.
+  const [videoReady, setVideoReady] = useState(false);
+  const attachVideo = useCallback((el: HTMLVideoElement | null) => {
+    videoRef.current = el;
+    setVideoReady(Boolean(el));
+  }, []);
+
   useEffect(() => {
-    if (!open) return;
+    if (!open || !videoReady) return;
 
     detectedRef.current = false;
     setError(null);
@@ -158,7 +168,7 @@ export function BarcodeScanner({
         }
       }
     };
-  }, [open, formats, onDetected, onClose]);
+  }, [open, videoReady, formats, onDetected, onClose]);
 
   const handleOpenChange = (next: boolean) => {
     if (!next) onClose();
@@ -178,7 +188,7 @@ export function BarcodeScanner({
           </Alert>
         ) : (
           <div className="relative w-full overflow-hidden rounded-md bg-black">
-            <video ref={videoRef} className="h-auto w-full" autoPlay muted playsInline />
+            <video ref={attachVideo} className="h-auto w-full" autoPlay muted playsInline />
             {/* Cadre de visée */}
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
               <div className="h-1/3 w-3/4 rounded-md border-2 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.25)]" />

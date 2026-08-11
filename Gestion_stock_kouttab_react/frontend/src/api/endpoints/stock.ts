@@ -26,7 +26,11 @@ export const stockQueryKeys = {
 };
 
 /* ---------- Items ---------- */
-async function fetchItems(filters?: { category?: string; subcategory?: string; alert?: boolean }): Promise<StockItem[]> {
+async function fetchItems(filters?: {
+  category?: string;
+  subcategory?: string;
+  alert?: boolean;
+}): Promise<StockItem[]> {
   const { data } = await api.get<StockItem[]>('/stock/items', { params: filters });
   return data;
 }
@@ -67,9 +71,12 @@ async function createCategory(nom: string): Promise<Category> {
 }
 
 async function renameCategory(params: { oldName: string; newName: string }): Promise<Category> {
-  const { data } = await api.patch<Category>(`/stock/categories/${encodeURIComponent(params.oldName)}`, {
-    nom: params.newName,
-  });
+  const { data } = await api.patch<Category>(
+    `/stock/categories/${encodeURIComponent(params.oldName)}`,
+    {
+      nom: params.newName,
+    },
+  );
   return data;
 }
 
@@ -85,12 +92,18 @@ async function fetchSubcategories(category?: string): Promise<SubCategory[]> {
   return data;
 }
 
-async function createSubcategory(payload: { nom_categorie: string; nom_sous_categorie: string }): Promise<SubCategory> {
+async function createSubcategory(payload: {
+  nom_categorie: string;
+  nom_sous_categorie: string;
+}): Promise<SubCategory> {
   const { data } = await api.post<SubCategory>('/stock/subcategories', payload);
   return data;
 }
 
-async function updateSubcategory(params: { id: number; data: { nom_sous_categorie: string } }): Promise<SubCategory> {
+async function updateSubcategory(params: {
+  id: number;
+  data: { nom_sous_categorie: string };
+}): Promise<SubCategory> {
   const { data } = await api.patch<SubCategory>(`/stock/subcategories/${params.id}`, params.data);
   return data;
 }
@@ -110,12 +123,18 @@ async function fetchLowStock(): Promise<StockItem[]> {
   return data;
 }
 
-async function fetchModifications(filters?: { status?: string; days?: number }): Promise<StockModification[]> {
+async function fetchModifications(filters?: {
+  status?: string;
+  days?: number;
+}): Promise<StockModification[]> {
   const { data } = await api.get<StockModification[]>('/stock/modifications', { params: filters });
   return data;
 }
 
-async function createModification(payload: { id_stock: number; quantite_demandee: number }): Promise<StockModification> {
+async function createModification(payload: {
+  id_stock: number;
+  quantite_demandee: number;
+}): Promise<StockModification> {
   const { data } = await api.post<StockModification>('/stock/modifications', payload);
   return data;
 }
@@ -144,7 +163,11 @@ async function lookupBarcode(barcode: string): Promise<BarcodeLookupResponse> {
 }
 
 /* ---------- Hooks ---------- */
-export function useStockItems(filters?: { category?: string; subcategory?: string; alert?: boolean }) {
+export function useStockItems(filters?: {
+  category?: string;
+  subcategory?: string;
+  alert?: boolean;
+}) {
   return useQuery({
     queryKey: stockQueryKeys.items(filters),
     queryFn: () => fetchItems(filters),
@@ -178,7 +201,8 @@ export function useDeleteStockItem() {
 export function useImportCsv() {
   const qc = useQueryClient();
   return useApiMutation({
-    mutationFn: ({ file, skiprows }: { file: File; skiprows?: number }) => importCsv(file, skiprows),
+    mutationFn: ({ file, skiprows }: { file: File; skiprows?: number }) =>
+      importCsv(file, skiprows),
     onSuccess: () => qc.invalidateQueries({ queryKey: stockQueryKeys.all }),
   });
 }

@@ -1,5 +1,12 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronRight, Info, CheckCircle2 } from 'lucide-react';
+import {
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  ClipboardList,
+  Info,
+  RefreshCw,
+} from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -38,31 +45,20 @@ export function ModificationsTab() {
 
   const toggle = (id: number) => setExpanded((cur) => (cur === id ? null : id));
 
-  const handleApprove = async (id: number) => {
-    try {
-      await approve.mutateAsync(id);
-      toast.success('Modification approuvée');
-    } catch {
-      /* Erreur deja signalee par useApiMutation : un second toast
-         ferait doublon a l'ecran. */
-    }
+  const handleApprove = (id: number) => {
+    approve.mutate(id, { onSuccess: () => toast.success('Modification approuvée') });
   };
 
-  const handleRefuse = async (id: number) => {
-    try {
-      await refuse.mutateAsync(id);
-      toast.info('Modification refusée');
-    } catch {
-      /* Erreur deja signalee par useApiMutation : un second toast
-         ferait doublon a l'ecran. */
-    }
+  const handleRefuse = (id: number) => {
+    refuse.mutate(id, { onSuccess: () => toast.info('Modification refusée') });
   };
 
   return (
     <div className="space-y-3">
       <Alert variant="warning">
         <AlertDescription>
-          📋 {mods.length} modification(s) en attente de validation
+          <ClipboardList className="mr-1 inline h-4 w-4 align-text-bottom" aria-hidden />{' '}
+          {mods.length} modification(s) en attente de validation
         </AlertDescription>
       </Alert>
 
@@ -82,7 +78,8 @@ export function ModificationsTab() {
                     <ChevronRight className="h-4 w-4 text-muted-foreground" />
                   )}
                   <span className="font-medium">
-                    🔄 Modification #{idx + 1} — {m.stock_nom} ({m.quantite_actuelle} →{' '}
+                    <RefreshCw className="mr-1 inline h-4 w-4 align-text-bottom" aria-hidden />{' '}
+                    Modification #{idx + 1} — {m.stock_nom} ({m.quantite_actuelle} →{' '}
                     {m.quantite_demandee})
                   </span>
                 </div>

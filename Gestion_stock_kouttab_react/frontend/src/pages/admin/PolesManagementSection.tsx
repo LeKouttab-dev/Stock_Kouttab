@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Edit2, Eye, EyeOff, Plus, Trash2 } from 'lucide-react';
+import { Edit2, Eye, EyeOff, Landmark, Plus, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,31 +34,39 @@ export function PolesManagementSection() {
   const [editing, setEditing] = useState<number | null>(null);
   const [editValue, setEditValue] = useState('');
 
-  const handleAdd = async () => {
+  const handleAdd = () => {
     if (!newName.trim()) return;
-    await create.mutateAsync({ nom: newName.trim(), ordre: poles.length + 1 });
-    toast.success(fr.poles.ajoutSucces);
-    setNewName('');
+    create.mutate(
+      { nom: newName.trim(), ordre: poles.length + 1 },
+      {
+        onSuccess: () => {
+          toast.success(fr.poles.ajoutSucces);
+          setNewName('');
+        },
+      },
+    );
   };
 
-  const handleRename = async (id: number, current: string) => {
+  const handleRename = (id: number, current: string) => {
     if (!editValue.trim() || editValue === current) {
       setEditing(null);
       return;
     }
-    await update.mutateAsync({ id, nom: editValue.trim() });
-    setEditing(null);
+    update.mutate({ id, nom: editValue.trim() }, { onSuccess: () => setEditing(null) });
   };
 
-  const handleDelete = async (id: number, nom: string) => {
+  const handleDelete = (id: number, nom: string) => {
     if (!confirm(`${fr.poles.confirmSuppression}\n\n${nom}`)) return;
-    await remove.mutateAsync(id);
+    remove.mutate(id);
   };
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">🏛️ {fr.poles.title}</CardTitle>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Landmark className="h-4 w-4" aria-hidden />
+          {fr.poles.title}
+        </CardTitle>
         <p className="text-xs text-muted-foreground">{fr.poles.subtitle}</p>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -121,9 +129,7 @@ export function PolesManagementSection() {
                       <Button
                         size="icon"
                         variant="ghost"
-                        onClick={() =>
-                          update.mutateAsync({ id: pole.id, is_active: !pole.is_active })
-                        }
+                        onClick={() => update.mutate({ id: pole.id, is_active: !pole.is_active })}
                         aria-label={pole.is_active ? fr.poles.desactiver : fr.poles.activer}
                         title={pole.is_active ? fr.poles.desactiver : fr.poles.activer}
                       >

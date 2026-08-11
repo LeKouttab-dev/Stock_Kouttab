@@ -42,16 +42,17 @@ export function RequestModificationModal({
     if (item) form.reset({ quantite_demandee: item.quantite });
   }, [item, form]);
 
-  const onSubmit = async (values: RequestModificationFormValues) => {
+  const onSubmit = (values: RequestModificationFormValues) => {
     if (!item) return;
-    try {
-      await create.mutateAsync({ id_stock: item.id, quantite_demandee: values.quantite_demandee });
-      toast.success(fr.stock.demandeEnvoyee);
-      onOpenChange(false);
-    } catch {
-      /* Erreur deja signalee par useApiMutation : un second toast
-         ferait doublon a l'ecran. */
-    }
+    create.mutate(
+      { id_stock: item.id, quantite_demandee: values.quantite_demandee },
+      {
+        onSuccess: () => {
+          toast.success(fr.stock.demandeEnvoyee);
+          onOpenChange(false);
+        },
+      },
+    );
   };
 
   if (!item) return null;

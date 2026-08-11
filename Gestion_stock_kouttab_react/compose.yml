@@ -1,0 +1,127 @@
+# ---------------------------------------------------------------------------
+# Production — VPS IONOS, Ubuntu 24.04.
+#
+# Aucune section `build:` : les images sont construites par GitHub Actions et
+# tirées depuis GHCR. Le VPS n'a donc ni Node, ni compilateur Python, et le
+# build ne peut plus le saturer en mémoire.
+#
+# La base MySQL reste chez O2Switch : elle n'apparaît pas ici, elle est jointe
+# par le réseau. Voir DEPLOIEMENT-VPS.md pour le tunnel SSH qui la protège.
+#
+# Usage : docker compose pull && docker compose up -d
+# ---------------------------------------------------------------------------
+name: kouttab-stock
+
+x-api-image: &api-image ghcr.io/${GHCR_OWNER:?GHCR_OWNER manquant dans .env}/kouttab-api:${IMAGE_TAG:-latest}
+
+services:
+  # Point d'entrée HTTPS. Caddy obtient et renouvelle seul le certificat
+  # Let's Encrypt : pas de certbot à programmer, pas d'expiration oubliée.
+  caddy:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN:?SITE_DOMAIN manquant dans .env}
+      ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL manquant dans .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data # certificats — à ne PAS supprimer
+      - caddy_config:/config
+    depends_on:
+      - web
+      - api
+    networks: [kouttab]
+    mem_limit: 256m
+    security_opt:
+      - no-new-privileges:true
+
+  # Fichiers statiques du front. Jamais exposé directement : seul Caddy y accède.
+  web:
+    image: ghcr.io/${GHCR_OWNER}/kouttab-web:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    networks: [kouttab]
+    mem_limit: 128m
+    security_opt:
+      - no-new-privileges:true
+
+  # Tunnel SSH vers la base O2Switch — OPTIONNEL.
+  #
+  # Par défaut la connexion est directe (« MySQL distant » de cPanel, avec l'IP
+  # du VPS autorisée) : c'est le montage éprouvé sur les autres applications de
+  # l'association. Le tunnel n'existe que pour chiffrer la liaison si le serveur
+  # n'accepte pas TLS, ce qui compte ici parce que la base transporte des RIB.
+  #
+  # Activation :  docker compose --profile tunnel up -d
+  # puis DB_HOST=db-tunnel et DB_PORT=3306 dans le .env.
+  db-tunnel:
+    profiles: [tunnel]
+    build: ./deploy/db-tunnel
+    image: kouttab-db-tunnel:local
+    restart: unless-stopped
+    environment:
+      O2SWITCH_SSH_HOST: ${O2SWITCH_SSH_HOST:?manquant dans .env}
+      O2SWITCH_SSH_USER: ${O2SWITCH_SSH_USER:?manquant dans .env}
+      O2SWITCH_SSH_PORT: ${O2SWITCH_SSH_PORT:-22}
+      O2SWITCH_DB_HOST: ${O2SWITCH_DB_HOST:-127.0.0.1}
+    volumes:
+      # Clé dédiée au tunnel, en lecture seule. `known_hosts` est pré-rempli :
+      # sans lui, StrictHostKeyChecking refuserait la connexion.
+      - ./secrets/id_tunnel:/home/tunnel/.ssh/id_tunnel:ro
+      - ./secrets/known_hosts:/home/tunnel/.ssh/known_hosts:ro
+    networks: [kouttab]
+    mem_limit: 64m
+    security_opt:
+      - no-new-privileges:true
+
+  api:
+    image: *api-image
+    restart: unless-stopped
+    env_file: [.env]
+    volumes:
+      - uploads:/app/uploads # justificatifs — À SAUVEGARDER
+      - outbox:/app/outbox # PDF en attente d'envoi comptable
+    # Pas de depends_on sur db-tunnel : il est optionnel, et l'API démarre de
+    # toute façon sans base (elle journalise un avertissement et continue),
+    # ce qui la rend insensible à une coupure passagère de la liaison.
+    networks: [kouttab]
+    mem_limit: 768m
+    security_opt:
+      - no-new-privileges:true
+
+  # File d'envoi comptable. Remplace le cron O2Switch de DEPLOIEMENT.md.
+  #
+  # Même image que l'API, commande différente : le worker et l'API ne peuvent
+  # donc pas diverger de version, ce qui arriverait avec deux images séparées.
+  outbox-worker:
+    image: *api-image
+    restart: unless-stopped
+    env_file: [.env]
+    volumes:
+      - uploads:/app/uploads
+      - outbox:/app/outbox
+    # `|| true` : un échec SMTP ne doit pas tuer la boucle, la file gère déjà
+    # son propre backoff (5/10/20/40/80 min) et reprendra au tour suivant.
+    command: >
+      sh -c 'while true; do
+               python scripts/process_outbound_emails.py || true;
+               sleep ${OUTBOX_INTERVAL_SECONDS:-600};
+             done'
+    networks: [kouttab]
+    mem_limit: 512m
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  uploads:
+  outbox:
+  caddy_data:
+  caddy_config:
+
+# Un seul réseau : la base étant externe, il n'y a pas de service interne à
+# isoler des autres. Segmenter ici n'ajouterait aucune protection réelle.
+networks:
+  kouttab:

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Pencil, ReceiptText, ScanLine } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -14,6 +15,8 @@ import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
 import { FileUploader } from '@/components/forms/FileUploader';
 import { EventSelect } from '@/components/forms/EventSelect';
 import { ProfileForm } from '@/components/forms/ProfileForm';
+import { AttachmentNamesPreview } from '@/components/forms/AttachmentNamesPreview';
+import { DocumentScanner } from '@/components/scanner/DocumentScanner';
 import {
   Select,
   SelectContent,
@@ -24,7 +27,12 @@ import {
 import { usePoles } from '@/api/endpoints/referentials';
 import { buildAttachmentFilename, deduplicateFilenames } from '@/lib/naming';
 import { useCreateExpense, useMyExpenses, useUpdateExpense } from '@/api/endpoints/expenses';
-import { expenseSchema, type ExpenseFormValues } from '@/lib/schemas/expense';
+import {
+  expenseEditSchema,
+  expenseSchema,
+  type ExpenseEditFormValues,
+  type ExpenseFormValues,
+} from '@/lib/schemas/expense';
 import { useToast } from '@/hooks/useToast';
 import { fr } from '@/lib/i18n/fr';
 import { expenseTotal } from '@/lib/money';
@@ -35,7 +43,10 @@ export function MyExpensesPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold">📝 {fr.expenses.title}</h1>
+        <h1 className="flex items-center gap-2 text-2xl font-bold">
+          <ReceiptText className="h-6 w-6" aria-hidden />
+          {fr.expenses.title}
+        </h1>
         <p className="text-sm text-muted-foreground">
           Soumettez vos notes de frais et suivez leur traitement.
         </p>
@@ -67,19 +78,22 @@ function SubmitExpenseTab() {
   const toast = useToast();
   const { data: poles } = usePoles();
   const [files, setFiles] = useState<File[]>([]);
+  const [scanOpen, setScanOpen] = useState(false);
 
   const form = useForm<ExpenseFormValues>({
     resolver: zodResolver(expenseSchema),
     defaultValues: {
       date_depense: new Date().toISOString().slice(0, 10),
-      rattachement: '',
       fournisseur: '',
       nature_charge: '',
       montant: 0,
       commentaires: '',
       remboursement_deja_emis: 0,
       remise: 0,
-      id_pole: null,
+      // `undefined` et non `null` : le pôle est désormais requis, et un `null`
+      // explicite ferait échouer la validation sur le type plutôt que d'afficher
+      // « Pôle de rattachement obligatoire ».
+      id_pole: undefined,
       id_event: null,
       evenement_libre: '',
       date_evenement: '',
@@ -91,22 +105,21 @@ function SubmitExpenseTab() {
   const eventLibre = form.watch('evenement_libre');
   const dateEvenement = form.watch('date_evenement');
   const dateDepense = form.watch('date_depense');
-  const rattachement = form.watch('rattachement');
 
   const selectedPole = poles?.find((p) => p.id === poleId) ?? null;
 
   /**
    * Aperçu du nom transmis à la comptabilité.
    *
-   * Même règle de repli que le serveur : à défaut d'événement, on retombe sur
-   * le rattachement, et à défaut de date d'événement sur la date de dépense.
+   * Pôle, événement et date de l'événement étant désormais obligatoires, il n'y
+   * a plus de repli sur le rattachement libre. La date de dépense reste le
+   * dernier recours tant que le formulaire est incomplet, pour que l'aperçu
+   * reste lisible pendant la saisie.
    */
   const previewNames = useMemo(() => {
     if (files.length === 0) return [];
     const eventLabel =
-      eventLibre?.trim() ||
-      (eventId !== null && eventId !== undefined ? fr.events.selected : null) ||
-      rattachement;
+      eventLibre?.trim() || (eventId !== null && eventId !== undefined ? fr.events.selected : null);
     const base = files.map(() =>
       buildAttachmentFilename(
         [selectedPole?.nom, eventLabel],
@@ -114,18 +127,19 @@ function SubmitExpenseTab() {
       ),
     );
     return deduplicateFilenames(base);
-  }, [files, selectedPole, eventLibre, eventId, rattachement, dateEvenement, dateDepense]);
+  }, [files, selectedPole, eventLibre, eventId, dateEvenement, dateDepense]);
 
-  const onSubmit = async (values: ExpenseFormValues) => {
-    try {
-      await create.mutateAsync({ payload: values, files });
-      toast.success(fr.expenses.soumissionOK);
-      form.reset();
-      setFiles([]);
-    } catch {
-      /* Erreur deja signalee par useApiMutation : un second toast
-         ferait doublon a l'ecran. */
-    }
+  const onSubmit = (values: ExpenseFormValues) => {
+    create.mutate(
+      { payload: values, files },
+      {
+        onSuccess: () => {
+          toast.success(fr.expenses.soumissionOK);
+          form.reset();
+          setFiles([]);
+        },
+      },
+    );
   };
 
   return (
@@ -153,17 +167,17 @@ function SubmitExpenseTab() {
               )}
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="rattachement" required>
-                {fr.expenses.rattachement}
+              <Label htmlFor="fournisseur" required>
+                {fr.expenses.fournisseur}
               </Label>
               <Input
-                id="rattachement"
-                hasError={Boolean(form.formState.errors.rattachement)}
-                {...form.register('rattachement')}
+                id="fournisseur"
+                hasError={Boolean(form.formState.errors.fournisseur)}
+                {...form.register('fournisseur')}
               />
-              {form.formState.errors.rattachement && (
+              {form.formState.errors.fournisseur && (
                 <p className="text-xs text-destructive">
-                  {form.formState.errors.rattachement.message}
+                  {form.formState.errors.fournisseur.message}
                 </p>
               )}
             </div>
@@ -208,26 +222,21 @@ function SubmitExpenseTab() {
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="fournisseur">{fr.expenses.fournisseur}</Label>
-              <Input id="fournisseur" {...form.register('fournisseur')} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="nature_charge">{fr.expenses.natureCharge}</Label>
-              <Input id="nature_charge" {...form.register('nature_charge')} />
-            </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="nature_charge">{fr.expenses.natureCharge}</Label>
+            <Input id="nature_charge" {...form.register('nature_charge')} />
           </div>
 
-          {/* Rattachement comptable : facultatif ici, contrairement aux
-              factures. Une dépense courante n'a pas toujours d'événement, et
-              le nom du ticket retombe alors sur le rattachement. */}
+          {/* Pôle, événement et date de l'événement composent le nom du ticket
+              envoyé au comptable : ils sont obligatoires, comme sur les
+              factures. Ils remplacent l'ancien champ « Rattachement », qui
+              faisait double emploi. */}
           <div className="grid gap-4 md:grid-cols-3">
             <div className="space-y-1.5">
-              <Label>{fr.invoices.pole}</Label>
+              <Label required>{fr.invoices.pole}</Label>
               <Select
                 value={poleId ? String(poleId) : ''}
-                onValueChange={(v) => form.setValue('id_pole', Number(v))}
+                onValueChange={(v) => form.setValue('id_pole', Number(v), { shouldValidate: true })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder={fr.invoices.polePlaceholder} />
@@ -240,24 +249,39 @@ function SubmitExpenseTab() {
                   ))}
                 </SelectContent>
               </Select>
+              {form.formState.errors.id_pole && (
+                <p className="text-xs text-destructive">{form.formState.errors.id_pole.message}</p>
+              )}
             </div>
             <div className="space-y-1.5">
-              <Label>{fr.invoices.evenement}</Label>
+              <Label required>{fr.invoices.evenement}</Label>
               <EventSelect
                 eventId={eventId ?? null}
                 freeText={eventLibre ?? ''}
-                onEventIdChange={(id) => form.setValue('id_event', id)}
-                onFreeTextChange={(v) => form.setValue('evenement_libre', v)}
+                onEventIdChange={(id) => form.setValue('id_event', id, { shouldValidate: true })}
+                onFreeTextChange={(v) =>
+                  form.setValue('evenement_libre', v, { shouldValidate: true })
+                }
                 onEventDate={(d) => {
                   if (d && !form.getValues('date_evenement')) {
-                    form.setValue('date_evenement', d);
+                    form.setValue('date_evenement', d, { shouldValidate: true });
                   }
                 }}
               />
+              {form.formState.errors.id_event && (
+                <p className="text-xs text-destructive">{form.formState.errors.id_event.message}</p>
+              )}
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="date_evenement">{fr.invoices.dateEvenement}</Label>
+              <Label htmlFor="date_evenement" required>
+                {fr.invoices.dateEvenement}
+              </Label>
               <Input id="date_evenement" type="date" {...form.register('date_evenement')} />
+              {form.formState.errors.date_evenement && (
+                <p className="text-xs text-destructive">
+                  {form.formState.errors.date_evenement.message}
+                </p>
+              )}
             </div>
           </div>
 
@@ -267,27 +291,28 @@ function SubmitExpenseTab() {
           </div>
 
           <div className="space-y-1.5">
-            <Label>{fr.expenses.tickets}</Label>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Label>{fr.expenses.tickets}</Label>
+              <Button type="button" variant="outline" size="sm" onClick={() => setScanOpen(true)}>
+                <ScanLine className="h-4 w-4" />
+                {fr.scanner.documentTitle}
+              </Button>
+            </div>
             <FileUploader
-              accept=".png,.jpg,.jpeg"
+              accept=".png,.jpg,.jpeg,.pdf"
               files={files}
               onChange={setFiles}
-              helperText="PNG, JPG. 10 Mo max par fichier, 5 fichiers max."
+              helperText="PDF, PNG, JPG. 10 Mo max par fichier, 5 fichiers max."
             />
           </div>
 
-          {previewNames.length > 0 && (
-            <div className="rounded-md border bg-muted/40 p-3">
-              <p className="text-xs font-medium">{fr.invoices.apercuNomFichier}</p>
-              <ul className="mt-1 space-y-0.5">
-                {previewNames.map((name) => (
-                  <li key={name} className="font-mono text-xs text-muted-foreground">
-                    {name}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+          <DocumentScanner
+            open={scanOpen}
+            onClose={() => setScanOpen(false)}
+            onScanned={(scanned) => setFiles((prev) => [...prev, scanned])}
+          />
+
+          <AttachmentNamesPreview names={previewNames} />
 
           <Button type="submit" loading={create.isPending}>
             {fr.expenses.soumettre}
@@ -304,8 +329,8 @@ function MyExpensesList() {
   const toast = useToast();
   const [editing, setEditing] = useState<number | null>(null);
 
-  const editForm = useForm<ExpenseFormValues>({
-    resolver: zodResolver(expenseSchema),
+  const editForm = useForm<ExpenseEditFormValues>({
+    resolver: zodResolver(expenseEditSchema),
   });
 
   if (isLoading) return <LoadingSpinner fullPage />;
@@ -318,7 +343,6 @@ function MyExpensesList() {
     setEditing(exp.id);
     editForm.reset({
       date_depense: exp.date_depense.slice(0, 10),
-      rattachement: exp.rattachement,
       fournisseur: exp.fournisseur ?? '',
       nature_charge: exp.nature_charge ?? '',
       montant: exp.montant,
@@ -328,16 +352,16 @@ function MyExpensesList() {
     });
   };
 
-  const onSubmitEdit = async (id: number) => {
-    const values = editForm.getValues();
-    try {
-      await update.mutateAsync({ id, data: values });
-      toast.success(fr.expenses.noteUpdated);
-      setEditing(null);
-    } catch {
-      /* Erreur deja signalee par useApiMutation : un second toast
-         ferait doublon a l'ecran. */
-    }
+  const onSubmitEdit = (id: number) => {
+    update.mutate(
+      { id, data: editForm.getValues() },
+      {
+        onSuccess: () => {
+          toast.success(fr.expenses.noteUpdated);
+          setEditing(null);
+        },
+      },
+    );
   };
 
   return (
@@ -352,7 +376,11 @@ function MyExpensesList() {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <p className="font-semibold">
-                    {formatDate(exp.date_depense)} — {exp.rattachement}
+                    {/* Les notes déposées avant la refonte n'ont ni événement ni
+                        fournisseur : on retombe sur leur rattachement libre
+                        plutôt que d'afficher une ligne amputée. */}
+                    {formatDate(exp.date_depense)} —{' '}
+                    {exp.evenement || exp.fournisseur || exp.rattachement}
                   </p>
                   <p className="text-sm text-muted-foreground">
                     Montant : {formatCurrency(exp.montant)} · Total demandé :{' '}
@@ -365,14 +393,15 @@ function MyExpensesList() {
               {exp.commentaires_compta && (
                 <Alert variant="info">
                   <AlertDescription>
-                    💬 Commentaire de la comptabilité : {exp.commentaires_compta}
+                    Commentaire de la comptabilité : {exp.commentaires_compta}
                   </AlertDescription>
                 </Alert>
               )}
 
               {exp.status === 'En attente' && !isEditing && (
                 <Button size="sm" variant="outline" onClick={() => startEdit(exp)}>
-                  ✏️ {fr.expenses.editer}
+                  <Pencil className="h-4 w-4" aria-hidden />
+                  {fr.expenses.editer}
                 </Button>
               )}
 
@@ -388,8 +417,8 @@ function MyExpensesList() {
                       <Input type="date" {...editForm.register('date_depense')} />
                     </div>
                     <div>
-                      <Label required>{fr.expenses.rattachement}</Label>
-                      <Input {...editForm.register('rattachement')} />
+                      <Label required>{fr.expenses.fournisseur}</Label>
+                      <Input {...editForm.register('fournisseur')} />
                     </div>
                     <div>
                       <Label required>{fr.expenses.montant}</Label>

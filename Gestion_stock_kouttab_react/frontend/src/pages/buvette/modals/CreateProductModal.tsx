@@ -47,22 +47,23 @@ export function CreateProductModal({ open, onOpenChange }: CreateProductModalPro
     if (!open) form.reset();
   }, [open, form]);
 
-  const onSubmit = async (values: CreateBuvetteProductFormValues) => {
-    try {
-      await create.mutateAsync({
+  const onSubmit = (values: CreateBuvetteProductFormValues) => {
+    create.mutate(
+      {
         name: values.name,
         price_cents: eurosToCents(values.price_euros),
         quantity: values.quantity,
         seuil_alerte: values.seuil_alerte,
         emoji: values.emoji,
         helloasso_tier_id: values.helloasso_tier_id === undefined ? null : values.helloasso_tier_id,
-      });
-      toast.success(fr.buvette.productCreated);
-      onOpenChange(false);
-    } catch {
-      /* Erreur deja signalee par useApiMutation : un second toast
-         ferait doublon a l'ecran. */
-    }
+      },
+      {
+        onSuccess: () => {
+          toast.success(fr.buvette.productCreated);
+          onOpenChange(false);
+        },
+      },
+    );
   };
 
   return (

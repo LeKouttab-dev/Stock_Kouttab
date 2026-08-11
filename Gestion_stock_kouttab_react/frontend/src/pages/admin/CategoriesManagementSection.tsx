@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Edit2, Trash2, Plus } from 'lucide-react';
+import { Edit2, Plus, Tag, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,48 +24,44 @@ export function CategoriesManagementSection() {
   const [editing, setEditing] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
 
-  const handleAdd = async () => {
+  const handleAdd = () => {
     if (!newName.trim()) return;
-    try {
-      await create.mutateAsync(newName.trim());
-      toast.success('Catégorie ajoutée');
-      setNewName('');
-    } catch {
-      /* Erreur deja signalee par useApiMutation : un second toast
-         ferait doublon a l'ecran. */
-    }
+    create.mutate(newName.trim(), {
+      onSuccess: () => {
+        toast.success('Catégorie ajoutée');
+        setNewName('');
+      },
+    });
   };
 
-  const handleRename = async (oldName: string) => {
+  const handleRename = (oldName: string) => {
     if (!editValue.trim() || editValue === oldName) {
       setEditing(null);
       return;
     }
-    try {
-      await rename.mutateAsync({ oldName, newName: editValue.trim() });
-      toast.success('Catégorie renommée');
-      setEditing(null);
-    } catch {
-      /* Erreur deja signalee par useApiMutation : un second toast
-         ferait doublon a l'ecran. */
-    }
+    rename.mutate(
+      { oldName, newName: editValue.trim() },
+      {
+        onSuccess: () => {
+          toast.success('Catégorie renommée');
+          setEditing(null);
+        },
+      },
+    );
   };
 
-  const handleDelete = async (name: string) => {
+  const handleDelete = (name: string) => {
     if (!confirm(`Supprimer la catégorie "${name}" ?`)) return;
-    try {
-      await remove.mutateAsync(name);
-      toast.success('Catégorie supprimée');
-    } catch {
-      /* Erreur deja signalee par useApiMutation : un second toast
-         ferait doublon a l'ecran. */
-    }
+    remove.mutate(name, { onSuccess: () => toast.success('Catégorie supprimée') });
   };
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">🏷️ Catégories</CardTitle>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Tag className="h-4 w-4" aria-hidden />
+          Catégories
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex gap-2">

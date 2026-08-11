@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AxiosError, AxiosHeaders } from 'axios';
-import {
-  ERROR_MESSAGES,
-  getErrorCode,
-  getErrorMessage,
-  getErrorStatus,
-} from './errors';
+import { ERROR_MESSAGES, getErrorCode, getErrorMessage, getErrorStatus } from './errors';
 
 function makeAxiosError(opts: {
   status?: number;

@@ -5,16 +5,12 @@ import { centsToEuros, eurosToCents, expenseTotal } from './money';
 describe('lib/money', () => {
   describe('expenseTotal', () => {
     it('soustrait le déjà-remboursé et la remise', () => {
-      expect(
-        expenseTotal({ montant: 100, remboursement_deja_emis: 30, remise: 10 }),
-      ).toBe(60);
+      expect(expenseTotal({ montant: 100, remboursement_deja_emis: 30, remise: 10 })).toBe(60);
     });
 
     it('tolère les champs absents', () => {
       expect(expenseTotal({ montant: 42 })).toBe(42);
-      expect(expenseTotal({ montant: 42, remboursement_deja_emis: null, remise: null })).toBe(
-        42,
-      );
+      expect(expenseTotal({ montant: 42, remboursement_deja_emis: null, remise: null })).toBe(42);
     });
 
     it('accepte les montants transmis en chaîne par l’API', () => {

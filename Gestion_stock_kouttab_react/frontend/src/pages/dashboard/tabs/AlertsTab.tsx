@@ -1,4 +1,4 @@
-import { Mail, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Mail, TriangleAlert } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -14,7 +14,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { KpiCard } from '@/components/shared/KpiCard';
 import { useLowStock, useSendStockAlert } from '@/api/endpoints/stock';
 import { useToast } from '@/hooks/useToast';
-import { extractErrorMessage } from '@/api/client';
 import { fr } from '@/lib/i18n/fr';
 
 export function AlertsTab() {
@@ -25,16 +24,16 @@ export function AlertsTab() {
   const critical = items.filter((i) => i.quantite === 0).length;
   const low = items.filter((i) => i.quantite > 0).length;
 
-  const handleSend = async () => {
-    try {
-      const res = await sendAlert.mutateAsync();
-      toast.success(
-        'Email envoyé',
-        `Notifié ${res.recipients} responsable(s) pour ${res.items} article(s).`,
-      );
-    } catch (err) {
-      toast.error('Erreur', extractErrorMessage(err));
-    }
+  // Pas de `catch` : `useSendStockAlert` signale déjà l'échec par un toast,
+  // en ajouter un second en affichait deux à l'écran.
+  const handleSend = () => {
+    sendAlert.mutate(undefined, {
+      onSuccess: (res) =>
+        toast.success(
+          'Email envoyé',
+          `Notifié ${res.recipients} responsable(s) pour ${res.items} article(s).`,
+        ),
+    });
   };
 
   if (isLoading) {
@@ -56,7 +55,8 @@ export function AlertsTab() {
       <Alert variant="warning">
         <AlertTriangle className="h-4 w-4" />
         <AlertDescription>
-          🚨 {items.length} {fr.dashboard.articlesNecessitentAttention}
+          <TriangleAlert className="mr-1 inline h-4 w-4 align-text-bottom" aria-hidden />{' '}
+          {items.length} {fr.dashboard.articlesNecessitentAttention}
         </AlertDescription>
       </Alert>
 
@@ -95,9 +95,9 @@ export function AlertsTab() {
                   </TableCell>
                   <TableCell>
                     {it.quantite === 0 ? (
-                      <span className="font-medium text-red-600">🔴 Critique</span>
+                      <span className="font-medium text-red-600">Critique</span>
                     ) : (
-                      <span className="font-medium text-terracotta-600">🟡 Bas</span>
+                      <span className="font-medium text-terracotta-600">Bas</span>
                     )}
                   </TableCell>
                 </TableRow>

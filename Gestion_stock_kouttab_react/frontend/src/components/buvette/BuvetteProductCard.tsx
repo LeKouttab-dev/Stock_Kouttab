@@ -1,4 +1,4 @@
-import { Edit3, Trash2 } from 'lucide-react';
+import { Edit3, Link2, Trash2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,12 +15,12 @@ interface BuvetteProductCardProps {
 
 function getStockBadge(product: BuvetteProduct) {
   if (product.quantity === 0) {
-    return <Badge variant="destructive">🔴 {fr.buvette.outOfStock}</Badge>;
+    return <Badge variant="destructive">{fr.buvette.outOfStock}</Badge>;
   }
   if (product.quantity <= product.seuil_alerte) {
-    return <Badge variant="warning">🟡 {fr.buvette.lowStock}</Badge>;
+    return <Badge variant="warning">{fr.buvette.lowStock}</Badge>;
   }
-  return <Badge variant="success">🟢 {fr.buvette.ok}</Badge>;
+  return <Badge variant="success">{fr.buvette.ok}</Badge>;
 }
 
 export function BuvetteProductCard({
@@ -61,7 +61,8 @@ export function BuvetteProductCard({
 
         {isHelloAsso && (
           <Badge variant="outline" className="w-fit text-[10px]">
-            🔗 {fr.buvette.helloassoLink}
+            <Link2 className="h-3.5 w-3.5" aria-hidden />
+            {fr.buvette.helloassoLink}
           </Badge>
         )}
 

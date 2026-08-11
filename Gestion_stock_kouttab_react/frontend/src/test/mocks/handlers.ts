@@ -91,9 +91,7 @@ export const handlers = [
   ),
 
   http.get(`${BASE_URL}/stock/subcategories`, () =>
-    HttpResponse.json([
-      { id: 1, nom_categorie: 'Nourriture', nom_sous_categorie: 'Boissons' },
-    ]),
+    HttpResponse.json([{ id: 1, nom_categorie: 'Nourriture', nom_sous_categorie: 'Boissons' }]),
   ),
 
   http.get(`${BASE_URL}/stock/statistics`, () =>

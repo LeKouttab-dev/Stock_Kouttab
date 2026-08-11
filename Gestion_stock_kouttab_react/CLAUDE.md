@@ -212,7 +212,7 @@ Gestion_stock_kouttab_react/
 | Admin — invitations email | — | — | — | ✅ |
 | Admin — Export/Import BDD | — | — | — | ✅ |
 | Admin — Import CSV inventaire | — | ✅ | — | ✅ |
-| Buvette — consulter stock & ventes | ✅ | ✅ | ✅ | ✅ |
+| Buvette — consulter stock & ventes | — | ✅ | ✅ | ✅ |
 | Buvette — synchroniser produits HelloAsso | — | ✅ | — | ✅ |
 | Buvette — CRUD produits / ajuster stock | — | ✅ | — | ✅ |
 | Buvette — configurer/supprimer webhook HelloAsso | — | — | — | ✅ |
@@ -324,12 +324,12 @@ table de cas de test** : toute divergence casse un test.
 - `POST /admin/outbound-emails/{id}/retry` — relancer un envoi (Compta+)
 
 ### Buvette (HelloAsso)
-- `GET /buvette/products` — liste produits buvette + stock (auth)
+- `GET /buvette/products` — liste produits buvette + stock (AdminBenevoles+ et Compta)
 - `POST /buvette/products` — créer un produit manuel (AdminBenevoles+)
 - `PATCH /buvette/products/{id}` — ajuster stock / seuil / emoji (AdminBenevoles+)
 - `DELETE /buvette/products/{id}` — supprimer (AdminBenevoles+)
 - `POST /buvette/sync` — pull les tiers depuis HelloAsso et upsert (AdminBenevoles+)
-- `GET /buvette/sales?limit=&offset=` — historique des ventes
+- `GET /buvette/sales?limit=&offset=` — historique des ventes (AdminBenevoles+ et Compta)
 - `POST /buvette/webhook/helloasso` — **endpoint public** appelé par HelloAsso à chaque commande/paiement
 - `GET /buvette/webhook/status` — statut du webhook côté HelloAsso (AdminBenevoles+)
 - `POST /buvette/webhook/configure` — enregistre l'URL du webhook chez HelloAsso (Super Admin)
@@ -395,7 +395,14 @@ table de cas de test** : toute divergence casse un test.
 - Conventions de nommage : `PascalCase` pour composants, `camelCase` pour hooks/utils.
 - Pas de logique métier dans les composants : extraire en hooks `use*` ou utils.
 - Formulaires : React Hook Form + Zod schema (1 schema par formulaire dans `src/lib/schemas/`).
-- Data fetching : exclusivement via TanStack Query (`useQuery`/`useMutation`).
+- Data fetching : exclusivement via TanStack Query (`useQuery`/`useMutation`), déclaré
+  dans `src/api/endpoints/` — jamais de `useQuery` inline dans un composant de page.
+- Déclenchement d'une mutation depuis l'UI : `mutation.mutate(vars, { onSuccess })`,
+  pas `await mutateAsync` dans un `try/catch`. `useApiMutation` affiche déjà le toast
+  d'erreur, donc le `catch` n'aurait rien à faire, et `mutate` ne rejette jamais (pas
+  de « unhandled rejection » depuis un `onClick`). `mutateAsync` reste réservé aux cas
+  qui exploitent vraiment le résultat dans la foulée (ex. `useBarcodeLookup`, en
+  `silentToast`).
 - État global : Zustand minimal (auth seulement). Pour le reste, server state via TanStack Query.
 - Format : `prettier` + ESLint.
 
@@ -601,3 +608,57 @@ Quand tu modifies l'app :
 3. Garder le **schéma DB inchangé** sauf migration explicite avec Alembic.
 4. Préférer **éditer** un fichier existant plutôt qu'en créer un nouveau.
 5. Mettre à jour ce CLAUDE.md si une convention change.
+
+---
+
+## 14. Orchestration des skills
+
+Beaucoup de skills sont installés globalement. Ils sont **déjà disponibles** :
+rien à installer. Ce qui suit dit lequel utiliser, quand, et surtout lesquels
+ignorer. Enchaîner dix skills sur une seule demande dégrade le résultat — chacun
+injecte ses instructions et dilue le travail. Viser **un skill principal**, deux
+au maximum.
+
+### Déclenchement systématique
+
+| Situation | Skill | Pourquoi |
+|---|---|---|
+| Auth, upload, secrets, permissions, RIB, webhook HelloAsso, nouvel endpoint | `security-review` | Champs sensibles (§4) et matrice de permissions (§5) : une erreur ici est une fuite, pas un bug d'affichage. |
+| Nouvelle fonctionnalité ou correction de bug, **avant** d'écrire le code | `test-driven-development` | Le socle de tests existe (108 front, pytest back) ; le garder vivant coûte moins cher que le reconstruire. |
+| Bug, test qui échoue, comportement inattendu | `systematic-debugging` | Éviter de corriger un symptôme sans avoir trouvé la cause. |
+
+### Sur demande explicite
+
+| Demande | Skill |
+|---|---|
+| « relis ma branche / cette PR » | `code-review` |
+| « nettoie / simplifie ce code » | `simplify` |
+| Modifier le schéma ou écrire une migration Alembic | `database-migrations` |
+| Images, `compose.yml`, conteneurs | `docker-patterns` |
+| CI/CD, VPS, mise en production, rollback | `deployment-patterns` |
+| Conception d'API, structure FastAPI | `backend-patterns` |
+| Cadrer une fonctionnalité avant de coder | `prd` (skill projet) ou `product-capability` |
+| Graphiques du tableau de bord (Recharts) | `dataviz` |
+| Lancer l'app pour vérifier un changement | `run` |
+
+### À ignorer sur ce projet
+
+`android-clean-architecture`, `recsys-pipeline-architect`, `agent-memory-systems`,
+`agent-architecture-audit`, `agent-orchestration-*`, `agent-orchestrator`,
+`opensource-pipeline`, `claude-api`, les skills `shopify-*`. Ce projet n'embarque
+aucun LLM, aucun agent, et n'est ni une app Android ni une boutique.
+`orch-build-mvp` et `orch-pipeline` visent l'amorçage d'un projet neuf : sans
+objet ici, l'application existe et tourne.
+
+### Réflexes propres au projet, prioritaires sur tout skill
+
+- **`frontend/src/lib/naming.ts` et `backend/app/services/naming.py` sont jumeaux**
+  et partagent la même table de cas de test. Modifier l'un sans l'autre casse un
+  test — c'est voulu.
+- **La base est distante** (O2Switch, jointe par tunnel SSH depuis le VPS) :
+  chaque requête coûte un aller-retour réseau. Se méfier des endpoints qui
+  enchaînent les requêtes et du lazy-loading des relations.
+- **Le schéma DB est partagé avec la version legacy Streamlit.** Toute migration
+  se fait sur une base de production réelle : sauvegarde d'abord.
+- Toucher au déploiement ⇒ mettre à jour `DEPLOIEMENT-VPS.md`, pas
+  `DEPLOIEMENT.md` (ce dernier documente l'ancienne cible O2Switch/Passenger).

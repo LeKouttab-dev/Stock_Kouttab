@@ -16,24 +16,12 @@ export function PendingStockModsSection() {
   const refuse = useRefuseModification();
   const toast = useToast();
 
-  const handleApprove = async (id: number) => {
-    try {
-      await approve.mutateAsync(id);
-      toast.success('Modification approuvée');
-    } catch {
-      /* Erreur deja signalee par useApiMutation : un second toast
-         ferait doublon a l'ecran. */
-    }
+  const handleApprove = (id: number) => {
+    approve.mutate(id, { onSuccess: () => toast.success('Modification approuvée') });
   };
 
-  const handleRefuse = async (id: number) => {
-    try {
-      await refuse.mutateAsync(id);
-      toast.info('Modification refusée');
-    } catch {
-      /* Erreur deja signalee par useApiMutation : un second toast
-         ferait doublon a l'ecran. */
-    }
+  const handleRefuse = (id: number) => {
+    refuse.mutate(id, { onSuccess: () => toast.info('Modification refusée') });
   };
 
   return (
@@ -57,7 +45,7 @@ export function PendingStockModsSection() {
                   <strong>{fr.admin.article} :</strong> {m.stock_nom}
                 </p>
                 <p>
-                  <strong>{fr.admin.modifDemandee} :</strong> {m.quantite_actuelle} ➔{' '}
+                  <strong>{fr.admin.modifDemandee} :</strong> {m.quantite_actuelle} →{' '}
                   <strong>{m.quantite_demandee}</strong>
                 </p>
                 <div className="flex gap-2">

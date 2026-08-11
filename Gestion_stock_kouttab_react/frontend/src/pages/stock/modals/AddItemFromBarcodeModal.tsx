@@ -81,9 +81,9 @@ export function AddItemFromBarcodeModal({
     });
   }, [open, lookup, form]);
 
-  const onSubmit = async (values: StockItemFromBarcodeFormValues) => {
-    try {
-      await create.mutateAsync({
+  const onSubmit = (values: StockItemFromBarcodeFormValues) => {
+    create.mutate(
+      {
         nom: values.nom,
         categorie: values.categorie,
         sous_categorie: values.sous_categorie ?? null,
@@ -91,13 +91,14 @@ export function AddItemFromBarcodeModal({
         seuil_alerte: values.seuil_alerte,
         emoji: values.emoji,
         barcode: values.barcode,
-      });
-      toast.success('Article créé', `${values.nom} ajouté au stock.`);
-      onOpenChange(false);
-    } catch {
-      /* Erreur deja signalee par useApiMutation : un second toast
-         ferait doublon a l'ecran. */
-    }
+      },
+      {
+        onSuccess: () => {
+          toast.success('Article créé', `${values.nom} ajouté au stock.`);
+          onOpenChange(false);
+        },
+      },
+    );
   };
 
   if (!lookup) return null;

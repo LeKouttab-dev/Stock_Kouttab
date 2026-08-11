@@ -1,0 +1,53 @@
+# ---------------------------------------------------------------------------
+# Terminaison TLS et routage. Remplace le .htaccess Apache d'O2Switch.
+#
+# Les en-têtes et la CSP sont repris à l'identique de .htaccess : toute
+# divergence changerait le comportement de sécurité sans qu'on s'en aperçoive.
+# ---------------------------------------------------------------------------
+{
+	email {$ACME_EMAIL}
+	# Décommenter pour tester sans consommer le quota Let's Encrypt (5 échecs
+	# par domaine et par heure) :
+	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+}
+
+{$SITE_DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "geolocation=(), microphone=(), camera=()"
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+		-Server
+	}
+
+	# API FastAPI.
+	#
+	# `connect-src 'self'` dans la CSP ci-dessus n'est tenable que parce que le
+	# front et l'API partagent l'origine : le front est construit avec
+	# VITE_API_URL=/api/v1 (chemin relatif), pas une URL absolue.
+	handle /api/* {
+		# Cohérent avec MAX_REQUEST_MB côté FastAPI et LimitRequestBody de
+		# l'ancien .htaccess : un plafond plus bas ici renverrait un 413 que
+		# l'application ne verrait jamais, donc sans message exploitable.
+		request_body {
+			max_size 50MB
+		}
+		reverse_proxy api:8000
+	}
+
+	# Le reste : SPA React servie par nginx.
+	handle {
+		reverse_proxy web:80
+	}
+
+	log {
+		output file /data/access.log {
+			roll_size 10MB
+			roll_keep 5
+		}
+	}
+}

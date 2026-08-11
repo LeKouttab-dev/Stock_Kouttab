@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Edit2, Plus, Trash2 } from 'lucide-react';
+import { Edit2, Plus, Tags, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,48 +35,44 @@ export function SubCategoriesManagementSection() {
   const [editing, setEditing] = useState<number | null>(null);
   const [editValue, setEditValue] = useState('');
 
-  const handleAdd = async () => {
+  const handleAdd = () => {
     if (!selectedCat || !newName.trim()) return;
-    try {
-      await create.mutateAsync({
-        nom_categorie: selectedCat,
-        nom_sous_categorie: newName.trim(),
-      });
-      toast.success('Sous-catégorie ajoutée');
-      setNewName('');
-    } catch {
-      /* Erreur deja signalee par useApiMutation : un second toast
-         ferait doublon a l'ecran. */
-    }
+    create.mutate(
+      { nom_categorie: selectedCat, nom_sous_categorie: newName.trim() },
+      {
+        onSuccess: () => {
+          toast.success('Sous-catégorie ajoutée');
+          setNewName('');
+        },
+      },
+    );
   };
 
-  const handleRename = async (id: number) => {
+  const handleRename = (id: number) => {
     if (!editValue.trim()) return;
-    try {
-      await update.mutateAsync({ id, data: { nom_sous_categorie: editValue.trim() } });
-      toast.success('Sous-catégorie renommée');
-      setEditing(null);
-    } catch {
-      /* Erreur deja signalee par useApiMutation : un second toast
-         ferait doublon a l'ecran. */
-    }
+    update.mutate(
+      { id, data: { nom_sous_categorie: editValue.trim() } },
+      {
+        onSuccess: () => {
+          toast.success('Sous-catégorie renommée');
+          setEditing(null);
+        },
+      },
+    );
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = (id: number) => {
     if (!confirm('Supprimer cette sous-catégorie ?')) return;
-    try {
-      await remove.mutateAsync(id);
-      toast.success('Sous-catégorie supprimée');
-    } catch {
-      /* Erreur deja signalee par useApiMutation : un second toast
-         ferait doublon a l'ecran. */
-    }
+    remove.mutate(id, { onSuccess: () => toast.success('Sous-catégorie supprimée') });
   };
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">🏷️ Sous-catégories</CardTitle>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Tags className="h-4 w-4" aria-hidden />
+          Sous-catégories
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <div>

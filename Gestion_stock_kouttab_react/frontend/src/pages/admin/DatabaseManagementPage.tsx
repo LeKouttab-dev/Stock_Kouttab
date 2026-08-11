@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Download, Upload } from 'lucide-react';
+import { BarChart3, Database, Download, Upload } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -29,17 +29,11 @@ export function DatabaseManagementPage() {
   const [files, setFiles] = useState<File[]>([]);
   const [confirmed, setConfirmed] = useState(false);
 
-  const handleExport = async () => {
-    try {
-      await exportMut.mutateAsync();
-      toast.success('Export téléchargé');
-    } catch {
-      /* Erreur deja signalee par useApiMutation : un second toast
-         ferait doublon a l'ecran. */
-    }
+  const handleExport = () => {
+    exportMut.mutate(undefined, { onSuccess: () => toast.success('Export téléchargé') });
   };
 
-  const handleImport = async () => {
+  const handleImport = () => {
     if (!confirmed) {
       toast.warning('Veuillez cocher la confirmation.');
       return;
@@ -48,19 +42,19 @@ export function DatabaseManagementPage() {
       toast.warning('Sélectionnez au moins un fichier CSV.');
       return;
     }
-    try {
-      const res = await importMut.mutateAsync(files);
-      toast.success('Import terminé', `${res.tables.length} table(s) traitée(s)`);
-    } catch {
-      /* Erreur deja signalee par useApiMutation : un second toast
-         ferait doublon a l'ecran. */
-    }
+    importMut.mutate(files, {
+      onSuccess: (res) =>
+        toast.success('Import terminé', `${res.tables.length} table(s) traitée(s)`),
+    });
   };
 
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="font-serif text-2xl font-bold text-forest">🗄️ {fr.admin.databaseTitle}</h1>
+        <h1 className="flex items-center gap-2 font-serif text-2xl font-bold text-forest">
+          <Database className="h-6 w-6" aria-hidden />
+          {fr.admin.databaseTitle}
+        </h1>
         <p className="text-sm text-muted-foreground">
           Réservé au Super Admin. Manipuler avec précaution.
         </p>
@@ -68,7 +62,10 @@ export function DatabaseManagementPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">📊 {fr.admin.diagnosticTitle}</CardTitle>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <BarChart3 className="h-4 w-4" aria-hidden />
+            {fr.admin.diagnosticTitle}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (

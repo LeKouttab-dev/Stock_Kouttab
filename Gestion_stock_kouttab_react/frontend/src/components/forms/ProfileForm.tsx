@@ -37,14 +37,8 @@ export function ProfileForm() {
 
   if (isLoading) return <LoadingSpinner fullPage />;
 
-  const onSubmit = async (values: ProfileFormValues) => {
-    try {
-      await update.mutateAsync(values);
-      toast.success(fr.expenses.profilUpdated);
-    } catch {
-      /* Erreur deja signalee par useApiMutation : un second toast
-         ferait doublon a l'ecran. */
-    }
+  const onSubmit = (values: ProfileFormValues) => {
+    update.mutate(values, { onSuccess: () => toast.success(fr.expenses.profilUpdated) });
   };
 
   return (

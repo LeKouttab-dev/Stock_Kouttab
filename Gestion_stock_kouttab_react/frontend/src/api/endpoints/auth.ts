@@ -38,7 +38,10 @@ async function adminSetup(payload: AdminSetupRequest): Promise<LoginResponse> {
   return data;
 }
 
-async function validateInvitation(params: { token: string; email: string }): Promise<{ valid: boolean; email: string }> {
+async function validateInvitation(params: {
+  token: string;
+  email: string;
+}): Promise<{ valid: boolean; email: string }> {
   const { data } = await api.get<{ valid: boolean; email: string }>('/auth/validate-invitation', {
     params,
   });

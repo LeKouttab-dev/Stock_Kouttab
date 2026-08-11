@@ -39,6 +39,10 @@ router = APIRouter(prefix="/buvette", tags=["buvette"])
 
 _ADMIN_ROLES = ("AdminBenevoles", "Super Admin")
 _SUPER_ADMIN = ("Super Admin",)
+# Lecture du stock et des ventes : les administrateurs benevoles qui tiennent la
+# buvette, et la comptabilite qui en suit les recettes. Un simple benevole n'y a
+# pas acces — la buvette est un outil de gestion, pas un ecran de consultation.
+_VIEW_ROLES = ("AdminBenevoles", "Super Admin", "Compta")
 
 
 # ---------------------------------------------------------------------------
@@ -46,11 +50,12 @@ _SUPER_ADMIN = ("Super Admin",)
 # ---------------------------------------------------------------------------
 
 
-@router.get("/products", response_model=list[BuvetteProductOut])
-def list_products(
-    db: Session = Depends(get_db),
-    _: Admin = Depends(get_current_user),
-) -> Any:
+@router.get(
+    "/products",
+    response_model=list[BuvetteProductOut],
+    dependencies=[Depends(require_roles(*_VIEW_ROLES))],
+)
+def list_products(db: Session = Depends(get_db)) -> Any:
     return [BuvetteProductOut.model_validate(p) for p in buvette_crud.list_products(db)]
 
 
@@ -134,18 +139,21 @@ def sync_products(db: Session = Depends(get_db)) -> Any:
 # ---------------------------------------------------------------------------
 
 
-@router.get("/sales", response_model=list[BuvetteSaleOut])
+@router.get(
+    "/sales",
+    response_model=list[BuvetteSaleOut],
+    dependencies=[Depends(require_roles(*_VIEW_ROLES))],
+)
 def list_sales(
     limit: int = Query(default=50, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
-    _: Admin = Depends(get_current_user),
 ) -> Any:
-    """Historique des ventes buvette.
+    """Historique des ventes buvette : administrateurs benevoles et comptabilite.
 
-    Ouvert a tout compte authentifie, conformement a la matrice de permissions
-    (« Buvette — consulter stock & ventes »). L'endpoint etait restreint aux
-    seuls administrateurs, ce qui excluait aussi la comptabilite.
+    La buvette est un outil de gestion : stock et chiffre des ventes n'ont pas a
+    etre exposes a l'ensemble des comptes. Cette route a d'abord ete ouverte a
+    tout compte authentifie, ce qui donnait aussi la vue aux benevoles.
     """
     return [
         BuvetteSaleOut.model_validate(s)
@@ -351,13 +359,33 @@ def configure_webhook(payload: WebhookConfigureIn) -> Any:
     response_model=WebhookStatusOut,
     dependencies=[Depends(require_roles(*_ADMIN_ROLES))],
 )
-def webhook_status() -> Any:
+def webhook_status(db: Session = Depends(get_db)) -> Any:
     client = get_helloasso_client(settings)
     raw = client.get_webhook(settings.helloasso_org_slug)
+
+    # Les ventes deja recues sont la seule preuve directe que HelloAsso nous
+    # appelle : chacune est arrivee par le webhook. Elles servent de repli quand
+    # HelloAsso refuse de relire sa propre configuration.
+    last_sale_at, sales_count = buvette_crud.get_sales_activity(db)
+
     if not raw:
-        return WebhookStatusOut(configured=False, url=None, raw=None)
+        return WebhookStatusOut(
+            configured=True if sales_count else None,
+            verifiable=False,
+            url=None,
+            last_sale_at=last_sale_at,
+            sales_count=sales_count,
+            raw=None,
+        )
     url = raw.get("url") if isinstance(raw, dict) else None
-    return WebhookStatusOut(configured=bool(url), url=url, raw=raw)
+    return WebhookStatusOut(
+        configured=bool(url),
+        verifiable=True,
+        url=url,
+        last_sale_at=last_sale_at,
+        sales_count=sales_count,
+        raw=raw,
+    )
 
 
 @router.delete(

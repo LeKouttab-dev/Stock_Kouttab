@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Eye, EyeOff, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { CalendarDays, Eye, EyeOff, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,22 +32,27 @@ export function EventsManagementSection() {
   const [newName, setNewName] = useState('');
   const [newDate, setNewDate] = useState('');
 
-  const handleSync = async () => {
-    const result = await sync.mutateAsync();
-    toast.success(
-      fr.events.syncSucces,
-      `${result.created} créé(s), ${result.updated} mis à jour, ${result.skipped} ignoré(s)`,
-    );
+  const handleSync = () => {
+    sync.mutate(undefined, {
+      onSuccess: (result) =>
+        toast.success(
+          fr.events.syncSucces,
+          `${result.created} créé(s), ${result.updated} mis à jour, ${result.skipped} ignoré(s)`,
+        ),
+    });
   };
 
-  const handleAdd = async () => {
+  const handleAdd = () => {
     if (!newName.trim()) return;
-    await create.mutateAsync({
-      nom: newName.trim(),
-      date_evenement: newDate || null,
-    });
-    setNewName('');
-    setNewDate('');
+    create.mutate(
+      { nom: newName.trim(), date_evenement: newDate || null },
+      {
+        onSuccess: () => {
+          setNewName('');
+          setNewDate('');
+        },
+      },
+    );
   };
 
   return (
@@ -55,7 +60,10 @@ export function EventsManagementSection() {
       <CardHeader>
         <div className="flex items-start justify-between gap-2">
           <div>
-            <CardTitle className="text-base">🎪 {fr.events.title}</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <CalendarDays className="h-4 w-4" aria-hidden />
+              {fr.events.title}
+            </CardTitle>
             <p className="text-xs text-muted-foreground">{fr.events.subtitle}</p>
           </div>
           <Button variant="outline" onClick={handleSync} loading={sync.isPending}>
@@ -108,9 +116,7 @@ export function EventsManagementSection() {
                   <Button
                     size="icon"
                     variant="ghost"
-                    onClick={() =>
-                      update.mutateAsync({ id: event.id, is_active: !event.is_active })
-                    }
+                    onClick={() => update.mutate({ id: event.id, is_active: !event.is_active })}
                     aria-label={event.is_active ? fr.poles.desactiver : fr.poles.activer}
                     title={event.is_active ? fr.poles.desactiver : fr.poles.activer}
                   >
@@ -123,7 +129,7 @@ export function EventsManagementSection() {
                   <Button
                     size="icon"
                     variant="ghost"
-                    onClick={() => remove.mutateAsync(event.id)}
+                    onClick={() => remove.mutate(event.id)}
                     aria-label={fr.poles.supprimer}
                   >
                     <Trash2 className="h-4 w-4 text-destructive" />

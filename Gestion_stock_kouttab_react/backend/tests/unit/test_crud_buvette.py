@@ -32,6 +32,31 @@ def _create_product(db, *, tier_id: int | None = None, quantity: int = 10, seuil
     )
 
 
+def _real_tier(tier_id: int, *, label: str = "Cafe capsule", price: int = 100) -> dict:
+    """Tier tel que HelloAsso le renvoie reellement.
+
+    Copie conforme d'une reponse de
+    ``GET /v5/organizations/{org}/forms/Shop/buvette/public`` relevee le
+    2026-08-11. Les tests precedents inventaient une cle ``amount`` absente de
+    l'API : ils validaient le code contre lui-meme et laissaient passer un
+    catalogue entierement price_cents=0.
+    """
+    return {
+        "id": tier_id,
+        "label": label,
+        "tierType": "Product",
+        "price": price,
+        "vatRate": 0.0,
+        "paymentFrequency": "Single",
+        "isEligibleTaxReceipt": False,
+        "picture": {
+            "fileName": "cafe.jpg",
+            "publicUrl": "https://cdn.helloasso.com/img/photos/items/shops/cafe.jpg",
+        },
+        "isFavorite": False,
+    }
+
+
 def test_sync_from_helloasso_upsert_keeps_local_quantity(db_session) -> None:
     tid = _tier_id()
     # Pre-create with quantity=42 — sync must not overwrite it.
@@ -39,7 +64,7 @@ def test_sync_from_helloasso_upsert_keeps_local_quantity(db_session) -> None:
 
     result = buvette_crud.sync_from_helloasso(
         db_session,
-        [{"id": tid, "label": "Cafe renamed", "amount": 200, "description": "..."}],
+        [_real_tier(tid, label="Cafe renamed", price=200)],
     )
     assert result.updated == 1
     assert result.created == 0
@@ -48,6 +73,43 @@ def test_sync_from_helloasso_upsert_keeps_local_quantity(db_session) -> None:
     assert product.quantity == 42  # untouched
     assert product.name == "Cafe renamed"
     assert product.price_cents == 200
+
+
+def test_sync_reads_price_and_picture_from_real_helloasso_payload(db_session) -> None:
+    tid = _tier_id()
+    result = buvette_crud.sync_from_helloasso(db_session, [_real_tier(tid)])
+
+    assert result.created == 1
+    product = buvette_crud.get_product_by_tier_id(db_session, tid)
+    assert product.price_cents == 100
+    assert product.image_url == "https://cdn.helloasso.com/img/photos/items/shops/cafe.jpg"
+
+
+def test_sync_never_resets_a_known_price_to_zero(db_session) -> None:
+    """Un tier sans prix lisible laisse le prix existant intact."""
+    tid = _tier_id()
+    product = _create_product(db_session, tier_id=tid)
+    assert product.price_cents == 150
+
+    result = buvette_crud.sync_from_helloasso(
+        db_session,
+        [{"id": tid, "label": "Cafe sans prix"}],
+    )
+
+    assert result.updated == 1
+    db_session.refresh(product)
+    assert product.price_cents == 150
+
+
+def test_sync_accepts_a_free_tier(db_session) -> None:
+    """Un prix de 0 EUR est une valeur, pas une absence de valeur."""
+    tid = _tier_id()
+    product = _create_product(db_session, tier_id=tid)
+
+    buvette_crud.sync_from_helloasso(db_session, [_real_tier(tid, price=0)])
+
+    db_session.refresh(product)
+    assert product.price_cents == 0
 
 
 def test_record_sale_idempotent_on_payment_and_item(db_session) -> None:

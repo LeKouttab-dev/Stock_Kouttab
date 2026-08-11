@@ -42,20 +42,21 @@ export function DirectModificationModal({
     if (item) form.reset({ quantite: item.quantite });
   }, [item, form]);
 
-  const onSubmit = async (values: DirectModificationFormValues) => {
+  const onSubmit = (values: DirectModificationFormValues) => {
     if (!item) return;
     if (values.quantite === item.quantite) {
       toast.warning('Aucune modification', 'La quantité est inchangée.');
       return;
     }
-    try {
-      await update.mutateAsync({ id: item.id, data: { quantite: values.quantite } });
-      toast.success('Quantité mise à jour', `${item.quantite} → ${values.quantite}`);
-      onOpenChange(false);
-    } catch {
-      /* Erreur deja signalee par useApiMutation : un second toast
-         ferait doublon a l'ecran. */
-    }
+    update.mutate(
+      { id: item.id, data: { quantite: values.quantite } },
+      {
+        onSuccess: () => {
+          toast.success('Quantité mise à jour', `${item.quantite} → ${values.quantite}`);
+          onOpenChange(false);
+        },
+      },
+    );
   };
 
   if (!item) return null;

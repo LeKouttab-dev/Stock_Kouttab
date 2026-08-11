@@ -325,25 +325,26 @@ def test_expense_uses_the_same_naming_as_invoices(
     assert nom == "Pole-evenementiel_Gala-dete-2026_2026-03-14.pdf"
 
 
-def test_expense_without_event_falls_back_on_the_expense_date(
-    client: TestClient, benevole_user, auth_headers, db_session, compta_configured,
+def test_expense_requires_its_accounting_attachment(
+    client: TestClient, benevole_user, auth_headers, first_pole, compta_configured,
 ):
-    """Une depense courante sans evenement reste correctement nommee."""
-    resp = _deposit_expense(
-        client,
-        benevole_user,
-        auth_headers,
-        pole_id="",
-        id_pole="",
-        evenement_libre="",
-        date_evenement="",
-    )
-    assert resp.status_code == 201, resp.text
+    """Pole, evenement et date d'evenement sont exiges au depot.
 
-    row = outbox.latest_for_entity(db_session, "expense", resp.json()["id"])
-    nom = json.loads(row.attachments)[0].replace("\\", "/").rsplit("/", 1)[-1]
-    # Pole absent -> NC ; l'evenement retombe sur le rattachement.
-    assert nom == "NC_Buvette_2026-03-12.pdf"
+    Ils composent le nom du justificatif envoye au comptable. Ils etaient
+    facultatifs, et le nom retombait alors sur un `NC_...` que personne ne
+    pouvait imputer. Le depot est desormais refuse plutot que de produire une
+    piece comptable inexploitable.
+    """
+    manquants = [
+        {"id_pole": ""},
+        {"evenement_libre": ""},
+        {"date_evenement": ""},
+    ]
+    for override in manquants:
+        resp = _deposit_expense(
+            client, benevole_user, auth_headers, pole_id=first_pole.id, **override
+        )
+        assert resp.status_code == 422, f"{override} aurait du etre refuse : {resp.text}"
 
 
 # ---- Supervision de la file -------------------------------------------------

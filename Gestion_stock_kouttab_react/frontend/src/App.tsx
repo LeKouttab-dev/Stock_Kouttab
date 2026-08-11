@@ -1,4 +1,4 @@
-import { Suspense, lazy } from 'react';
+import { Suspense, lazy, type ComponentType } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
@@ -15,62 +15,55 @@ import { LoginPage } from '@/pages/auth/LoginPage';
 import { SignupPage } from '@/pages/auth/SignupPage';
 import { AdminSetupPage } from '@/pages/auth/AdminSetupPage';
 
+/**
+ * Charge un écran à la demande.
+ *
+ * `lazy` attend un export `default` ; nos pages sont exportées nommément.
+ * L'adaptateur est écrit une fois ici plutôt que recopié à chaque route.
+ */
+function lazyNamed<K extends string>(loader: () => Promise<{ [P in K]: ComponentType }>, name: K) {
+  return lazy(() => loader().then((m) => ({ default: m[name] })));
+}
+
 // Le reste est chargé à la demande. Le `<Suspense>` ci-dessous existait déjà
 // mais ne servait à rien, tous les imports étant statiques : l'application
 // livrait un unique bundle de ~1,5 Mo, dont le scanner de codes-barres et les
 // graphiques, que la plupart des utilisateurs n'ouvrent jamais.
-const DashboardPage = lazy(() =>
-  import('@/pages/dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage })),
+const DashboardPage = lazyNamed(() => import('@/pages/dashboard/DashboardPage'), 'DashboardPage');
+const StockCategoriesPage = lazyNamed(
+  () => import('@/pages/stock/StockCategoriesPage'),
+  'StockCategoriesPage',
 );
-const StockCategoriesPage = lazy(() =>
-  import('@/pages/stock/StockCategoriesPage').then((m) => ({
-    default: m.StockCategoriesPage,
-  })),
+const StockSubCategoriesPage = lazyNamed(
+  () => import('@/pages/stock/StockSubCategoriesPage'),
+  'StockSubCategoriesPage',
 );
-const StockSubCategoriesPage = lazy(() =>
-  import('@/pages/stock/StockSubCategoriesPage').then((m) => ({
-    default: m.StockSubCategoriesPage,
-  })),
+const StockItemsPage = lazyNamed(() => import('@/pages/stock/StockItemsPage'), 'StockItemsPage');
+const MyExpensesPage = lazyNamed(() => import('@/pages/expenses/MyExpensesPage'), 'MyExpensesPage');
+const ValidateExpensesPage = lazyNamed(
+  () => import('@/pages/expenses/ValidateExpensesPage'),
+  'ValidateExpensesPage',
 );
-const StockItemsPage = lazy(() =>
-  import('@/pages/stock/StockItemsPage').then((m) => ({ default: m.StockItemsPage })),
+const InvoiceUploadPage = lazyNamed(
+  () => import('@/pages/invoices/InvoiceUploadPage'),
+  'InvoiceUploadPage',
 );
-const MyExpensesPage = lazy(() =>
-  import('@/pages/expenses/MyExpensesPage').then((m) => ({ default: m.MyExpensesPage })),
+const InvoiceListPage = lazyNamed(
+  () => import('@/pages/invoices/InvoiceListPage'),
+  'InvoiceListPage',
 );
-const ValidateExpensesPage = lazy(() =>
-  import('@/pages/expenses/ValidateExpensesPage').then((m) => ({
-    default: m.ValidateExpensesPage,
-  })),
+const BuvettePage = lazyNamed(() => import('@/pages/buvette/BuvettePage'), 'BuvettePage');
+const BuvetteSalesPage = lazyNamed(
+  () => import('@/pages/buvette/BuvetteSalesPage'),
+  'BuvetteSalesPage',
 );
-const InvoiceUploadPage = lazy(() =>
-  import('@/pages/invoices/InvoiceUploadPage').then((m) => ({
-    default: m.InvoiceUploadPage,
-  })),
+const AdminPage = lazyNamed(() => import('@/pages/admin/AdminPage'), 'AdminPage');
+const DatabaseManagementPage = lazyNamed(
+  () => import('@/pages/admin/DatabaseManagementPage'),
+  'DatabaseManagementPage',
 );
-const InvoiceListPage = lazy(() =>
-  import('@/pages/invoices/InvoiceListPage').then((m) => ({ default: m.InvoiceListPage })),
-);
-const BuvettePage = lazy(() =>
-  import('@/pages/buvette/BuvettePage').then((m) => ({ default: m.BuvettePage })),
-);
-const BuvetteSalesPage = lazy(() =>
-  import('@/pages/buvette/BuvetteSalesPage').then((m) => ({ default: m.BuvetteSalesPage })),
-);
-const AdminPage = lazy(() =>
-  import('@/pages/admin/AdminPage').then((m) => ({ default: m.AdminPage })),
-);
-const DatabaseManagementPage = lazy(() =>
-  import('@/pages/admin/DatabaseManagementPage').then((m) => ({
-    default: m.DatabaseManagementPage,
-  })),
-);
-const ProfilePage = lazy(() =>
-  import('@/pages/ProfilePage').then((m) => ({ default: m.ProfilePage })),
-);
-const NotFoundPage = lazy(() =>
-  import('@/pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })),
-);
+const ProfilePage = lazyNamed(() => import('@/pages/ProfilePage'), 'ProfilePage');
+const NotFoundPage = lazyNamed(() => import('@/pages/NotFoundPage'), 'NotFoundPage');
 
 import { ACTIONS } from '@/lib/auth';
 import { useAuth } from '@/hooks/useAuth';

@@ -32,7 +32,10 @@ IMAGE_MIMES: dict[str, str] = {
 INVOICE_MIMES: dict[str, str] = {**IMAGE_MIMES, "application/pdf": "pdf"}
 
 EXTENSIONS_ALLOWED: dict[str, set[str]] = {
-    "expenses": {"png", "jpg", "jpeg"},
+    # Le PDF est accepte sur les tickets de caisse depuis que le scanner rend
+    # un PDF pret a partir chez le comptable. Le refuser obligeait a deposer une
+    # photo brute que la chaine reconvertissait ensuite.
+    "expenses": {"png", "jpg", "jpeg", "pdf"},
     "invoices": {"png", "jpg", "jpeg", "pdf"},
 }
 
@@ -93,10 +96,10 @@ def validate_file_type(
         raise AppException(
             ErrorCode.INVALID_FILE_TYPE, detail="Type de fichier non reconnu."
         )
-    if allowed_subdir == "expenses" and detected not in IMAGE_MIMES:
+    if allowed_subdir == "expenses" and detected not in INVOICE_MIMES:
         raise AppException(
             ErrorCode.INVALID_FILE_TYPE,
-            detail="Seules les images sont autorisees pour les notes de frais.",
+            detail="Seules les images et PDF sont autorises pour les notes de frais.",
         )
     if allowed_subdir == "invoices" and detected not in INVOICE_MIMES:
         raise AppException(

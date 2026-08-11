@@ -13,24 +13,12 @@ export function PendingUsersSection() {
   const remove = useDeleteUser();
   const toast = useToast();
 
-  const handleApprove = async (id: number) => {
-    try {
-      await validate.mutateAsync({ id, status: 'active' });
-      toast.success('Compte validé');
-    } catch {
-      /* Erreur deja signalee par useApiMutation : un second toast
-         ferait doublon a l'ecran. */
-    }
+  const handleApprove = (id: number) => {
+    validate.mutate({ id, status: 'active' }, { onSuccess: () => toast.success('Compte validé') });
   };
 
-  const handleRefuse = async (id: number) => {
-    try {
-      await remove.mutateAsync(id);
-      toast.info('Compte refusé et supprimé');
-    } catch {
-      /* Erreur deja signalee par useApiMutation : un second toast
-         ferait doublon a l'ecran. */
-    }
+  const handleRefuse = (id: number) => {
+    remove.mutate(id, { onSuccess: () => toast.info('Compte refusé et supprimé') });
   };
 
   return (

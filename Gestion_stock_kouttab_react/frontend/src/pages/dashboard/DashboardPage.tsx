@@ -1,4 +1,5 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { History, RefreshCw, TrendingUp, TriangleAlert } from 'lucide-react';
 import { OverviewTab } from './tabs/OverviewTab';
 import { HistoryTab } from './tabs/HistoryTab';
 import { AlertsTab } from './tabs/AlertsTab';
@@ -17,10 +18,22 @@ export function DashboardPage() {
 
       <Tabs defaultValue="overview">
         <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
-          <TabsTrigger value="overview">📈 {fr.dashboard.overview}</TabsTrigger>
-          <TabsTrigger value="history">📝 {fr.dashboard.history}</TabsTrigger>
-          <TabsTrigger value="alerts">⚠️ {fr.dashboard.alerts}</TabsTrigger>
-          <TabsTrigger value="modifications">🔄 {fr.dashboard.modifications}</TabsTrigger>
+          <TabsTrigger value="overview" className="gap-1.5">
+            <TrendingUp className="h-4 w-4" aria-hidden />
+            {fr.dashboard.overview}
+          </TabsTrigger>
+          <TabsTrigger value="history" className="gap-1.5">
+            <History className="h-4 w-4" aria-hidden />
+            {fr.dashboard.history}
+          </TabsTrigger>
+          <TabsTrigger value="alerts" className="gap-1.5">
+            <TriangleAlert className="h-4 w-4" aria-hidden />
+            {fr.dashboard.alerts}
+          </TabsTrigger>
+          <TabsTrigger value="modifications" className="gap-1.5">
+            <RefreshCw className="h-4 w-4" aria-hidden />
+            {fr.dashboard.modifications}
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="overview">
           <OverviewTab />

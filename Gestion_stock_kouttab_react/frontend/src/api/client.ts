@@ -54,9 +54,7 @@ api.interceptors.response.use(
 
     // Refresh on a 401 (or explicit TOKEN_EXPIRED), unless it's an auth endpoint.
     const shouldTryRefresh =
-      !original._retry &&
-      !isAuthEndpoint &&
-      (status === 401 || code === 'AUTH_1010');
+      !original._retry && !isAuthEndpoint && (status === 401 || code === 'AUTH_1010');
 
     if (shouldTryRefresh) {
       const refreshToken = useAuthStore.getState().refreshToken;

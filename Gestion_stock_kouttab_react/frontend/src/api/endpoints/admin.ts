@@ -1,11 +1,15 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useApiMutation } from '@/hooks/useApiMutation';
 import { api } from '../client';
-import type { DatabaseStatus } from '@/types/api';
+import type { DatabaseStatus, OutboundEmail } from '@/types/api';
 
 export const adminQueryKeys = {
   databaseStatus: ['admin', 'database', 'status'] as const,
+  outboundEmails: ['admin', 'outbound-emails'] as const,
 };
+
+/** Les envois anciens n'apprennent plus rien : seule la file récente compte. */
+const OUTBOUND_EMAILS_LIMIT = 50;
 
 async function fetchDatabaseStatus(): Promise<DatabaseStatus> {
   const { data } = await api.get<DatabaseStatus>('/admin/database/status');
@@ -17,7 +21,9 @@ async function exportDatabase(): Promise<Blob> {
   return response.data as Blob;
 }
 
-async function importDatabase(files: File[]): Promise<{ tables: Array<{ name: string; rows: number }> }> {
+async function importDatabase(
+  files: File[],
+): Promise<{ tables: Array<{ name: string; rows: number }> }> {
   const formData = new FormData();
   files.forEach((file) => formData.append('files', file));
   const { data } = await api.post<{ tables: Array<{ name: string; rows: number }> }>(
@@ -56,4 +62,27 @@ export function useExportDatabase() {
 
 export function useImportDatabase() {
   return useApiMutation({ mutationFn: importDatabase });
+}
+
+async function fetchOutboundEmails(): Promise<OutboundEmail[]> {
+  const { data } = await api.get<OutboundEmail[]>('/admin/outbound-emails', {
+    params: { limit: OUTBOUND_EMAILS_LIMIT },
+  });
+  return data;
+}
+
+async function retryOutboundEmail(id: number): Promise<void> {
+  await api.post(`/admin/outbound-emails/${id}/retry`);
+}
+
+export function useOutboundEmails() {
+  return useQuery({ queryKey: adminQueryKeys.outboundEmails, queryFn: fetchOutboundEmails });
+}
+
+export function useRetryOutboundEmail() {
+  const qc = useQueryClient();
+  return useApiMutation({
+    mutationFn: retryOutboundEmail,
+    onSuccess: () => qc.invalidateQueries({ queryKey: adminQueryKeys.outboundEmails }),
+  });
 }

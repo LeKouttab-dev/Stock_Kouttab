@@ -12,11 +12,19 @@ pytestmark = pytest.mark.integration
 
 
 def _create_expense_payload(montant: str = "12.50") -> dict:
+    """Depot minimal valide.
+
+    Fournisseur, pole, evenement et date d'evenement sont obligatoires : ils
+    composent le nom du justificatif transmis au comptable. `id_pole` vaut 1,
+    l'un des trois poles crees par defaut au demarrage de l'application.
+    """
     return {
         "date_depense": "2024-04-01",
         "montant": montant,
-        "rattachement": "Cuisine",
         "fournisseur": "Carrefour",
+        "id_pole": "1",
+        "evenement_libre": "Repas d'equipe",
+        "date_evenement": "2024-04-01",
         "nature_charge": "Achat",
         "commentaires": "Test",
         "remboursement_deja_emis": "0",

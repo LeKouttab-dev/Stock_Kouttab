@@ -66,14 +66,54 @@ def test_get_products_requires_auth(client: TestClient) -> None:
 
 
 def test_get_products_returns_list(
-    client: TestClient, benevole_user, auth_headers, db_session
+    client: TestClient, admin_benevoles_user, auth_headers, db_session
 ) -> None:
     _seed(db_session, tier_id=int(uuid.uuid4().int % 1_000_000_000))
     resp = client.get(
-        "/api/v1/buvette/products", headers=auth_headers(benevole_user)
+        "/api/v1/buvette/products", headers=auth_headers(admin_benevoles_user)
     )
     assert resp.status_code == 200, resp.text
     assert isinstance(resp.json(), list)
+
+
+def test_buvette_is_closed_to_simple_volunteers(
+    client: TestClient, benevole_user, auth_headers, db_session
+) -> None:
+    """La buvette est un outil de gestion, pas un ecran de consultation.
+
+    Stock et ventes etaient lisibles par tout compte authentifie ; ils sont
+    desormais fermes aux benevoles.
+    """
+    _seed(db_session, tier_id=int(uuid.uuid4().int % 1_000_000_000))
+
+    for route in ("/api/v1/buvette/products", "/api/v1/buvette/sales"):
+        resp = client.get(route, headers=auth_headers(benevole_user))
+        assert resp.status_code == 403, f"{route} : {resp.text}"
+
+
+def test_buvette_stays_readable_by_accounting(
+    client: TestClient, compta_user, auth_headers, db_session
+) -> None:
+    """La comptabilite suit les recettes de la buvette : elle garde la lecture."""
+    _seed(db_session, tier_id=int(uuid.uuid4().int % 1_000_000_000))
+
+    for route in ("/api/v1/buvette/products", "/api/v1/buvette/sales"):
+        resp = client.get(route, headers=auth_headers(compta_user))
+        assert resp.status_code == 200, f"{route} : {resp.text}"
+
+
+def test_buvette_writes_stay_reserved_to_admins(
+    client: TestClient, compta_user, auth_headers, db_session
+) -> None:
+    """Lire n'est pas ecrire : la comptabilite ne modifie pas le stock."""
+    product = _seed(db_session, tier_id=int(uuid.uuid4().int % 1_000_000_000))
+
+    resp = client.patch(
+        f"/api/v1/buvette/products/{product.id}",
+        json={"quantity": 99},
+        headers=auth_headers(compta_user),
+    )
+    assert resp.status_code == 403, resp.text
 
 
 def test_patch_product_as_admin_benevoles(

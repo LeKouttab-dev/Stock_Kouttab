@@ -74,9 +74,9 @@ export function AddBuvetteFromBarcodeModal({
     });
   }, [open, lookup, form]);
 
-  const onSubmit = async (values: BuvetteProductFromBarcodeFormValues) => {
-    try {
-      await create.mutateAsync({
+  const onSubmit = (values: BuvetteProductFromBarcodeFormValues) => {
+    create.mutate(
+      {
         name: values.name,
         price_cents: eurosToCents(values.price_euros),
         quantity: values.quantity,
@@ -84,13 +84,14 @@ export function AddBuvetteFromBarcodeModal({
         emoji: values.emoji,
         helloasso_tier_id: null,
         barcode: values.barcode,
-      });
-      toast.success(fr.buvette.productCreated);
-      onOpenChange(false);
-    } catch {
-      /* Erreur deja signalee par useApiMutation : un second toast
-         ferait doublon a l'ecran. */
-    }
+      },
+      {
+        onSuccess: () => {
+          toast.success(fr.buvette.productCreated);
+          onOpenChange(false);
+        },
+      },
+    );
   };
 
   if (!lookup) return null;

@@ -19,7 +19,7 @@ export const stockItemFromBarcodeSchema = z.object({
     .string()
     .nullable()
     .optional()
-    .transform((v) => (v === '' ? null : v ?? null)),
+    .transform((v) => (v === '' ? null : (v ?? null))),
   quantite: z.coerce.number().int().min(0, 'Doit être ≥ 0'),
   seuil_alerte: z.coerce.number().int().min(0, 'Doit être ≥ 0'),
   emoji: z.string().min(1, 'Emoji obligatoire'),

@@ -40,12 +40,17 @@ def test_accepts_pdf_for_invoices() -> None:
     assert (mime, ext) == ("application/pdf", "pdf")
 
 
-def test_rejects_pdf_for_expenses() -> None:
-    """Les notes de frais n'acceptent que des images."""
-    with pytest.raises(AppException):
-        files_service.validate_file_type(
-            "ticket.pdf", "application/pdf", PDF_HEADER, allowed_subdir="expenses"
-        )
+def test_accepts_pdf_for_expenses() -> None:
+    """Les notes de frais acceptent le PDF depuis l'arrivee du scanner.
+
+    Le scanner rend un PDF pret a partir chez le comptable ; le refuser
+    obligeait le deposant a joindre une photo brute, que la chaine comptable
+    reconvertissait ensuite.
+    """
+    mime, ext = files_service.validate_file_type(
+        "ticket.pdf", "application/pdf", PDF_HEADER, allowed_subdir="expenses"
+    )
+    assert (mime, ext) == ("application/pdf", "pdf")
 
 
 def test_rejects_disallowed_extension() -> None:

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { CircleCheck, CircleMinus, FileUp, TriangleAlert } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,28 +19,32 @@ export function ImportCsvSection() {
     errors: string[];
   } | null>(null);
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!file) {
       toast.warning('Sélectionnez un fichier CSV.');
       return;
     }
-    try {
-      const res = await importMut.mutateAsync({ file, skiprows });
-      setReport(res);
-      toast.success(
-        'Import terminé',
-        `${res.imported} importés, ${res.skipped} ignorés, ${res.errors.length} erreurs`,
-      );
-    } catch {
-      /* Erreur deja signalee par useApiMutation : un second toast
-         ferait doublon a l'ecran. */
-    }
+    importMut.mutate(
+      { file, skiprows },
+      {
+        onSuccess: (res) => {
+          setReport(res);
+          toast.success(
+            'Import terminé',
+            `${res.imported} importés, ${res.skipped} ignorés, ${res.errors.length} erreurs`,
+          );
+        },
+      },
+    );
   };
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">📁 Importation CSV</CardTitle>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <FileUp className="h-4 w-4" aria-hidden />
+          Importation CSV
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <Alert variant="info">
@@ -76,13 +81,16 @@ export function ImportCsvSection() {
         {report && (
           <div className="rounded-md border bg-muted/20 p-3 text-sm space-y-1">
             <p>
-              ✅ Importés : <strong>{report.imported}</strong>
+              <CircleCheck className="mr-1 inline h-4 w-4 align-text-bottom" aria-hidden /> Importés
+              : <strong>{report.imported}</strong>
             </p>
             <p>
-              ➖ Ignorés : <strong>{report.skipped}</strong>
+              <CircleMinus className="mr-1 inline h-4 w-4 align-text-bottom" aria-hidden /> Ignorés
+              : <strong>{report.skipped}</strong>
             </p>
             <p>
-              ⚠️ Erreurs : <strong>{report.errors.length}</strong>
+              <TriangleAlert className="mr-1 inline h-4 w-4 align-text-bottom" aria-hidden />{' '}
+              Erreurs : <strong>{report.errors.length}</strong>
             </p>
             {report.errors.length > 0 && (
               <ul className="mt-2 list-disc list-inside text-xs text-muted-foreground space-y-0.5">

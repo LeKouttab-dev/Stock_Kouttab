@@ -92,6 +92,23 @@ def _normalise_image(source: Path) -> bytes:
         return buffer.getvalue()
 
 
+def image_bytes_to_pdf(payload: bytes) -> bytes:
+    """Enveloppe des octets JPEG/PNG deja en memoire dans un PDF A4.
+
+    Meme mise en page que :func:`convert_image_to_pdf`, sans aller-retour par
+    le disque : le scanner produit son image en memoire et la rend directement
+    au deposant en PDF.
+    """
+    try:
+        return img2pdf.convert(payload, layout_fun=_A4_LAYOUT)
+    except Exception as exc:  # noqa: BLE001 — img2pdf leve des types varies
+        logger.exception("Echec de conversion PDF depuis la memoire : %s", exc)
+        raise AppException(
+            ErrorCode.INVALID_FILE_TYPE,
+            detail="La conversion du document scanne en PDF a echoue.",
+        ) from exc
+
+
 def convert_image_to_pdf(source: Path, target: Path) -> Path:
     """Convertit une image en PDF A4 d'une page."""
     try:

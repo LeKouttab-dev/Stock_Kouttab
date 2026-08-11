@@ -45,7 +45,10 @@ const WINDOWS_RESERVED = new Set([
   ...Array.from({ length: 9 }, (_, i) => `LPT${i + 1}`),
 ]);
 
-export function slugifyComponent(value: string | null | undefined, maxLen = MAX_COMPONENT_LEN): string {
+export function slugifyComponent(
+  value: string | null | undefined,
+  maxLen = MAX_COMPONENT_LEN,
+): string {
   if (value === null || value === undefined) return MISSING;
 
   let text = String(value);

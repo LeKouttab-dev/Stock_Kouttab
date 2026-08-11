@@ -45,8 +45,8 @@ export class ErrorBoundary extends Component<Props, State> {
         <div className="space-y-2">
           <h1 className="text-xl font-bold">Une erreur inattendue est survenue</h1>
           <p className="max-w-md text-sm text-muted-foreground">
-            L&apos;affichage de cette page a échoué. Vos données ne sont pas perdues.
-            Réessayez, et signalez le problème s&apos;il persiste.
+            L&apos;affichage de cette page a échoué. Vos données ne sont pas perdues. Réessayez, et
+            signalez le problème s&apos;il persiste.
           </p>
         </div>
 

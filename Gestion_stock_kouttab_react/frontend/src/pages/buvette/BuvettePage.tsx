@@ -91,29 +91,24 @@ export function BuvettePage() {
     };
   }, [list, sales.data]);
 
-  const handleSync = async () => {
-    try {
-      const r = await sync.mutateAsync();
-      const msg = fr.buvette.syncSuccess(r);
-      if (r.errors.length > 0) {
-        toast.warning(msg, `${r.errors.length} erreur(s) — voir les logs.`);
-      } else {
-        toast.success('Synchronisation terminée', msg);
-      }
-    } catch (e) {
-      toast.error('Erreur de synchronisation', extractErrorMessage(e));
-    }
+  // Pas de `catch` ici : `useSyncBuvette` signale déjà l'échec par un toast,
+  // en ajouter un second en affichait deux à l'écran.
+  const handleSync = () => {
+    sync.mutate(undefined, {
+      onSuccess: (r) => {
+        const msg = fr.buvette.syncSuccess(r);
+        if (r.errors.length > 0) {
+          toast.warning(msg, `${r.errors.length} erreur(s) — voir les logs.`);
+        } else {
+          toast.success('Synchronisation terminée', msg);
+        }
+      },
+    });
   };
 
-  const handleDelete = async (p: BuvetteProduct) => {
+  const handleDelete = (p: BuvetteProduct) => {
     if (!window.confirm(fr.buvette.deleteConfirm)) return;
-    try {
-      await remove.mutateAsync(p.id);
-      toast.success(fr.buvette.productDeleted);
-    } catch {
-      /* Erreur deja signalee par useApiMutation : un second toast
-         ferait doublon a l'ecran. */
-    }
+    remove.mutate(p.id, { onSuccess: () => toast.success(fr.buvette.productDeleted) });
   };
 
   const handleAdjust = (p: BuvetteProduct) => {

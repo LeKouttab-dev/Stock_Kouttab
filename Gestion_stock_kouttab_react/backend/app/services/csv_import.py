@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.errors import ErrorCode
 from app.core.exceptions import AppException
 from app.core.logger import get_logger
-from app.db.models import Stock, SubCategory
+from app.db.models import Category, Stock, SubCategory
 
 
 logger = get_logger("csv_import")
@@ -72,6 +72,7 @@ def import_inventory(
             SubCategory.nom_categorie, SubCategory.nom_sous_categorie
         ).all()
     }
+    existing_categories: set[str] = {n for (n,) in db.query(Category.nom).all()}
 
     for index, row in df.iterrows():
         try:
@@ -97,6 +98,16 @@ def import_inventory(
                 errors.append(f"Ligne {index + 1} : article '{nom}' deja existant.")
                 skipped += 1
                 continue
+
+            # La categorie doit rejoindre le referentiel, au meme titre que la
+            # sous-categorie juste en dessous. Sans cela, les articles importes
+            # pointent vers une categorie que la table `Categories` ignore :
+            # l'ecran « Naviguer par categorie » ne l'affiche pas, et si
+            # quelqu'un la ressaisit a la main avec une faute de frappe, elle
+            # s'affiche a cote avec zero article.
+            if categorie not in existing_categories:
+                db.add(Category(nom=categorie, is_default=False))
+                existing_categories.add(categorie)
 
             if sous_categorie:
                 key = (categorie, sous_categorie)

@@ -51,7 +51,11 @@ const PERMISSIONS: Record<Action, Role[]> = {
   [ACTIONS.ADMIN_DATABASE]: ['Super Admin'],
   [ACTIONS.ADMIN_IMPORT_CSV]: ['Super Admin', 'AdminBenevoles'],
   [ACTIONS.ADMIN_HUB]: ['Super Admin', 'AdminBenevoles', 'Compta'],
-  [ACTIONS.BUVETTE_VIEW]: ['Super Admin', 'AdminBenevoles', 'Compta', 'Benevole'],
+  // La buvette est un outil de gestion, pas une page de consultation : les
+  // administrateurs bénévoles qui la tiennent, et la comptabilité qui en suit
+  // les recettes. Un simple bénévole n'y a pas accès.
+  // Doit refléter `_VIEW_ROLES` dans endpoints/buvette.py.
+  [ACTIONS.BUVETTE_VIEW]: ['Super Admin', 'AdminBenevoles', 'Compta'],
   [ACTIONS.BUVETTE_SYNC]: ['Super Admin', 'AdminBenevoles'],
   [ACTIONS.BUVETTE_CRUD]: ['Super Admin', 'AdminBenevoles'],
   [ACTIONS.BUVETTE_WEBHOOK]: ['Super Admin'],

@@ -28,6 +28,12 @@ data/
 secrets.toml
 .env
 .env.*
+
+# Exception etroite : les modeles, qui ne contiennent aucune valeur reelle,
+# doivent rester versionnes puisque ce sont eux qui documentent les variables
+# attendues. La regle large ci-dessus continue de couvrir tout le reste.
+!.env.example
+!.env.deploy.example
 !.env.example
 create_env.sh
 

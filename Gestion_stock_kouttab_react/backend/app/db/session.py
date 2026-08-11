@@ -19,16 +19,19 @@ def _build_engine() -> Engine:
     url = settings.database_url
     connect_args: dict = {}
     engine_kwargs: dict = {
+        # `pre_ping` teste la connexion avant de la preter : indispensable avec
+        # une base distante, qui peut couper une connexion inactive sans que le
+        # client en soit informe.
         "pool_pre_ping": True,
-        "pool_recycle": 3600,
+        "pool_recycle": settings.db_pool_recycle,
         "echo": settings.app_debug and settings.app_env != "production",
     }
     if url.startswith("sqlite"):
         connect_args["check_same_thread"] = False
         engine_kwargs.pop("pool_recycle", None)
     else:
-        engine_kwargs["pool_size"] = 5
-        engine_kwargs["max_overflow"] = 10
+        engine_kwargs["pool_size"] = settings.db_pool_size
+        engine_kwargs["max_overflow"] = settings.db_max_overflow
     return create_engine(url, connect_args=connect_args, **engine_kwargs)
 
 

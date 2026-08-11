@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Database, Mail, Trash2 } from 'lucide-react';
+import { Database, Mail, Settings, Trash2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -50,7 +50,10 @@ export function AdminPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">⚙️ {fr.admin.title}</h1>
+        <h1 className="flex items-center gap-2 text-2xl font-bold">
+          <Settings className="h-6 w-6" aria-hidden />
+          {fr.admin.title}
+        </h1>
         <p className="text-sm text-muted-foreground">
           Gestion des utilisateurs, des modifications de stock et des données.
         </p>
@@ -128,26 +131,21 @@ function InvitationsSection() {
     defaultValues: { email: '' },
   });
 
-  const onSubmit = async (values: InvitationFormValues) => {
-    try {
-      await create.mutateAsync({ email: values.email });
-      toast.success('Invitation envoyée par email');
-      form.reset();
-    } catch {
-      /* Erreur deja signalee par useApiMutation : un second toast
-         ferait doublon a l'ecran. */
-    }
+  const onSubmit = (values: InvitationFormValues) => {
+    create.mutate(
+      { email: values.email },
+      {
+        onSuccess: () => {
+          toast.success('Invitation envoyée par email');
+          form.reset();
+        },
+      },
+    );
   };
 
-  const onRevoke = async (id: number) => {
+  const onRevoke = (id: number) => {
     if (!confirm('Révoquer cette invitation ?')) return;
-    try {
-      await remove.mutateAsync(id);
-      toast.success('Invitation révoquée');
-    } catch {
-      /* Erreur deja signalee par useApiMutation : un second toast
-         ferait doublon a l'ecran. */
-    }
+    remove.mutate(id, { onSuccess: () => toast.success('Invitation révoquée') });
   };
 
   return (

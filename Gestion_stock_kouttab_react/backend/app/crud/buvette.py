@@ -6,7 +6,7 @@ import json
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import and_, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -180,6 +180,51 @@ def delete_product(db: Session, product_id: int) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _extract_helloasso_price_cents(tier: dict[str, Any]) -> int | None:
+    """Prix du tier en centimes, ou ``None`` si HelloAsso ne l'expose pas.
+
+    La boutique renvoie le prix sous ``price`` (verifie sur l'API V5 le
+    2026-08-11). Le code lisait ``amount``, un champ qui n'existe pas sur un
+    tier de boutique : tous les produits synchronises se retrouvaient a 0 EUR.
+    ``amount`` reste accepte en second choix car c'est le nom utilise par les
+    *items de commande* dans le webhook, et rien ne garantit que HelloAsso ne
+    l'expose pas ailleurs.
+
+    ``None`` — et non ``0`` — quand le prix est introuvable : un prix absent
+    n'est pas un prix nul, et l'appelant doit pouvoir conserver la valeur deja
+    connue plutot que de l'ecraser.
+    """
+    for key in ("price", "amount"):
+        value = tier.get(key)
+        if value is None:
+            continue
+        try:
+            cents = int(value)
+        except (TypeError, ValueError):
+            continue
+        if cents >= 0:
+            return cents
+    return None
+
+
+def _extract_helloasso_image_url(tier: dict[str, Any]) -> str | None:
+    """URL de l'illustration du tier, ou ``None``.
+
+    HelloAsso imbrique l'image dans ``picture.publicUrl``. Les cles a plat
+    (``imageUrl``, ``image_url``) sont conservees en repli.
+    """
+    picture = tier.get("picture")
+    if isinstance(picture, dict):
+        url = picture.get("publicUrl") or picture.get("fileName")
+        if url:
+            return str(url)
+    for key in ("imageUrl", "image_url"):
+        url = tier.get(key)
+        if url:
+            return str(url)
+    return None
+
+
 def _extract_helloasso_quantity(tier: dict[str, Any]) -> int | None:
     """Try several HelloAsso field names to find the available stock.
 
@@ -243,13 +288,8 @@ def sync_from_helloasso(db: Session, tiers: list[dict[str, Any]]) -> SyncResult:
                 continue
 
             description = tier.get("description")
-            amount = tier.get("amount")
-            try:
-                amount_cents = int(amount) if amount is not None else 0
-            except (TypeError, ValueError):
-                amount_cents = 0
-
-            image_url = tier.get("imageUrl") or tier.get("image_url")
+            price_cents = _extract_helloasso_price_cents(tier)
+            image_url = _extract_helloasso_image_url(tier)
             helloasso_qty = _extract_helloasso_quantity(tier)
             logger.info(
                 "HelloAsso tier %s '%s' : qty extracted = %s (raw keys: %s)",
@@ -275,7 +315,7 @@ def sync_from_helloasso(db: Session, tiers: list[dict[str, Any]]) -> SyncResult:
                     helloasso_tier_id=tier_id_int,
                     name=label,
                     description=description,
-                    price_cents=amount_cents,
+                    price_cents=price_cents if price_cents is not None else 0,
                     quantity=helloasso_qty if helloasso_qty is not None else 0,
                     seuil_alerte=5,
                     emoji="🥤",
@@ -288,7 +328,11 @@ def sync_from_helloasso(db: Session, tiers: list[dict[str, Any]]) -> SyncResult:
             else:
                 existing.name = label
                 existing.description = description
-                existing.price_cents = amount_cents
+                # Un prix introuvable ne doit pas ecraser le prix connu : sinon
+                # une synchronisation remet a 0 EUR tout le catalogue, y compris
+                # les prix corriges a la main.
+                if price_cents is not None:
+                    existing.price_cents = price_cents
                 if image_url is not None:
                     existing.image_url = image_url
                 # Only seed the quantity if local stock is still 0 (initial state).
@@ -417,6 +461,19 @@ def record_sale_and_decrement(
     if decremented_product is not None:
         db.refresh(decremented_product)
     return sale, decremented_product
+
+
+def get_sales_activity(db: Session) -> tuple[datetime | None, int]:
+    """Date de la derniere vente recue et nombre total de ventes.
+
+    Sert a savoir si le webhook HelloAsso fonctionne : une vente en base est,
+    par construction, une notification recue. C'est la seule verification
+    possible, HelloAsso ne permettant pas de relire l'URL enregistree.
+    """
+    row = db.execute(
+        select(func.max(BuvetteSale.processed_at), func.count(BuvetteSale.id))
+    ).one()
+    return row[0], int(row[1] or 0)
 
 
 def list_sales(db: Session, *, limit: int = 50, offset: int = 0) -> list[BuvetteSale]:
