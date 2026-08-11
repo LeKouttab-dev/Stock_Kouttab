@@ -168,7 +168,12 @@ def scan_document(
     *,
     quad: Sequence[Point] | None = None,
     enhance: bool = True,
-    jpeg_quality: int = 92,
+    # 96 et non 92 : le justificatif traverse deja trois etapes destructrices —
+    # capture JPEG, redressement, encapsulation PDF — avant d'arriver chez le
+    # comptable par courriel. Chacune coute du detail sur des montants ecrits
+    # petit. Le gain de poids d'un reglage plus bas ne justifie pas le risque
+    # d'un ticket illisible.
+    jpeg_quality: int = 96,
 ) -> bytes:
     """Redresse le document et rend un JPEG cadre sur lui seul.
 

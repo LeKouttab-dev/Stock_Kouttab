@@ -73,9 +73,22 @@ def list_events(
     search: str | None = None,
     limit: int = 500,
 ) -> list[Event]:
-    stmt = select(Event).order_by(
-        Event.date_evenement.desc().nullslast(), Event.nom
-    ).limit(limit)
+    # `nullslast()` genere `NULLS LAST`, syntaxe PostgreSQL que **MariaDB
+    # refuse** (erreur 1064). SQLite l'accepte, si bien que le tri passait en
+    # developpement et renvoyait une 500 en production : la liste des evenements
+    # restait vide au depot d'une facture, sans message.
+    #
+    # `col IS NULL` s'evalue a 0 ou 1 : trier dessus en premier place les dates
+    # renseignees avant les dates absentes, ce que `NULLS LAST` exprime ailleurs.
+    stmt = (
+        select(Event)
+        .order_by(
+            Event.date_evenement.is_(None),
+            Event.date_evenement.desc(),
+            Event.nom,
+        )
+        .limit(limit)
+    )
     if not include_inactive:
         stmt = stmt.where(Event.is_active.is_(True))
     if search:

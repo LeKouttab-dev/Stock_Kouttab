@@ -1,23 +1,23 @@
 /**
- * Sélection de la caméra arrière principale.
+ * Choix et ouverture de la caméra.
  *
  * Deux pièges, tous deux vécus sur ce projet :
  *
  * 1. **L'ultra grand-angle.** Sur les téléphones à plusieurs objectifs,
- *    demander `facingMode: environment` avec une résolution très élevée pousse
- *    le navigateur à choisir le module ultra grand-angle (le « 0,5× »). Il a le
- *    plus petit capteur du bloc photo : l'image est molle et déformée sur les
- *    bords, exactement ce qu'il ne faut pas pour lire le montant d'un ticket.
- *    On énumère donc les objectifs et on écarte ceux dont le libellé trahit un
- *    ultra grand-angle.
+ *    `facingMode: environment` laisse le navigateur choisir, et il retient
+ *    volontiers le module ultra grand-angle (le « 0,5× »). C'est le plus petit
+ *    capteur du bloc photo : image molle, déformée sur les bords — exactement ce
+ *    qu'il ne faut pas pour lire le montant d'un ticket.
  *
  * 2. **Le zoom résiduel.** Une caméra rouvre parfois avec le zoom de la session
  *    précédente. On le remet à 1 quand la piste l'expose.
  *
- * L'énumération n'est possible qu'après une première autorisation : avant, les
- * libellés sont vides. La fonction procède donc en deux temps, et se contente
- * du flux initial si rien de mieux ne se présente.
+ * L'heuristique de sélection automatique ne suffit pas toujours : sur Android,
+ * les libellés sont souvent génériques (« camera2 0, facing back »), sans rien
+ * qui distingue l'ultra grand-angle. D'où le choix manuel, mémorisé.
  */
+
+const CLE_MEMOIRE = 'kouttab.camera.deviceId';
 
 const INDICES_ULTRA_WIDE = ['ultra', 'wide angle', 'grand angle', 'grand-angle', '0.5', '0,5'];
 
@@ -28,10 +28,99 @@ function estUltraWide(label: string): boolean {
   return INDICES_ULTRA_WIDE.some((mot) => l.includes(mot));
 }
 
-/** Résolution demandée : suffisante pour lire un ticket, sans exiger l'impossible. */
-const IDEAL = { width: { ideal: 1920 }, height: { ideal: 1080 } };
+function estArriere(label: string): boolean {
+  return /back|arrière|arriere|rear|environment/i.test(label);
+}
 
-export async function openBackCamera(): Promise<MediaStream> {
+/**
+ * Résolution demandée. Volontairement haute : le document est ensuite redressé,
+ * ré-encodé puis converti en PDF, et chaque étape coûte du détail. Partir d'une
+ * image large laisse de la marge ; `ideal` n'impose rien, la caméra fournit ce
+ * qu'elle peut.
+ */
+const IDEAL: MediaTrackConstraints = {
+  width: { ideal: 3840 },
+  height: { ideal: 2160 },
+};
+
+export interface CameraDisponible {
+  deviceId: string;
+  label: string;
+  /** Vrai quand le libellé trahit un ultra grand-angle. */
+  ultraWide: boolean;
+}
+
+/**
+ * Liste les caméras exploitables.
+ *
+ * Les libellés ne sont renseignés qu'après une première autorisation : appeler
+ * cette fonction avant `openCamera` renvoie des entrées anonymes.
+ */
+export async function listCameras(): Promise<CameraDisponible[]> {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    return devices
+      .filter((d) => d.kind === 'videoinput')
+      .map((d, i) => ({
+        deviceId: d.deviceId,
+        label: d.label || `Caméra ${i + 1}`,
+        ultraWide: estUltraWide(d.label),
+      }));
+  } catch {
+    return [];
+  }
+}
+
+export function getRememberedCamera(): string | null {
+  try {
+    return localStorage.getItem(CLE_MEMOIRE);
+  } catch {
+    return null;
+  }
+}
+
+export function rememberCamera(deviceId: string): void {
+  try {
+    localStorage.setItem(CLE_MEMOIRE, deviceId);
+  } catch {
+    /* Stockage indisponible (navigation privée) : le choix vaut pour la session. */
+  }
+}
+
+async function reglerZoomANeutre(stream: MediaStream): Promise<void> {
+  const piste = stream.getVideoTracks()[0];
+  const capacites = piste?.getCapabilities?.() as { zoom?: { min: number } } | undefined;
+  if (!piste || !capacites?.zoom) return;
+  try {
+    // `zoom` est supporté par les navigateurs mobiles mais absent des types
+    // standards, d'où le passage par `unknown`.
+    await piste.applyConstraints({ advanced: [{ zoom: 1 }] } as unknown as MediaTrackConstraints);
+  } catch {
+    /* Zoom non réglable : sans conséquence. */
+  }
+}
+
+/**
+ * Ouvre la caméra demandée, ou la meilleure caméra arrière disponible.
+ *
+ * `deviceId` explicite l'emporte toujours : c'est le choix de l'utilisateur, il
+ * ne doit pas être corrigé par l'heuristique.
+ */
+export async function openCamera(deviceId?: string | null): Promise<MediaStream> {
+  if (deviceId) {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { deviceId: { exact: deviceId }, ...IDEAL },
+      });
+      await reglerZoomANeutre(stream);
+      return stream;
+    } catch {
+      // Caméra débranchée, ou identifiant périmé après changement de navigateur :
+      // on retombe sur la sélection automatique plutôt que d'échouer.
+    }
+  }
+
   const premier = await navigator.mediaDevices.getUserMedia({
     audio: false,
     video: { facingMode: { ideal: 'environment' }, ...IDEAL },
@@ -40,13 +129,11 @@ export async function openBackCamera(): Promise<MediaStream> {
   let stream = premier;
 
   try {
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const camerasArriere = devices.filter(
-      (d) => d.kind === 'videoinput' && /back|arrière|rear|environment/i.test(d.label),
-    );
+    const cameras = await listCameras();
+    const arriere = cameras.filter((c) => estArriere(c.label));
 
-    if (camerasArriere.length > 1) {
-      const principale = camerasArriere.find((d) => !estUltraWide(d.label));
+    if (arriere.length > 1) {
+      const principale = arriere.find((c) => !c.ultraWide);
       const actuelle = premier.getVideoTracks()[0]?.getSettings().deviceId;
 
       if (principale && principale.deviceId !== actuelle) {
@@ -64,19 +151,9 @@ export async function openBackCamera(): Promise<MediaStream> {
     /* Énumération refusée ou objectif indisponible : on garde le flux initial. */
   }
 
-  const piste = stream.getVideoTracks()[0];
-  const capacites = piste?.getCapabilities?.() as { zoom?: { min: number } } | undefined;
-  if (piste && capacites?.zoom) {
-    try {
-      // `zoom` est supporté par les navigateurs mobiles mais absent des types
-      // standards, d'où le passage par `unknown`.
-      await piste.applyConstraints({
-        advanced: [{ zoom: 1 }],
-      } as unknown as MediaTrackConstraints);
-    } catch {
-      /* Zoom non réglable : sans conséquence. */
-    }
-  }
-
+  await reglerZoomANeutre(stream);
   return stream;
 }
+
+/** Conservé pour compatibilité : équivaut à `openCamera()` sans choix explicite. */
+export const openBackCamera = () => openCamera();

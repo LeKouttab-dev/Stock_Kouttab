@@ -4,7 +4,13 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useApplyScan, useDetectDocument } from '@/api/endpoints/scan';
-import { openBackCamera } from '@/lib/camera';
+import {
+  getRememberedCamera,
+  listCameras,
+  openCamera,
+  rememberCamera,
+  type CameraDisponible,
+} from '@/lib/camera';
 import { fr } from '@/lib/i18n/fr';
 import type { ScanCorner } from '@/types/api';
 
@@ -58,6 +64,8 @@ export function DocumentScanner({ open, onClose, onScanned }: DocumentScannerPro
     null,
   );
   const dernierPointeur = useRef<{ x: number; y: number } | null>(null);
+  const [cameras, setCameras] = useState<CameraDisponible[]>([]);
+  const [cameraChoisie, setCameraChoisie] = useState<string | null>(getRememberedCamera());
 
   const detect = useDetectDocument();
   const apply = useApplyScan();
@@ -89,8 +97,8 @@ export function DocumentScanner({ open, onClose, onScanned }: DocumentScannerPro
     let annule = false;
     setErreur(null);
 
-    openBackCamera()
-      .then((stream) => {
+    openCamera(cameraChoisie)
+      .then(async (stream) => {
         if (annule) {
           stream.getTracks().forEach((t) => t.stop());
           return;
@@ -100,6 +108,16 @@ export function DocumentScanner({ open, onClose, onScanned }: DocumentScannerPro
           videoRef.current.srcObject = stream;
           void videoRef.current.play().catch(() => undefined);
         }
+        // Les libellés ne sont renseignés qu'une fois l'autorisation accordée :
+        // la liste ne peut donc être remplie qu'après l'ouverture du flux.
+        const dispo = await listCameras();
+        if (!annule) {
+          setCameras(dispo);
+          if (!cameraChoisie) {
+            const actif = stream.getVideoTracks()[0]?.getSettings().deviceId;
+            if (actif) setCameraChoisie(actif);
+          }
+        }
       })
       .catch(() => setErreur(fr.scanner.cameraError));
 
@@ -107,7 +125,12 @@ export function DocumentScanner({ open, onClose, onScanned }: DocumentScannerPro
       annule = true;
       arreterCamera();
     };
-  }, [open, etape, videoPret, arreterCamera]);
+  }, [open, etape, videoPret, cameraChoisie, arreterCamera]);
+
+  const changerCamera = useCallback((deviceId: string) => {
+    rememberCamera(deviceId);
+    setCameraChoisie(deviceId); // relance l'effet ci-dessus
+  }, []);
 
   useEffect(() => {
     if (!open) {
@@ -161,7 +184,7 @@ export function DocumentScanner({ open, onClose, onScanned }: DocumentScannerPro
         });
       },
       'image/jpeg',
-      0.95,
+      1.0,
     );
   }, [arreterCamera, detect]);
 
@@ -285,6 +308,27 @@ export function DocumentScanner({ open, onClose, onScanned }: DocumentScannerPro
               {etape === 'camera' ? fr.scanner.documentHelp : fr.scanner.documentAdjust}
             </p>
           </div>
+          {/* Sélecteur d'objectif : n'apparaît que s'il y a un choix à faire.
+              L'heuristique automatique écarte l'ultra grand-angle quand le
+              libellé le trahit, mais sur Android ces libellés sont souvent
+              génériques (« camera2 0, facing back ») : le dernier mot revient
+              donc au déposant, et son choix est mémorisé. */}
+          {etape === 'camera' && cameras.length > 1 && (
+            <select
+              aria-label={fr.scanner.chooseCamera}
+              value={cameraChoisie ?? ''}
+              onChange={(e) => changerCamera(e.target.value)}
+              className="max-w-[45%] rounded-md border border-input bg-background px-2 py-1 text-xs"
+            >
+              {cameras.map((c) => (
+                <option key={c.deviceId} value={c.deviceId}>
+                  {c.label}
+                  {c.ultraWide ? ' — grand-angle' : ''}
+                </option>
+              ))}
+            </select>
+          )}
+
           {etape === 'cadrage' && (
             <Button type="button" variant="ghost" size="sm" onClick={cadrerToutePhoto}>
               <Maximize className="h-4 w-4" />

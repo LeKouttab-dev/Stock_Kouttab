@@ -392,6 +392,7 @@ export const fr = {
     corner: 'Coin',
     edge: 'Côté',
     fullFrame: 'Toute la photo',
+    chooseCamera: "Choisir l'objectif",
   },
   common: {
     loading: 'Chargement…',
