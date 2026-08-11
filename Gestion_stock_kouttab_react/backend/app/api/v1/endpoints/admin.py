@@ -30,7 +30,7 @@ from app.db.models import (
     StockModification,
     SubCategory,
 )
-from app.db.session import engine, get_db
+from app.db.session import get_db
 from app.schemas.auth import MessageOut
 from app.schemas.outbox import OutboundEmailOut
 from app.services import outbox
@@ -66,7 +66,12 @@ _EXPORTABLE: list[tuple[str, type]] = [
     dependencies=[Depends(require_roles("Super Admin"))],
 )
 def database_status(db: Session = Depends(get_db)) -> Any:
-    inspector = inspect(engine)
+    # Le diagnostic porte sur la base que la session utilise reellement, pas sur
+    # le moteur global : ce sont deux choses differentes des qu'une connexion est
+    # injectee (tests, script de maintenance), et l'ecran affichait alors l'etat
+    # d'une base a laquelle l'application ne parlait pas.
+    bind = db.get_bind()
+    inspector = inspect(bind)
     tables = inspector.get_table_names()
     counts: dict[str, int] = {}
     for tname, model in [
@@ -79,7 +84,9 @@ def database_status(db: Session = Depends(get_db)) -> Any:
             counts[tname] = -1
             logger.warning("Count failed for %s: %s", tname, exc)
     return {
-        "engine": str(engine.url).split("@")[-1],
+        # `split("@")` retire les identifiants de l'URL : cette reponse part vers
+        # le navigateur d'un administrateur.
+        "engine": str(bind.url).split("@")[-1],
         "tables": tables,
         "row_counts": counts,
         "ok": True,
