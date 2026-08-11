@@ -212,12 +212,29 @@ def resend_compta_email(
 def update_invoice_status(
     invoice_id: int,
     payload: InvoiceStatusUpdate,
+    background: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: Admin = Depends(get_current_user),
 ) -> Any:
     invoice = invoice_crud.update_status(
         db, invoice_id, payload.status, validated_by=current_user.id
     )
+
+    # Le deposant est prevenu du changement de statut, comme sur les notes de
+    # frais. Sans cet envoi, il devait rouvrir l'application pour decouvrir que
+    # sa facture avait ete validee ou refusee.
+    destinataire = getattr(invoice.user, "email", None) if invoice.user else None
+    if destinataire:
+        background.add_task(
+            email_service.send_status_change,
+            recipient=destinataire,
+            subject=f"Mise a jour de votre facture #{invoice.id}",
+            body=(
+                f"Bonjour,\n\nVotre facture #{invoice.id} a ete mise a jour.\n"
+                f"Nouveau statut : {payload.status}\n\n"
+                "Cordialement,\nLe Kouttab."
+            ),
+        )
     return InvoiceOut(**_serialize_invoice(invoice))
 
 

@@ -162,9 +162,14 @@ async def test_delivery_fails_when_an_attachment_is_missing(
 
 @pytest.mark.asyncio
 async def test_delivery_without_recipient_does_not_consume_an_attempt(
-    db_session,
+    db_session, monkeypatch
 ) -> None:
-    """Sinon la ligne serait abandonnee avant meme que l'adresse soit connue."""
+    """Sinon la ligne serait abandonnee avant meme que l'adresse soit connue.
+
+    ``compta_email_raw`` est vide de force : la livraison relit desormais la
+    configuration, et l'environnement de test en porte une valeur valide.
+    """
+    monkeypatch.setattr(outbox.settings, "compta_email_raw", "")
     row = _enqueue(db_session, recipients=[])
     delivered = await outbox._deliver(db_session, row)
     assert delivered is False
@@ -190,3 +195,41 @@ def test_list_emails_filters_by_status(db_session) -> None:
     pendings = outbox.list_emails(db_session, status=outbox.STATUS_PENDING)
     assert all(r.status == outbox.STATUS_PENDING for r in pendings)
     assert sent.id not in {r.id for r in pendings}
+
+
+# ---- Reprise apres configuration de COMPTA_EMAIL -----------------------------
+
+
+@pytest.mark.asyncio
+async def test_a_queued_mail_leaves_once_the_address_is_configured(
+    db_session, monkeypatch
+) -> None:
+    """La promesse faite a la mise en file doit etre tenue.
+
+    Une ligne creee sans COMPTA_EMAIL fige `recipients` a `[]`. Sans relecture
+    de la configuration au moment de l'envoi, elle restait en attente pour
+    toujours : renseigner l'adresse ne changeait rien, et les notes de frais
+    deposees entre-temps n'atteignaient jamais le comptable.
+    """
+    row = _enqueue(db_session, recipients=[])
+    assert json.loads(row.recipients) == []
+
+    envoyes: list[tuple[str, list[str]]] = []
+
+    async def _faux_envoi(subject, body, recipients, **kwargs):
+        envoyes.append((subject, list(recipients)))
+
+    monkeypatch.setattr(outbox.email_service, "_send_raw", _faux_envoi)
+    monkeypatch.setattr(
+        outbox.settings, "compta_email_raw", "comptabilite@lekouttab.fr"
+    )
+
+    assert await outbox._deliver(db_session, row) is True
+
+    assert envoyes and envoyes[0][1] == ["comptabilite@lekouttab.fr"]
+    assert row.status == outbox.STATUS_SENT
+    # La ligne porte desormais le destinataire : la reprise est tracable.
+    assert json.loads(row.recipients) == ["comptabilite@lekouttab.fr"]
+    assert row.last_error is None
+
+

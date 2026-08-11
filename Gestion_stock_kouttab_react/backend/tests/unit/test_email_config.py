@@ -59,3 +59,47 @@ def test_compta_emails_parses_a_comma_separated_list(
 def test_compta_emails_is_empty_when_unset(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "compta_email_raw", "")
     assert settings.compta_emails == []
+
+
+@pytest.mark.asyncio
+async def test_no_mail_leaves_the_process_when_sending_is_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """EMAIL_ENABLED=false doit couper l'envoi avant toute connexion SMTP.
+
+    Le `.env` de developpement porte les identifiants de la messagerie reelle de
+    l'association : sans ce coupe-circuit, une seance de tests sur les notes de
+    frais ecrit a de vrais destinataires.
+    """
+    from app.services import email as email_service
+
+    envoyes: list[object] = []
+
+    class _MailerEspion:
+        async def send_message(self, message):  # noqa: ANN001
+            envoyes.append(message)
+
+    monkeypatch.setattr(email_service, "_mailer", _MailerEspion())
+    monkeypatch.setattr(email_service.settings, "email_enabled", False)
+
+    await email_service._send_raw("Sujet", "Corps", ["vrai.destinataire@example.com"])
+
+    assert envoyes == [], "aucun message ne doit atteindre le serveur SMTP"
+
+
+@pytest.mark.asyncio
+async def test_mail_is_sent_when_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.services import email as email_service
+
+    envoyes: list[object] = []
+
+    class _MailerEspion:
+        async def send_message(self, message):  # noqa: ANN001
+            envoyes.append(message)
+
+    monkeypatch.setattr(email_service, "_mailer", _MailerEspion())
+    monkeypatch.setattr(email_service.settings, "email_enabled", True)
+
+    await email_service._send_raw("Sujet", "Corps", ["destinataire@example.com"])
+
+    assert len(envoyes) == 1

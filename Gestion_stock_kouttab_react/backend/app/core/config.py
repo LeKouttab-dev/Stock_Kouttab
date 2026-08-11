@@ -30,6 +30,14 @@ class Settings(BaseSettings):
     db_name: str = Field(default="kouttab_stock", alias="DB_NAME")
     database_url_override: str | None = Field(default=None, alias="DATABASE_URL")
 
+    # Pool de connexions. Reglable par l'environnement depuis que la base est
+    # jointe par le reseau : un mutualise plafonne max_user_connections, et
+    # `recycle` doit rester SOUS le wait_timeout du serveur (souvent 300 s),
+    # sinon on reutilise des connexions deja fermees d'en face.
+    db_pool_size: int = Field(default=5, alias="DB_POOL_SIZE")
+    db_max_overflow: int = Field(default=0, alias="DB_MAX_OVERFLOW")
+    db_pool_recycle: int = Field(default=280, alias="DB_POOL_RECYCLE")
+
     # JWT
     jwt_secret_key: str = Field(default="change-me", alias="JWT_SECRET_KEY")
     jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
@@ -37,6 +45,12 @@ class Settings(BaseSettings):
     jwt_refresh_token_days: int = Field(default=7, alias="JWT_REFRESH_TOKEN_DAYS")
 
     # SMTP
+    # Coupe-circuit d'envoi. A `false`, tout courriel est journalise puis
+    # abandonne, sans ouvrir de connexion SMTP. Indispensable en developpement :
+    # le `.env` local porte les identifiants du serveur de messagerie reel de
+    # l'association, et une seance de tests sur les notes de frais suffit a
+    # ecrire a de vrais destinataires.
+    email_enabled: bool = Field(default=True, alias="EMAIL_ENABLED")
     smtp_host: str = Field(default="localhost", alias="SMTP_HOST")
     smtp_port: int = Field(default=465, alias="SMTP_PORT")
     smtp_user: str = Field(default="", alias="SMTP_USER")

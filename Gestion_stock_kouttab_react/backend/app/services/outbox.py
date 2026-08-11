@@ -22,6 +22,7 @@ from pathlib import Path
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.logger import get_logger
 from app.db.models import OutboundEmail
 from app.db.session import SessionLocal
@@ -182,10 +183,27 @@ def reset_stale_locks(db: Session) -> int:
 
 async def _deliver(db: Session, row: OutboundEmail) -> bool:
     recipients = json.loads(row.recipients or "[]")
+
     if not recipients:
-        # Pas un echec : l'adresse n'est simplement pas encore configuree. On ne
-        # consomme pas de tentative, sinon la ligne serait abandonnee avant meme
-        # que le client ait renseigne COMPTA_EMAIL.
+        # La liste a ete figee a la mise en file, alors que COMPTA_EMAIL n'etait
+        # pas encore renseigne. On la recalcule ici, sinon la ligne resterait en
+        # attente pour toujours — la promesse faite au moment de la mise en file
+        # (« il partira des que l'adresse sera renseignee ») ne serait jamais
+        # tenue, meme apres correction de la configuration.
+        recipients = list(settings.compta_emails)
+        if recipients:
+            row.recipients = json.dumps(recipients, ensure_ascii=False)
+            row.last_error = None
+            logger.info(
+                "Envoi #%s : destinataires recharges depuis COMPTA_EMAIL (%s).",
+                row.id,
+                ", ".join(recipients),
+            )
+
+    if not recipients:
+        # Toujours rien : l'adresse n'est pas configuree. Ce n'est pas un echec,
+        # et on ne consomme pas de tentative — sinon la ligne serait abandonnee
+        # avant meme que le client ait renseigne COMPTA_EMAIL.
         row.status = STATUS_PENDING
         row.locked_at = None
         db.commit()

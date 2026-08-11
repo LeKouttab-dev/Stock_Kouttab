@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
@@ -28,7 +28,7 @@ from app.crud import auth_security
 from app.crud import invitation as invitation_crud
 from app.crud import user as user_crud
 from app.db.models import Admin
-from app.db.session import get_db
+from app.db.session import SessionLocal, get_db
 from app.schemas.auth import (
     AdminSetupIn,
     InvitationValidateOut,
@@ -40,6 +40,7 @@ from app.schemas.auth import (
     TokenOut,
 )
 from app.schemas.user import UserOut
+from app.services import email as email_service
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -76,7 +77,12 @@ def _build_token_payload(
 
 @router.post("/signup", response_model=UserOut, status_code=201)
 @limiter.limit("3/hour")
-def signup(request: Request, payload: SignupIn, db: Session = Depends(get_db)) -> Any:
+def signup(
+    request: Request,
+    payload: SignupIn,
+    background: BackgroundTasks,
+    db: Session = Depends(get_db),
+) -> Any:
     if not validate_username(payload.username):
         raise AppException(ErrorCode.USERNAME_INVALID)
     ok, msg = validate_password_strength(payload.password)
@@ -97,7 +103,32 @@ def signup(request: Request, payload: SignupIn, db: Session = Depends(get_db)) -
         email=str(payload.email) if payload.email else None,
         telephone=payload.telephone,
     )
+    # Les Super Admins sont prevenus : une demande d'inscription restait sinon
+    # invisible jusqu'a ce que l'un d'eux ouvre l'ecran d'administration.
+    background.add_task(
+        _notify_account_request_safe,
+        username=user.username,
+        full_name=user.full_name,
+        email=user.email,
+    )
     return _to_user_out(user)
+
+
+async def _notify_account_request_safe(
+    *, username: str, full_name: str | None, email: str | None
+) -> None:
+    """Envoi de confiance : une notification ratee ne doit pas perdre la demande.
+
+    La tache de fond ouvre sa propre session : celle de la requete est refermee
+    des la reponse envoyee.
+    """
+    try:
+        with SessionLocal() as db:
+            await email_service.send_new_account_request(
+                db, username=username, full_name=full_name or username, email=email
+            )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Notification de demande de compte non envoyee : %s", exc)
 
 
 # ---- Login -----------------------------------------------------------------

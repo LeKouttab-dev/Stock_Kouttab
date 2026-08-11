@@ -99,6 +99,19 @@ async def _send_raw(
         raise AppException(
             ErrorCode.EMAIL_SEND_FAILED, detail="Aucun destinataire pour cet envoi."
         )
+    # Coupe-circuit unique, place avant tout acces au SMTP : le `.env` de
+    # developpement pointe sur le serveur de messagerie reel de l'association,
+    # et une seance de tests suffit a arroser des destinataires veritables.
+    # L'envoi est considere comme reussi, pour que le circuit comptable se
+    # deroule jusqu'au bout et reste observable sans quitter le poste.
+    if not settings.email_enabled:
+        logger.warning(
+            "EMAIL_ENABLED=false — envoi supprime (sujet=%r, %d destinataire(s) : %s)",
+            subject,
+            len(rec_list),
+            ", ".join(rec_list),
+        )
+        return
     if _mailer is None:
         raise AppException(
             ErrorCode.EMAIL_SEND_FAILED,
@@ -260,3 +273,37 @@ async def send_status_change(
 ) -> None:
     """Generic notification used to inform users of status changes."""
     await _send(subject, body, [recipient])
+
+
+async def send_new_account_request(
+    db: Session,
+    *,
+    username: str,
+    full_name: str,
+    email: str | None,
+) -> None:
+    """Previent les Super Admins qu'un compte attend une validation.
+
+    Sans cet envoi, une demande d'inscription restait invisible jusqu'a ce qu'un
+    Super Admin pense a ouvrir l'ecran d'administration : le demandeur pouvait
+    attendre plusieurs jours sans que personne ne le sache.
+    """
+    destinataires = get_emails_by_roles(db, ["Super Admin"])
+    if not destinataires:
+        logger.warning(
+            "Demande de compte %r : aucun Super Admin avec une adresse e-mail.", username
+        )
+        return
+
+    await _send(
+        "Nouvelle demande de creation de compte",
+        (
+            "Bonjour,\n\n"
+            f"{full_name or username} demande la creation d'un compte.\n"
+            f"Identifiant : {username}\n"
+            f"Adresse e-mail : {email or 'non renseignee'}\n\n"
+            "La demande est en attente dans Administration > Comptes a valider.\n\n"
+            "Cordialement,\nLe Kouttab."
+        ),
+        destinataires,
+    )
