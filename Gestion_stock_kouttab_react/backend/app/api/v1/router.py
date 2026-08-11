@@ -13,6 +13,7 @@ from app.api.v1.endpoints import (
     invitations,
     invoices,
     poles,
+    scan,
     stock,
     users,
 )
@@ -29,3 +30,4 @@ api_router.include_router(poles.router)
 api_router.include_router(events.router)
 api_router.include_router(admin.router)
 api_router.include_router(buvette.router)
+api_router.include_router(scan.router)
