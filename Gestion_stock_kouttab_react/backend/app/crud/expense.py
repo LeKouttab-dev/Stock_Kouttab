@@ -42,6 +42,9 @@ def _serialize(expense: Expense) -> dict[str, Any]:
         "date_soumission": expense.date_soumission,
         "user_full_name": user.full_name if user else None,
         "user_email": user.email if user else None,
+        # Sert la salutation des courriels : « Assalamu alaykum Omar » plutot
+        # qu'une formule anonyme.
+        "user_prenom": user.prenom if user else None,
         "user_rib": user.rib if user else None,
         "files": [
             {

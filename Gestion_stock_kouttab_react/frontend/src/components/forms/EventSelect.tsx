@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Select,
   SelectContent,
@@ -51,7 +51,27 @@ export function EventSelect({
 }: EventSelectProps) {
   const { data: events, isLoading, isError } = useEvents();
 
-  const value = eventId !== null ? String(eventId) : freeText ? FREE_EVENT : '';
+  /**
+   * Mode « saisie libre », mémorisé à part.
+   *
+   * Il ne peut PAS se déduire du texte saisi. C'était pourtant le cas :
+   * `freeText ? FREE_EVENT : ''`. Choisir « Mon événement n'est pas dans la
+   * liste » laissait le texte vide, la valeur retombait donc à `''`, et le
+   * champ de saisie n'apparaissait jamais — impossible d'entrer le nom d'un
+   * événement absent du référentiel, alors que le formulaire l'exigeait. Le
+   * dépôt était bloqué net.
+   */
+  const [modeLibre, setModeLibre] = useState(Boolean(freeText));
+
+  // Le formulaire peut décider seul (réinitialisation après envoi, changement
+  // de pôle) : on suit ce qu'il impose plutôt que de garder un état obsolète.
+  useEffect(() => {
+    if (eventId !== null) setModeLibre(false);
+    else if (freeText) setModeLibre(true);
+  }, [eventId, freeText]);
+
+  const enSaisieLibre = modeLibre || isError;
+  const value = eventId !== null ? String(eventId) : enSaisieLibre ? FREE_EVENT : '';
 
   /**
    * Événements proposés : ceux de la famille demandée, **et ceux qui n'en ont
@@ -78,10 +98,12 @@ export function EventSelect({
 
   const handleChange = (next: string) => {
     if (next === FREE_EVENT) {
+      setModeLibre(true);
       onEventIdChange(null);
       onFreeTextChange(freeText || '');
       return;
     }
+    setModeLibre(false);
     onEventIdChange(Number(next));
     onFreeTextChange('');
   };
@@ -111,7 +133,7 @@ export function EventSelect({
           plutôt que de bloquer le dépôt. */}
       {isError && <p className="text-xs text-muted-foreground">{fr.events.unavailable}</p>}
 
-      {(value === FREE_EVENT || isError) && (
+      {enSaisieLibre && (
         <Input
           value={freeText}
           onChange={(e) => onFreeTextChange(e.target.value)}

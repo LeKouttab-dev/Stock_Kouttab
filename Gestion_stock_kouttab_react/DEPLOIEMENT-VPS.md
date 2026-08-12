@@ -62,7 +62,7 @@ a été retiré du `compose.yml` : il répondait à un besoin qui n'existe pas i
 | Cron comptable | cron cPanel | service `outbox-worker` |
 | Base MySQL | locale au serveur | **distante, accès direct autorisé par IP** |
 | Sauvegarde base | O2Switch | **O2Switch (inchangé)** |
-| Sauvegarde `uploads/` | O2Switch | **service `backup`, vers O2Switch — §11** |
+| Justificatifs | fichiers sur le serveur | **stockés en base**, donc sauvegardés par O2Switch — §11 |
 
 ---
 
@@ -458,133 +458,31 @@ frais avec justificatif (vérifie tunnel + upload + PDF + file d'envoi), et
 
 ## 11. Sauvegardes des fichiers
 
-La base reste sauvegardée par O2Switch. **Les fichiers, non** : la table ne
-stocke qu'un chemin (`FichiersNotesDeFrais.chemin_fichier`), et les volumes
-`uploads` (justificatifs) et `outbox` vivent sur le VPS. Perdre la machine,
-c'était perdre toutes les pièces comptables.
+**Il n'y a plus rien à sauvegarder séparément.** Les justificatifs sont stockés
+**en base** depuis la migration `f6b3d1e8a295` (colonnes `contenu` sur
+`FichiersNotesDeFrais` et `FichiersFactures`), et la base est sauvegardée par
+O2Switch. Le disque du VPS ne porte plus qu'un cache.
 
-Le service `backup` du `compose.yml` s'en charge désormais : une archive par
-jour à 3 h, déposée chez **O2Switch en SFTP**, avec rotation des deux côtés.
-Une copie restée sur le VPS ne protège que des suppressions accidentelles,
-jamais de la perte du serveur — d'où la destination distante.
+Ce choix tient à la mesure : 11 Mo pour l'ensemble des pièces, 4,5 Mo pour la
+plus grosse. Il serait à revoir au-delà de quelques centaines de mégaoctets — la
+base est distante, et chaque téléchargement la traverse.
 
-### 11.1 Installation (une seule fois)
+> Le service `backup` a donc été retiré du `compose.yml`. **Sur un VPS où il
+> tourne encore**, le retirer une fois le nouveau fichier copié :
+>
+> ```bash
+> cd /opt/projets/kouttab-stock
+> sudo docker compose up -d --remove-orphans
+> sudo docker ps -a | grep backup   # ne doit plus rien renvoyer
+> ```
 
-**0. Mettre à jour `compose.yml` sur le VPS.** Le workflow ne déploie que les
-images : `compose.yml` a été copié à la main (§3), et un service ajouté au dépôt
-n'arrive donc pas tout seul. Sans cette étape, les sauvegardes ne démarrent
-jamais et rien ne le signale.
-
-Depuis le poste de développement — sous un nom temporaire, pour comparer avant
-de remplacer un fichier qui fait tourner la production :
-
-```bash
-cd <racine_du_depot>/Gestion_stock_kouttab_react
-scp compose.yml <compte>@85.215.168.239:/opt/projets/kouttab-stock/compose.yml.nouveau
-```
-
-Puis sur le VPS :
+Vérifier que les pièces sont bien en base :
 
 ```bash
-cd /opt/projets/kouttab-stock
-diff compose.yml compose.yml.nouveau     # lire ce qui change
-cp compose.yml compose.yml.avant         # filet de retour arrière
-mv compose.yml.nouveau compose.yml
-docker compose config --quiet            # muet = syntaxe valide
+sudo docker compose exec -T api python -c 'from sqlalchemy import text; from app.db.session import SessionLocal; s=SessionLocal(); print(s.execute(text("SELECT COUNT(*), SUM(contenu IS NULL) FROM FichiersFactures")).all())'
 ```
 
-> ⚠️ **L'image de sauvegarde doit exister avant `docker compose up -d`.** Elle
-> est construite par le workflow : recopier le `compose.yml` avant le premier
-> déploiement qui la publie ferait échouer le `pull` du service `backup`.
-> Dans le doute, déployer d'abord, copier ensuite.
-
-**1. Une clé dédiée, sur le VPS.** Pas la clé de déploiement : celle-ci ne doit
-ouvrir que le compte O2Switch, et rien d'autre.
-
-```bash
-cd /opt/projets/kouttab-stock
-mkdir -p secrets backups && chmod 700 secrets
-ssh-keygen -t ed25519 -N '' -C 'sauvegarde kouttab-stock' -f secrets/backup_ssh_key
-chmod 600 secrets/backup_ssh_key
-```
-
-**2. Autoriser cette clé chez O2Switch.** Dans cPanel → « Accès SSH » →
-« Gérer les clés SSH » → importer le contenu de `secrets/backup_ssh_key.pub`,
-puis **autoriser** la clé. (En ligne de commande depuis le VPS, si SSH par mot
-de passe est ouvert : `ssh-copy-id -i secrets/backup_ssh_key.pub UTILISATEUR@sauterelle.o2switch.net`.)
-
-**3. Enregistrer l'empreinte du serveur.** Sans elle, le conteneur refuse de se
-connecter — c'est voulu : livrer les justificatifs de l'association à qui
-répond à cette adresse n'est pas une option.
-
-```bash
-ssh-keyscan -p 22 sauterelle.o2switch.net > secrets/backup_known_hosts
-```
-
-**4. Renseigner le `.env`** (cf. `backend/.env.example`, section Sauvegarde) :
-`BACKUP_SFTP_HOST`, `BACKUP_SFTP_USER`, `BACKUP_SFTP_DIR`.
-
-**5. Vérifier immédiatement, sans attendre 3 h du matin :**
-
-```bash
-docker compose up -d backup
-docker compose run --rm -T backup maintenant </dev/null
-```
-
-La sortie doit se terminer par `vérifié chez O2Switch : …` puis
-`sauvegarde du … terminée`. Ce message n'est émis qu'après relecture de la
-taille du fichier déposé : un `put` qui rend la main sur un disque distant
-plein ne suffit pas à déclarer la sauvegarde réussie.
-
-> `-T` et `</dev/null` : même raison qu'au déploiement (§ workflow) — sans eux,
-> `docker compose run` s'approprie le terminal.
-
-### 11.2 Ce que fait le service
-
-| | |
-|---|---|
-| Contenu | `uploads/` (justificatifs) et `outbox/` (PDF en attente d'envoi) |
-| Nom | `kouttab-fichiers-AAAA-MM-JJ.tar.gz` |
-| Local | `/opt/projets/kouttab-stock/backups`, purgé au-delà de `BACKUP_KEEP_LOCAL_DAYS` (7 j) |
-| Distant | `~/sauvegardes/kouttab-stock` chez O2Switch, purgé au-delà de `BACKUP_KEEP_REMOTE_DAYS` (30 j) |
-| Échec | journalisé, sans arrêter le service : la tentative du lendemain a toutes ses chances |
-
-L'archive est écrite puis déposée sous un nom temporaire, renommée seulement
-une fois complète. Une coupure en cours de transfert laisserait sinon une
-archive tronquée sous un nom parfaitement normal — qu'on croirait valide le
-jour où l'on en a besoin.
-
-La rotation distante ne consulte aucun listing : les noms portent leur date, le
-service calcule ceux à effacer. La clé peut donc être restreinte au seul SFTP.
-
-### 11.3 Restaurer
-
-```bash
-# Sur le VPS, récupérer l'archive voulue depuis O2Switch.
-sftp -i secrets/backup_ssh_key UTILISATEUR@sauterelle.o2switch.net
-> get sauvegardes/kouttab-stock/kouttab-fichiers-2026-08-12.tar.gz
-> bye
-
-# Remettre les fichiers en place, API arrêtée le temps de l'opération.
-docker compose stop api outbox-worker
-docker run --rm -v kouttab-stock_uploads:/data \
-  -v "$PWD:/src:ro" alpine \
-  sh -c 'tar xzf /src/kouttab-fichiers-2026-08-12.tar.gz -C /tmp && cp -a /tmp/uploads/. /data/'
-docker compose start api outbox-worker
-```
-
-`cp -a` plutôt qu'un `tar` qui écrase : la restauration complète les fichiers
-manquants sans supprimer ceux déposés depuis la sauvegarde.
-
-### 11.4 Surveillance
-
-```bash
-docker compose logs --tail=30 backup
-```
-
-Le service annonce à chaque tour l'heure de la prochaine sauvegarde. Un journal
-qui ne montre que « prochaine sauvegarde dans … » depuis plusieurs jours, sans
-« sauvegarde du … terminée », signale un envoi qui échoue en silence.
+Le second nombre doit valoir 0 : aucune pièce sans contenu.
 
 ## 12. Retour arrière
 

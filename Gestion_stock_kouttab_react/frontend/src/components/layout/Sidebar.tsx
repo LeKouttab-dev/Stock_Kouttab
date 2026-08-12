@@ -6,7 +6,6 @@ import {
   FileText,
   Shield,
   Database,
-  CheckSquare,
   User,
   Beer,
   X,
@@ -53,12 +52,8 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       label: fr.nav.expenses,
       icon: ReceiptText,
       visible: can(ACTIONS.EXPENSES_SUBMIT),
-    },
-    {
-      to: '/expenses/validate',
-      label: 'Valider notes de frais',
-      icon: CheckSquare,
-      visible: can(ACTIONS.EXPENSES_VALIDATE),
+      // Déposer et valider vivent désormais sous la même entrée : la pastille
+      // compte ce que la comptabilité a à traiter.
       badge: aTraiter?.notes_a_valider,
     },
     {
@@ -117,7 +112,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               <p className="font-serif text-base font-bold leading-tight text-cream-50">
                 Le Kouttâb
               </p>
-              <p className="text-xs text-cream-200/80">Gestion de stock</p>
+              <p className="text-xs text-cream-200/80">Gestion</p>
             </div>
           </div>
           <Button

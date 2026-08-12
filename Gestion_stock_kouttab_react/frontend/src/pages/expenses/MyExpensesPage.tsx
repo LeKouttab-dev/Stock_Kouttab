@@ -34,13 +34,35 @@ import {
   type ExpenseEditFormValues,
   type ExpenseFormValues,
 } from '@/lib/schemas/expense';
+import { useAuth } from '@/hooks/useAuth';
+import { usePendingSummary } from '@/api/endpoints/notifications';
+import { ACTIONS } from '@/lib/auth';
+import { cn } from '@/lib/utils';
+import { ValidateExpensesPage } from './ValidateExpensesPage';
 import { useToast } from '@/hooks/useToast';
 import { fr } from '@/lib/i18n/fr';
 import { expenseTotal } from '@/lib/money';
 import { formatCurrency, formatDate } from '@/lib/format';
 import type { Expense } from '@/types/api';
 
+/**
+ * Notes de frais : **une seule entrée**, déposer et valider.
+ *
+ * L'application en proposait deux dans le menu, pour un même sujet. Or la
+ * comptabilité fait les deux : elle dépose ses propres notes et valide celles
+ * des autres. Naviguer entre deux pages pour cela n'avait pas de sens.
+ *
+ * L'onglet « Valider » n'apparaît qu'à qui en a le droit ; les autres voient
+ * exactement ce qu'ils voyaient avant.
+ */
 export function MyExpensesPage() {
+  const { can } = useAuth();
+  const peutValider = can(ACTIONS.EXPENSES_VALIDATE);
+  const { data: aTraiter } = usePendingSummary();
+  const [onglet, setOnglet] = useState(() =>
+    window.location.hash === '#valider' ? 'valider' : 'submit',
+  );
+
   return (
     <div className="space-y-4">
       <div>
@@ -53,10 +75,27 @@ export function MyExpensesPage() {
         </p>
       </div>
 
-      <Tabs defaultValue="submit">
-        <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3">
+      <Tabs value={onglet} onValueChange={setOnglet}>
+        <TabsList
+          className={cn(
+            'grid w-full grid-cols-1',
+            peutValider ? 'sm:grid-cols-4' : 'sm:grid-cols-3',
+          )}
+        >
           <TabsTrigger value="submit">{fr.expenses.submitTab}</TabsTrigger>
           <TabsTrigger value="mine">{fr.expenses.myDemandsTab}</TabsTrigger>
+          {peutValider && (
+            <TabsTrigger value="valider" className="gap-1.5">
+              {fr.expenses.validateTab}
+              {/* Le nombre à traiter suit l'onglet : la pastille du menu portait
+                  cette information, et l'entrée correspondante a disparu. */}
+              {Boolean(aTraiter?.notes_a_valider) && (
+                <span className="rounded-full bg-terracotta px-1.5 py-0.5 text-[11px] font-semibold leading-none text-cream-50">
+                  {aTraiter?.notes_a_valider}
+                </span>
+              )}
+            </TabsTrigger>
+          )}
           <TabsTrigger value="profile">{fr.expenses.profileTab}</TabsTrigger>
         </TabsList>
 
@@ -66,6 +105,11 @@ export function MyExpensesPage() {
         <TabsContent value="mine">
           <MyExpensesList />
         </TabsContent>
+        {peutValider && (
+          <TabsContent value="valider">
+            <ValidateExpensesPage embarquee />
+          </TabsContent>
+        )}
         <TabsContent value="profile">
           <ProfileTab />
         </TabsContent>

@@ -14,6 +14,7 @@ from app.core.errors import ErrorCode
 from app.core.exceptions import AppException
 from app.core.logger import get_logger
 from app.crud.user import get_emails_by_roles
+from app.services import email_layout
 
 
 logger = get_logger("email")
@@ -193,13 +194,13 @@ async def send_stock_alert(
     recipients = get_emails_by_roles(db, ["AdminBenevoles", "Super Admin"])
     subject = f"Alerte stock bas : {item_name}"
     body = (
-        "Bonjour,\n\n"
+        f"{email_layout.entete()}\n\n"
         "Ceci est une alerte automatique de l'application de gestion de stock.\n\n"
         f"Article : {item_name}\n"
         f"Quantite restante : {quantity}\n"
         f"Seuil d'alerte : {threshold}\n\n"
         "Merci de prevoir un reapprovisionnement.\n\n"
-        "Cordialement,\nVotre systeme de gestion de stock."
+        f"{email_layout.SIGNATURE}"
     )
     await _send(subject, body, recipients)
 
@@ -214,13 +215,13 @@ async def send_buvette_low_stock_alert(
     recipients = get_emails_by_roles(db, ["AdminBenevoles", "Super Admin"])
     subject = f"Alerte stock buvette : {product_name}"
     body = (
-        "Bonjour,\n\n"
+        f"{email_layout.entete()}\n\n"
         "Ceci est une alerte automatique de la buvette.\n\n"
         f"Produit : {product_name}\n"
         f"Quantite restante : {quantity}\n"
         f"Seuil d'alerte : {threshold}\n\n"
         "Merci de prevoir un reapprovisionnement avant la prochaine vente HelloAsso.\n\n"
-        "Cordialement,\nVotre systeme de gestion de stock."
+        f"{email_layout.SIGNATURE}"
     )
     await _send(subject, body, recipients)
 
@@ -232,19 +233,28 @@ async def send_new_expense_notification(
     amount: float,
     rattachement: str | None,
     auteur_email: str | None = None,
+    fournisseur: str | None = None,
+    date_depense: object = None,
+    nature_charge: str | None = None,
 ) -> None:
+    """Previent la comptabilite d'un depot.
+
+    Le courriel porte de quoi juger sans ouvrir l'application : qui, combien,
+    chez qui, quand, a quel titre. Les champs non renseignes disparaissent
+    plutot que d'afficher un tiret.
+    """
     recipients = _destinataires_sauf_auteur(db, ["Compta", "Super Admin"], auteur_email)
     if not recipients:
         return
     subject = f"Nouvelle note de frais soumise par {user_full_name}"
     body = (
-        "Bonjour,\n\n"
+        f"{email_layout.entete()}\n\n"
         "Une nouvelle note de frais a ete soumise et est en attente de validation.\n\n"
         f"Soumis par : {user_full_name}\n"
         f"Montant : {amount:.2f} EUR\n"
         f"Rattachement : {rattachement or '-'}\n\n"
         "Vous pouvez la consulter et la valider dans l'application.\n\n"
-        "Cordialement,\nVotre systeme de gestion."
+        f"{email_layout.SIGNATURE}"
     )
     await _send(subject, body, recipients)
 
@@ -255,18 +265,22 @@ async def send_invoice_notification(
     user_full_name: str,
     comment: str | None,
     auteur_email: str | None = None,
+    fournisseur: str | None = None,
+    montant: object = None,
+    rattachement: str | None = None,
 ) -> None:
+    """Previent la comptabilite d'un depot de facture."""
     recipients = _destinataires_sauf_auteur(db, ["Compta", "Super Admin"], auteur_email)
     if not recipients:
         return
     subject = f"Nouveau depot de facture par {user_full_name}"
     body = (
-        "Bonjour,\n\n"
+        f"{email_layout.entete()}\n\n"
         "Un nouveau depot de facture a ete effectue.\n\n"
         f"Depose par : {user_full_name}\n"
         f"Commentaire : {comment or 'Aucun'}\n\n"
         "Connectez-vous a l'application pour la consulter.\n\n"
-        "Cordialement,\nVotre systeme de gestion."
+        f"{email_layout.SIGNATURE}"
     )
     await _send(subject, body, recipients)
 
@@ -279,13 +293,13 @@ async def send_admin_invitation(
 ) -> None:
     subject = "Invitation administrateur — Le Kouttab"
     body = (
-        "Bonjour,\n\n"
+        f"{email_layout.entete()}\n\n"
         "Vous avez ete invite(e) a creer un compte administrateur sur l'application "
         "de gestion de stock du Kouttab.\n\n"
         f"Cliquez sur ce lien pour finaliser votre inscription : {invitation_url}\n\n"
         f"Le lien est valide jusqu'au {expires_at}.\n\n"
         "Si vous n'etes pas a l'origine de cette demande, ignorez ce message.\n\n"
-        "Cordialement,\nLe Kouttab."
+        f"{email_layout.SIGNATURE}"
     )
     await _send(subject, body, [email])
 
@@ -304,14 +318,14 @@ async def send_password_reset(
     """
     subject = "Reinitialisation de votre mot de passe — Le Kouttab"
     body = (
-        "Bonjour,\n\n"
+        f"{email_layout.entete()}\n\n"
         "Une reinitialisation de mot de passe a ete demandee pour votre compte "
         "sur l'application de gestion de stock du Kouttab.\n\n"
         f"Cliquez sur ce lien pour choisir un nouveau mot de passe : {reset_url}\n\n"
         f"Ce lien est valable jusqu'au {expires_at} et ne fonctionne qu'une fois.\n\n"
         "Si vous n'etes pas a l'origine de cette demande, ignorez ce message : "
         "votre mot de passe actuel reste valable et rien n'a ete modifie.\n\n"
-        "Cordialement,\nLe Kouttab."
+        f"{email_layout.SIGNATURE}"
     )
     await _send(subject, body, [email])
 
@@ -362,7 +376,7 @@ async def send_justificatif_reminder(
     Passe par :func:`_send` (best-effort) et non `_send_raw` : un rappel perdu
     se rattrape au tour suivant, il n'a pas la criticite d'une piece comptable.
     """
-    salutation = f"Bonjour {prenom}," if prenom else "Bonjour,"
+    salutation = email_layout.entete(prenom)
     details = [f"Objet         : {libelle}"]
     if montant:
         details.append(f"Montant       : {montant}")
@@ -389,7 +403,7 @@ async def send_justificatif_reminder(
         + "\n\nMerci de le deposer dans l'application, rubrique « Depot de "
         "factures ». Si vous l'avez deja transmis, ignorez ce message."
         + cloture
-        + "\n\nCordialement,\nLe Kouttab — gestion des stocks."
+        + f"\n\n{email_layout.SIGNATURE}"
     )
     await _send(f"[Justificatif attendu] {libelle}", body, [recipient])
 
@@ -417,12 +431,12 @@ async def send_new_account_request(
     await _send(
         "Nouvelle demande de creation de compte",
         (
-            "Bonjour,\n\n"
+            f"{email_layout.entete()}\n\n"
             f"{full_name or username} demande la creation d'un compte.\n"
             f"Identifiant : {username}\n"
             f"Adresse e-mail : {email or 'non renseignee'}\n\n"
             "La demande est en attente dans Administration > Comptes a valider.\n\n"
-            "Cordialement,\nLe Kouttab."
+            f"{email_layout.SIGNATURE}"
         ),
         destinataires,
     )

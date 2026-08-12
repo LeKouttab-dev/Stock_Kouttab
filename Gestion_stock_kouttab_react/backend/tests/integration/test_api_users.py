@@ -75,3 +75,43 @@ def test_delete_user_self_is_filtered_or_forbidden(
     # excludes the current user. We verify deletion just succeeds (200).
     # (No explicit SELF_ACTION_FORBIDDEN guard in this endpoint — the API
     # relies on UI-level confirmation.)
+
+
+# ---- Annuaire (lecture seule, ouvert a la comptabilite) ---------------------
+
+
+def test_la_comptabilite_consulte_l_annuaire(
+    client: TestClient, compta_user, benevole_user, auth_headers
+):
+    """Elle rembourse ces personnes et leur reclame des pieces : savoir qui est
+    inscrit fait partie de son travail."""
+    reponse = client.get("/api/v1/users/annuaire", headers=auth_headers(compta_user))
+
+    assert reponse.status_code == 200, reponse.text
+    assert benevole_user.id in [u["id"] for u in reponse.json()]
+
+
+def test_l_annuaire_ne_livre_aucun_rib(
+    client: TestClient, compta_user, benevole_user, auth_headers
+):
+    """Un annuaire n'est pas un fichier de coordonnees bancaires. Le RIB reste
+    sur la fiche de la note de frais, la ou il sert."""
+    premier = client.get(
+        "/api/v1/users/annuaire", headers=auth_headers(compta_user)
+    ).json()[0]
+    assert "rib" not in premier
+
+
+def test_l_annuaire_reste_ferme_aux_benevoles(
+    client: TestClient, benevole_user, auth_headers
+):
+    reponse = client.get("/api/v1/users/annuaire", headers=auth_headers(benevole_user))
+    assert reponse.status_code == 403, reponse.text
+
+
+def test_la_gestion_des_comptes_reste_au_super_admin(
+    client: TestClient, compta_user, auth_headers
+):
+    """Ouvrir la consultation n'ouvre pas la gestion : `GET /users` porte les
+    actions (roles, suppression) et demeure ferme."""
+    assert client.get("/api/v1/users", headers=auth_headers(compta_user)).status_code == 403

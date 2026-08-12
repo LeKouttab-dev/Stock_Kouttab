@@ -26,6 +26,7 @@ import { AddItemSection } from './AddItemSection';
 import { ImportCsvSection } from './ImportCsvSection';
 import { CategoriesManagementSection } from './CategoriesManagementSection';
 import { SubCategoriesManagementSection } from './SubCategoriesManagementSection';
+import { AnnuaireSection } from './AnnuaireSection';
 import { ExpenseCategoriesManagementSection } from './ExpenseCategoriesManagementSection';
 import { PolesManagementSection } from './PolesManagementSection';
 import { EventsManagementSection } from './EventsManagementSection';
@@ -107,6 +108,9 @@ export function AdminPage() {
           {canManageEvents && <EventsManagementSection />}
         </div>
       )}
+
+      {/* Annuaire : la comptabilité y a accès, la gestion des comptes non. */}
+      {canSuperviseOutbox && <AnnuaireSection />}
 
       {canSuperviseOutbox && <OutboundEmailsSection />}
 

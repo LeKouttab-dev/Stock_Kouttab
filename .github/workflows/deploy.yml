@@ -60,19 +60,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Image de sauvegarde : quelques mégaoctets, mais construite ici comme
-      # les autres pour que le VPS n'ait jamais à compiler quoi que ce soit.
-      - name: Image Sauvegarde
-        uses: docker/build-push-action@v6
-        with:
-          context: Gestion_stock_kouttab_react/deploy/backup
-          push: true
-          tags: |
-            ghcr.io/${{ steps.owner.outputs.value }}/kouttab-backup:${{ github.sha }}
-            ghcr.io/${{ steps.owner.outputs.value }}/kouttab-backup:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
       # VITE_API_URL est figé DANS le bundle à la construction : le front et
       # l'API partagent l'origine, d'où le chemin relatif.
       - name: Image Web
@@ -86,6 +73,28 @@ jobs:
             ghcr.io/${{ steps.owner.outputs.value }}/kouttab-web:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # Le registre conserve une version par déploiement, et rien ne les
+      # supprime : plusieurs dizaines s'y accumulaient, jusqu'au refus de
+      # publication rencontré le 2026-08-12 (« denied: permission_denied »).
+      # Les dix dernières suffisent largement pour un retour arrière.
+      - name: Purger les anciennes images
+        continue-on-error: true # un ménage raté ne doit pas bloquer un déploiement
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: kouttab-api
+          package-type: container
+          min-versions-to-keep: 10
+          delete-only-untagged-versions: false
+
+      - name: Purger les anciennes images du front
+        continue-on-error: true
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: kouttab-web
+          package-type: container
+          min-versions-to-keep: 10
+          delete-only-untagged-versions: false
 
   deploy:
     name: Déployer sur le VPS

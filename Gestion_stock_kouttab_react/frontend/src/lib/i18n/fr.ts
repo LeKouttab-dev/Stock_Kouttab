@@ -6,15 +6,17 @@ import type { SyncResult } from '@/types/api';
  */
 export const fr = {
   app: {
-    title: 'Gestion Le Kouttâb',
-    subtitle: "Application de gestion de stocks de l'association",
+    title: 'Le Kouttâb — Gestion',
+    // Mention transitoire : l'application s'appelait « Kouttâb Stock », et
+    // les bénévoles la cherchent encore sous ce nom.
+    subtitle: "Gestion de l'association (anciennement Kouttâb Stock)",
   },
   nav: {
     dashboard: 'Tableau de bord',
-    stock: 'Gestion du stock',
+    stock: 'Stock local',
     expenses: 'Notes de frais',
     invoices: 'Dépôt de factures',
-    buvette: 'Buvette',
+    buvette: 'Stock buvette',
     admin: 'Administration',
     database: 'Export / Import BDD',
     profile: 'Mon profil',
@@ -124,6 +126,7 @@ export const fr = {
     title: 'Notes de frais',
     submitTab: 'Soumettre une note de frais',
     myDemandsTab: 'Mes demandes',
+    validateTab: 'Valider',
     profileTab: 'Mon Profil (RIB)',
     nouvelleNote: 'Nouvelle note de frais',
     date: 'Date',
@@ -259,6 +262,17 @@ export const fr = {
     famille: "Famille de l'événement",
     familleAucune: 'Toutes familles',
     aucun: 'Aucun événement enregistré.',
+  },
+
+  annuaire: {
+    titre: 'Bénévoles inscrits',
+    sousTitre: "Consultation seule. La gestion des comptes et des rôles reste à l'administration.",
+    nom: 'Nom',
+    role: 'Rôle',
+    contact: 'Contact',
+    enAttente: 'En attente',
+    refuse: 'Refusé',
+    aucun: 'Aucun compte enregistré.',
   },
 
   tickets: {

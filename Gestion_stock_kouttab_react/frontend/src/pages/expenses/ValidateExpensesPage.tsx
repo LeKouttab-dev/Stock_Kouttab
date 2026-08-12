@@ -49,7 +49,7 @@ import { expenseTotal } from '@/lib/money';
  * Le troisième niveau est l'ancienne vue, reprise telle quelle : elle porte la
  * validation, le RIB et les justificatifs, et n'avait aucune raison de changer.
  */
-export function ValidateExpensesPage() {
+export function ValidateExpensesPage({ embarquee = false }: { embarquee?: boolean } = {}) {
   const { data: expenses = [], isLoading } = useAllExpenses();
   const [benevoleOuvert, setBenevoleOuvert] = useState<number | null>(null);
 
@@ -62,13 +62,18 @@ export function ValidateExpensesPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="flex items-center gap-2 text-2xl font-bold">
-          <ClipboardCheck className="h-6 w-6" aria-hidden />
-          {fr.expenses.dashboardCompta}
-        </h1>
-        <p className="text-sm text-muted-foreground">Validation et remboursement des notes.</p>
-      </div>
+      {/* Titre masqué quand la page est rendue dans un onglet : la page hôte
+          en porte déjà un, et deux titres l'un sous l'autre brouillent la
+          lecture. */}
+      {!embarquee && (
+        <div>
+          <h1 className="flex items-center gap-2 text-2xl font-bold">
+            <ClipboardCheck className="h-6 w-6" aria-hidden />
+            {fr.expenses.dashboardCompta}
+          </h1>
+          <p className="text-sm text-muted-foreground">Validation et remboursement des notes.</p>
+        </div>
+      )}
 
       {fiches.length === 0 ? (
         <EmptyState title={fr.expenses.aucuneATraiter} />

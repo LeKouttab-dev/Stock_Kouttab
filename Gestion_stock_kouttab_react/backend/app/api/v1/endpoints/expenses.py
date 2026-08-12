@@ -26,7 +26,7 @@ from app.db.models import Admin
 from app.db.session import SessionLocal, get_db
 from app.schemas.auth import MessageOut
 from app.schemas.expense import ExpenseOut, ExpenseUpdate, ExpenseValidate
-from app.services import compta_dispatch, outbox
+from app.services import compta_dispatch, email_layout, outbox
 from app.services import email as email_service
 from app.services.files import contenu_du_fichier, delete_file, save_upload_file
 
@@ -35,6 +35,29 @@ router = APIRouter(prefix="/expenses", tags=["expenses"])
 
 
 _ACCOUNTANT_ROLES = ("Compta", "Super Admin")
+
+
+# Ce que le changement de statut signifie pour le deposant, et ce qu'il doit en
+# attendre. Un courriel qui annonce « Refusee » sans dire quoi faire ensuite
+# oblige a ecrire a la comptabilite pour comprendre.
+_INTRO_STATUT = {
+    "Approuvee": "Votre note de frais a ete approuvee par la comptabilite.",
+    "Approuvée": "Votre note de frais a ete approuvee par la comptabilite.",
+    "Refusee": "Votre note de frais n'a pas ete retenue par la comptabilite.",
+    "Refusée": "Votre note de frais n'a pas ete retenue par la comptabilite.",
+    "Remboursee": "Votre note de frais a ete remboursee.",
+    "Remboursée": "Votre note de frais a ete remboursee.",
+    "En attente": "Votre note de frais est de nouveau en attente de traitement.",
+}
+
+_SUITE_STATUT = {
+    "Approuvee": "Le versement suivra ; vous recevrez le justificatif de remboursement.",
+    "Approuvée": "Le versement suivra ; vous recevrez le justificatif de remboursement.",
+    "Refusee": "Le motif figure ci-dessus. Vous pouvez deposer une nouvelle note corrigee.",
+    "Refusée": "Le motif figure ci-dessus. Vous pouvez deposer une nouvelle note corrigee.",
+    "Remboursee": "Verifiez la reception sur votre compte dans les prochains jours.",
+    "Remboursée": "Verifiez la reception sur votre compte dans les prochains jours.",
+}
 
 
 def _to_out(row: dict[str, Any], *, requester: Admin) -> ExpenseOut:
@@ -199,8 +222,12 @@ async def create_expense(
         _notify_new_expense_safe,
         current_user.full_name,
         float(expense.montant),
-        expense.rattachement,
+        # Ce que la comptabilite lit d'abord : à quoi la dépense se rattache.
+        rattachement_resolu.libelle_document or expense.rattachement,
         current_user.email,
+        expense.fournisseur,
+        expense.date_depense,
+        expense.nature_charge,
     )
 
     # Envoi des tickets au comptable, meme chaine que les factures. Synchrone
@@ -287,12 +314,22 @@ def validate_expense(
             email_service.send_status_change,
             auteur_email=current_user.email,
             recipient=out["user_email"],
-            subject=f"Mise a jour de votre note de frais #{expense.id}",
-            body=(
-                f"Bonjour,\n\nVotre note de frais #{expense.id} a ete mise a jour.\n"
-                f"Nouveau statut : {payload.status}\n"
-                f"Commentaire compta : {payload.commentaires_compta or '-'}\n\n"
-                "Cordialement,\nLe Kouttab."
+            subject=f"Votre note de frais #{expense.id} — {payload.status}",
+            body=email_layout.composer(
+                prenom=out.get("user_prenom"),
+                introduction=_INTRO_STATUT.get(
+                    payload.status,
+                    f"Votre note de frais #{expense.id} a ete mise a jour.",
+                ),
+                blocs=[
+                    ("Note de frais", f"#{expense.id}"),
+                    ("Date de depense", expense.date_depense),
+                    ("Fournisseur", expense.fournisseur),
+                    ("Montant", expense.montant),
+                    ("Nouveau statut", payload.status),
+                    ("Commentaire", payload.commentaires_compta),
+                ],
+                conclusion=_SUITE_STATUT.get(payload.status),
             ),
         )
     return _to_out(out or {}, requester=current_user)
@@ -395,6 +432,9 @@ async def _notify_new_expense_safe(
     amount: float,
     rattachement: str | None,
     auteur_email: str | None = None,
+    fournisseur: str | None = None,
+    date_depense: object = None,
+    nature_charge: str | None = None,
 ) -> None:
     db = SessionLocal()
     try:
@@ -404,6 +444,9 @@ async def _notify_new_expense_safe(
             amount=amount,
             rattachement=rattachement,
             auteur_email=auteur_email,
+            fournisseur=fournisseur,
+            date_depense=date_depense,
+            nature_charge=nature_charge,
         )
     finally:
         db.close()

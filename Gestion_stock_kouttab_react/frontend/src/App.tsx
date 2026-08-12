@@ -42,10 +42,6 @@ const StockSubCategoriesPage = lazyNamed(
 );
 const StockItemsPage = lazyNamed(() => import('@/pages/stock/StockItemsPage'), 'StockItemsPage');
 const MyExpensesPage = lazyNamed(() => import('@/pages/expenses/MyExpensesPage'), 'MyExpensesPage');
-const ValidateExpensesPage = lazyNamed(
-  () => import('@/pages/expenses/ValidateExpensesPage'),
-  'ValidateExpensesPage',
-);
 const InvoiceUploadPage = lazyNamed(
   () => import('@/pages/invoices/InvoiceUploadPage'),
   'InvoiceUploadPage',
@@ -116,13 +112,12 @@ export default function App() {
                 <Route path="/stock/:category/:subcategory" element={<StockItemsPage />} />
 
                 <Route path="/expenses" element={<MyExpensesPage />} />
+                {/* La validation a rejoint « Notes de frais » sous forme
+                    d'onglet. L'ancienne adresse reste valide : des signets et
+                    des liens de courriels la visent encore. */}
                 <Route
                   path="/expenses/validate"
-                  element={
-                    <ProtectedRoute requiredAction={ACTIONS.EXPENSES_VALIDATE}>
-                      <ValidateExpensesPage />
-                    </ProtectedRoute>
-                  }
+                  element={<Navigate to="/expenses#valider" replace />}
                 />
 
                 <Route path="/invoices/upload" element={<InvoiceUploadPage />} />

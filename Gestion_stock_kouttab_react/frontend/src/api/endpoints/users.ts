@@ -7,6 +7,7 @@ export const userQueryKeys = {
   all: ['users'] as const,
   list: () => [...userQueryKeys.all, 'list'] as const,
   pending: () => [...userQueryKeys.all, 'pending'] as const,
+  annuaire: () => [...userQueryKeys.all, 'annuaire'] as const,
 };
 
 async function fetchUsers(): Promise<User[]> {
@@ -38,6 +39,22 @@ async function updateUserRole(params: { id: number; role: Role }): Promise<User>
 
 async function deleteUser(id: number): Promise<void> {
   await api.delete(`/users/${id}`);
+}
+
+/**
+ * Annuaire en lecture seule, ouvert à la comptabilité.
+ *
+ * `useUsers` vise `GET /users`, réservé au Super Admin et porteur des actions
+ * de gestion. Ici on ne consulte que ce que l'écran affiche.
+ */
+export function useAnnuaire() {
+  return useQuery({
+    queryKey: userQueryKeys.annuaire(),
+    queryFn: async () => {
+      const { data } = await api.get<User[]>('/users/annuaire');
+      return data;
+    },
+  });
 }
 
 export function useUsers() {

@@ -33,6 +33,25 @@ def list_users(
 
 
 @router.get(
+    "/annuaire",
+    response_model=list[UserOut],
+    dependencies=[Depends(require_roles("Compta", "Super Admin"))],
+)
+def list_annuaire(db: Session = Depends(get_db)) -> Any:
+    """Benevoles inscrits, **en lecture seule**.
+
+    La comptabilite a besoin de savoir qui est inscrit et sous quel role : elle
+    rembourse ces personnes et leur reclame des pieces. Elle n'a pas a gerer les
+    comptes pour autant — `GET /users` porte les actions (roles, suppression) et
+    reste ferme au Super Admin.
+
+    `UserOut` n'expose pas le RIB, contrairement a `UserDetailOut` : cet ecran
+    est un annuaire, pas un fichier de coordonnees bancaires.
+    """
+    return [UserOut.model_validate(u) for u in user_crud.list_users(db)]
+
+
+@router.get(
     "/pending",
     response_model=list[UserOut],
     dependencies=[Depends(require_roles("Super Admin"))],
