@@ -403,6 +403,61 @@ class OutboundEmail(Base):
     )
 
 
+# ---- Remboursements ---------------------------------------------------------
+
+
+class Reimbursement(Base):
+    """Un versement a un benevole, soldant une ou plusieurs notes de frais.
+
+    La comptabilite ne rembourse pas note par note : elle vire un montant a une
+    personne, couvrant toutes ses depenses approuvees. Cette table represente ce
+    versement, et le justificatif remis a la comptabilite (PDF + tableur) en
+    decoule directement.
+
+    ``montant_total`` est un INSTANTANE, comme ``Invoice.pole`` ou
+    ``BuvetteSale.product_name_snapshot`` : il fige ce qui a reellement ete vire.
+    Recalculer ce total a partir des notes ferait bouger un chiffre deja
+    justifie le jour ou l'une d'elles serait corrigee.
+    """
+
+    __tablename__ = "Remboursements"
+    __table_args__ = (
+        Index("idx_remb_user", "id_user"),
+        Index("idx_remb_date", "date_remboursement"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id_user: Mapped[int] = mapped_column(
+        Integer, ForeignKey("Admins.id", ondelete="CASCADE"), nullable=False
+    )
+    date_remboursement: Mapped[date] = mapped_column(Date, nullable=False)
+
+    # Bloc « Apurement » du modele remis a la comptabilite. Listes figees cote
+    # application (cf. `core/reimbursement_options.py`), stockees en clair : le
+    # justificatif deja emis doit rester lisible si ces listes evoluent.
+    moyen: Mapped[str] = mapped_column(String(50), nullable=False)
+    etablissement: Mapped[str] = mapped_column(String(80), nullable=False)
+    approuve_par: Mapped[str] = mapped_column(String(120), nullable=False)
+
+    montant_total: Mapped[Decimal] = mapped_column(DECIMAL(10, 2), nullable=False)
+    commentaire: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Documents produits au moment du remboursement. Ils vivent dans OUTBOX_DIR,
+    # hors de `uploads/` : leurs noms sont previsibles.
+    chemin_pdf: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    chemin_xlsx: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+    cree_par: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("Admins.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    user: Mapped["Admin"] = relationship("Admin", foreign_keys=[id_user])
+    expenses: Mapped[list["Expense"]] = relationship(
+        "Expense", back_populates="reimbursement", foreign_keys="Expense.id_remboursement"
+    )
+
+
 # ---- Expenses (notes de frais) ---------------------------------------------
 
 
@@ -434,6 +489,15 @@ class Expense(Base):
     )
     remise: Mapped[Decimal] = mapped_column(DECIMAL(10, 2), default=0)
 
+    # Remboursement qui a solde cette note. NULL tant qu'elle n'est pas payee.
+    #
+    # La comptabilite rembourse un BENEVOLE, pas une note : un virement couvre
+    # plusieurs depenses. Ce rattachement permet de retrouver, depuis n'importe
+    # quelle note, le versement qui l'a soldee et le justificatif remis.
+    id_remboursement: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("Remboursements.id", ondelete="SET NULL"), nullable=True
+    )
+
     # ---- Rattachement comptable -------------------------------------------
     # Memes champs que Factures, pour que le comptable recoive les tickets de
     # caisse et les factures sous une nomenclature identique. Identifiant +
@@ -464,6 +528,9 @@ class Expense(Base):
 
     user: Mapped["Admin"] = relationship(
         "Admin", back_populates="expenses", foreign_keys=[id_user]
+    )
+    reimbursement: Mapped["Reimbursement | None"] = relationship(
+        "Reimbursement", back_populates="expenses", foreign_keys=[id_remboursement]
     )
     files: Mapped[list["ExpenseFile"]] = relationship(
         "ExpenseFile", back_populates="expense", cascade="all, delete-orphan"

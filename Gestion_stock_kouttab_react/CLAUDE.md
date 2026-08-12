@@ -177,6 +177,7 @@ Gestion_stock_kouttab_react/
 | **Factures** | Factures déposées | `id_user → Admins.id` (CASCADE) |
 | **FichiersFactures** | Pièces jointes factures | `id_facture` (CASCADE) |
 | **StockModifications** | Workflow d'approbation modif stock | `id_user`, `id_stock`, `approuve_par → Admins.id` |
+| **Remboursements** | Un versement à un bénévole soldant N notes : `date_remboursement`, `moyen`, `etablissement`, `approuve_par`, `montant_total` (**instantané**), `chemin_pdf`, `chemin_xlsx` | `id_user`, `cree_par → Admins.id` |
 | **CategoriesDepense** | Référentiel administrable des catégories hors événement (`Courses`, `Stock goûter`, `Achat buvette`, `Achat matériel`, `Autre`) : `nom` UNIQUE, `is_default`, `is_active`, `ordre` | — |
 | **BuvetteProducts** | Produits de la buvette synchronisés HelloAsso : `helloasso_tier_id` UNIQUE, `name`, `price_cents`, `quantity`, `seuil_alerte`, `emoji`, `image_url`, `alert_sent`, `last_synced_at`, `is_active` | — |
 | **BuvetteSales** | Log idempotent des ventes HelloAsso : `helloasso_order_id`, `helloasso_payment_id`, `helloasso_item_id`, snapshot `product_name_snapshot`, `quantity_sold`, `amount_cents`, infos client, `raw_event` JSON | `buvette_product_id → BuvetteProducts.id` (SET NULL) ; UNIQUE (`helloasso_payment_id`, `helloasso_item_id`) |
@@ -213,6 +214,8 @@ le démarrage en production. Les valeurs en clair héritées restent lisibles
 | Notes de frais — soumettre | ✅ | ✅ | ✅ | ✅ |
 | Notes de frais — éditer ses propres notes "En attente" | ✅ | ✅ | ✅ | ✅ |
 | Notes de frais — valider/refuser/rembourser | — | — | ✅ | ✅ |
+| Notes de frais — remboursement groupé + justificatif | — | — | ✅ | ✅ |
+| Remboursements — consulter les siens | ✅ | ✅ | ✅ | ✅ |
 | Notes de frais — voir RIB utilisateur | — | — | ✅ | ✅ |
 | Factures — déposer | ✅ | ✅ | ✅ | ✅ |
 | Factures — changer statut | — | — | ✅ | ✅ |
@@ -341,6 +344,34 @@ La règle est résolue **une seule fois**, dans `crud/rattachement.py`, pour les
 factures comme pour les notes de frais : les deux écrans alimentent le même
 circuit comptable, et dupliquer la règle finirait par faire diverger ce que
 l'un accepte et l'autre refuse.
+
+### Remboursements groupés
+
+La comptabilité rembourse **un bénévole**, pas une note : un virement solde
+plusieurs dépenses et produit un justificatif unique (PDF + tableur), calqué sur
+le modèle « NDF - Nom Prénom » du client.
+
+- `GET /reimbursements` — tous pour la compta, les siens pour un bénévole
+- `POST /reimbursements` — solde N notes d'un même bénévole (Compta+)
+- `GET /reimbursements/{id}/document?format=pdf|xlsx` — justificatif
+- `GET /reimbursements/by-volunteer` — fiches et totaux dus (Compta+)
+- `GET /reimbursements/options` — moyens et établissements, listes **figées**
+  (`core/reimbursement_options.py`), servies plutôt que recopiées côté front
+
+Règles portées par `crud/reimbursement.py` :
+
+1. **Tout ou rien** — un lot invalide (notes de deux bénévoles, note déjà payée,
+   note non « Approuvée ») est refusé en bloc, avant toute écriture. Rembourser
+   trois notes sur quatre en silence ne se verrait qu'au rapprochement bancaire.
+2. `montant_total` est un **instantané** : le recalculer ferait bouger un chiffre
+   déjà justifié si une note était corrigée ensuite.
+3. Documents produits dans `OUTBOX_DIR`, **hors de `uploads/`** (noms
+   prévisibles), puis mis en file vers la comptabilité via `outbox.enqueue`.
+
+`app/core/money.py` est le **jumeau de `frontend/src/lib/money.ts`** — même
+raison que `naming.py`/`naming.ts` : le front affiche le montant, le back le
+grave dans le justificatif. Corriger l'un sans l'autre produit un document qui
+contredit l'écran l'ayant déclenché.
 
 ### Notifications
 - `GET /notifications/summary` — dossiers en attente pour l'utilisateur
@@ -705,6 +736,9 @@ objet ici, l'application existe et tourne.
 
 ### Réflexes propres au projet, prioritaires sur tout skill
 
+- **Deux paires de modules jumeaux**, à modifier ensemble : `naming.ts`/`naming.py`
+  (nom des pièces comptables) et `money.ts`/`core/money.py` (montant dû au
+  bénévole). Le second a été introduit avec les remboursements groupés.
 - **`frontend/src/lib/naming.ts` et `backend/app/services/naming.py` sont jumeaux**
   et partagent la même table de cas de test. Modifier l'un sans l'autre casse un
   test — c'est voulu.

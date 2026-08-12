@@ -21,6 +21,15 @@ Pillow>=10.0
 # dependances GTK/X11 d'opencv-python, inutiles dans un conteneur sans ecran.
 opencv-python-headless>=4.9
 numpy>=1.26
+# Justificatifs de remboursement : le recapitulatif remis a la comptabilite est
+# produit en PDF (reportlab) et en tableur (openpyxl), sur le modele
+# « NDF - Nom Prenom ». Les deux sont du Python pur, sans dependance systeme.
+#
+# Le classeur est RECONSTRUIT et non rempli a partir du modele fourni : openpyxl
+# perd graphiques, liens externes et parametres d'impression a la reecriture, et
+# le modele en contient. Mieux vaut un fichier propre qu'un modele mutile.
+reportlab>=4.0
+openpyxl>=3.1
 slowapi>=0.1.9
 python-dotenv>=1.0
 a2wsgi>=1.10

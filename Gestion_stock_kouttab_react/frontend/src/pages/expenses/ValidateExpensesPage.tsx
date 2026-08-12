@@ -1,7 +1,15 @@
 import { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ChevronDown, ChevronRight, ClipboardCheck, Copy, Download, Trash2 } from 'lucide-react';
+import {
+  Banknote,
+  ChevronDown,
+  ChevronRight,
+  ClipboardCheck,
+  Copy,
+  Download,
+  Trash2,
+} from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,6 +27,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useAllExpenses, useDeleteExpense, useValidateExpense } from '@/api/endpoints/expenses';
+import { ReimbursementModal } from './modals/ReimbursementModal';
 import { expenseValidateSchema, type ExpenseValidateFormValues } from '@/lib/schemas/expense';
 import { EXPENSE_STATUS } from '@/lib/constants';
 import type { Expense } from '@/types/api';
@@ -30,9 +39,24 @@ import { formatCurrency, formatDate } from '@/lib/format';
 import { fr } from '@/lib/i18n/fr';
 import { expenseTotal } from '@/lib/money';
 
+/**
+ * Écran comptable, en trois niveaux : **bénévole → ses notes → le détail**.
+ *
+ * La comptabilité ne rembourse pas une note, elle rembourse une personne : un
+ * virement couvre plusieurs dépenses. Une liste plate de notes obligeait donc à
+ * reconstituer de tête, en parcourant l'écran, ce que l'on devait à chacun.
+ *
+ * Le troisième niveau est l'ancienne vue, reprise telle quelle : elle porte la
+ * validation, le RIB et les justificatifs, et n'avait aucune raison de changer.
+ */
 export function ValidateExpensesPage() {
   const { data: expenses = [], isLoading } = useAllExpenses();
-  const [expanded, setExpanded] = useState<number | null>(null);
+  const [benevoleOuvert, setBenevoleOuvert] = useState<number | null>(null);
+
+  // Regroupement local : `useAllExpenses` rapporte déjà toutes les notes avec
+  // le nom du déposant. Un second appel au serveur pour les mêmes données
+  // coûterait un aller-retour vers une base distante sans rien apprendre.
+  const fiches = useMemo(() => groupeParBenevole(expenses), [expenses]);
 
   if (isLoading) return <LoadingSpinner fullPage />;
 
@@ -46,41 +70,179 @@ export function ValidateExpensesPage() {
         <p className="text-sm text-muted-foreground">Validation et remboursement des notes.</p>
       </div>
 
-      {expenses.length === 0 ? (
+      {fiches.length === 0 ? (
         <EmptyState title={fr.expenses.aucuneATraiter} />
       ) : (
         <div className="space-y-3">
-          {expenses.map((exp) => {
-            const total = expenseTotal(exp);
-            const isOpen = expanded === exp.id;
-            return (
-              <Card key={exp.id}>
-                <CardContent className="p-0">
-                  <button
-                    onClick={() => setExpanded(isOpen ? null : exp.id)}
-                    className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-muted/30"
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      {isOpen ? (
-                        <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      )}
-                      <span className="font-medium truncate">
-                        {formatDate(exp.date_depense)} — {exp.user_full_name ?? '—'} —{' '}
-                        {formatCurrency(total)}
-                      </span>
-                    </div>
-                    <StatusBadge status={exp.status} />
-                  </button>
-                  {isOpen && <ValidateExpenseDetail expense={exp} total={total} />}
-                </CardContent>
-              </Card>
-            );
-          })}
+          {fiches.map((fiche) => (
+            <FicheBenevole
+              key={fiche.idUser}
+              fiche={fiche}
+              ouverte={benevoleOuvert === fiche.idUser}
+              onToggle={() =>
+                setBenevoleOuvert(benevoleOuvert === fiche.idUser ? null : fiche.idUser)
+              }
+            />
+          ))}
         </div>
       )}
     </div>
+  );
+}
+
+interface FicheBenevoleData {
+  idUser: number;
+  nom: string;
+  notes: Expense[];
+  /** Notes « Approuvée » : celles qu'un versement peut solder aujourd'hui. */
+  aRembourser: Expense[];
+  totalDu: number;
+}
+
+function groupeParBenevole(expenses: Expense[]): FicheBenevoleData[] {
+  const parUser = new Map<number, Expense[]>();
+  for (const note of expenses) {
+    const liste = parUser.get(note.id_user) ?? [];
+    liste.push(note);
+    parUser.set(note.id_user, liste);
+  }
+
+  const fiches = [...parUser.entries()].map(([idUser, notes]) => {
+    const aRembourser = notes.filter((n) => n.status === 'Approuvée');
+    return {
+      idUser,
+      nom: notes[0]?.user_full_name ?? '—',
+      notes,
+      aRembourser,
+      totalDu: aRembourser.reduce((somme, n) => somme + expenseTotal(n), 0),
+    };
+  });
+
+  // Ceux qui attendent un versement d'abord : c'est le travail du jour.
+  fiches.sort((a, b) => b.aRembourser.length - a.aRembourser.length || a.nom.localeCompare(b.nom));
+  return fiches;
+}
+
+function FicheBenevole({
+  fiche,
+  ouverte,
+  onToggle,
+}: {
+  fiche: FicheBenevoleData;
+  ouverte: boolean;
+  onToggle: () => void;
+}) {
+  const [noteOuverte, setNoteOuverte] = useState<number | null>(null);
+  const [selection, setSelection] = useState<number[]>([]);
+  const [modaleOuverte, setModaleOuverte] = useState(false);
+
+  const selectionnables = fiche.aRembourser.map((n) => n.id);
+  const totalSelection = fiche.aRembourser
+    .filter((n) => selection.includes(n.id))
+    .reduce((somme, n) => somme + expenseTotal(n), 0);
+
+  const basculer = (id: number) =>
+    setSelection((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
+  return (
+    <Card>
+      <CardContent className="p-0">
+        <button
+          onClick={onToggle}
+          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-muted/30"
+        >
+          <div className="flex min-w-0 items-center gap-2">
+            {ouverte ? (
+              <ChevronDown className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+            )}
+            <span className="truncate font-medium">{fiche.nom}</span>
+            <span className="flex-shrink-0 text-xs text-muted-foreground">
+              {fiche.notes.length} note(s)
+            </span>
+          </div>
+          {fiche.totalDu > 0 && (
+            <span className="flex-shrink-0 rounded-full bg-terracotta/10 px-2.5 py-1 text-xs font-semibold text-terracotta">
+              {fr.reimbursements.totalDu} : {formatCurrency(fiche.totalDu)}
+            </span>
+          )}
+        </button>
+
+        {ouverte && (
+          <div className="border-t bg-muted/5">
+            {selectionnables.length > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2">
+                <label className="flex items-center gap-2 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={selection.length === selectionnables.length}
+                    onChange={(e) => setSelection(e.target.checked ? selectionnables : [])}
+                    className="h-4 w-4 rounded border-input"
+                  />
+                  {fr.reimbursements.toutSelectionner}
+                </label>
+                {/* Le bouton n'apparaît qu'une fois une note choisie : proposer
+                    « Rembourser » sans sélection n'aurait aucun sens. */}
+                {selection.length > 0 && (
+                  <Button size="sm" onClick={() => setModaleOuverte(true)}>
+                    <Banknote className="h-4 w-4" />
+                    {fr.reimbursements.rembourser} — {selection.length}{' '}
+                    {fr.reimbursements.selection} ({formatCurrency(totalSelection)})
+                  </Button>
+                )}
+              </div>
+            )}
+
+            <ul className="divide-y">
+              {fiche.notes.map((note) => {
+                const total = expenseTotal(note);
+                const ouvert = noteOuverte === note.id;
+                const remboursable = note.status === 'Approuvée';
+                return (
+                  <li key={note.id}>
+                    <div className="flex items-center gap-2 px-4 py-2 hover:bg-muted/20">
+                      {/* Case décochée et inerte pour ce qui n'est pas encore
+                          approuvé : l'API refuserait, autant le montrer. */}
+                      <input
+                        type="checkbox"
+                        checked={selection.includes(note.id)}
+                        onChange={() => basculer(note.id)}
+                        disabled={!remboursable}
+                        aria-label={`Sélectionner la note du ${formatDate(note.date_depense)}`}
+                        className="h-4 w-4 flex-shrink-0 rounded border-input disabled:opacity-30"
+                      />
+                      <button
+                        onClick={() => setNoteOuverte(ouvert ? null : note.id)}
+                        className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left"
+                      >
+                        <span className="truncate text-sm">
+                          {formatDate(note.date_depense)} — {formatCurrency(total)}
+                          {note.fournisseur ? ` — ${note.fournisseur}` : ''}
+                        </span>
+                        <StatusBadge status={note.status} />
+                      </button>
+                    </div>
+                    {ouvert && <ValidateExpenseDetail expense={note} total={total} />}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+      </CardContent>
+
+      <ReimbursementModal
+        open={modaleOuverte}
+        onOpenChange={(o) => {
+          setModaleOuverte(o);
+          if (!o) setSelection([]);
+        }}
+        nomBenevole={fiche.nom}
+        expenseIds={selection}
+        total={totalSelection}
+      />
+    </Card>
   );
 }
 

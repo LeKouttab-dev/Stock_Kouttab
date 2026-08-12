@@ -261,6 +261,32 @@ export const fr = {
     aucun: 'Aucun événement enregistré.',
   },
 
+  reimbursements: {
+    titre: 'Remboursements',
+    titreModale: 'Enregistrer un remboursement',
+    notesSoldees: 'note(s) soldée(s)',
+    avertissement:
+      'Les notes sélectionnées passeront à « Remboursée » — un statut définitif — et le justificatif (PDF et tableur) partira à la comptabilité.',
+    emisLe: 'Remboursement émis le',
+    moyen: 'Moyen',
+    etablissement: 'Établissement',
+    approuvePar: 'Approuvé par',
+    commentaire: 'Commentaire (facultatif)',
+    commentairePlaceholder: 'Précision utile à la comptabilité',
+    confirmer: 'Enregistrer le remboursement',
+    enregistre: 'Remboursement enregistré.',
+    rembourser: 'Rembourser',
+    selection: 'sélectionnée(s)',
+    totalDu: 'Reste à rembourser',
+    aucuneANote: 'Aucune note à rembourser pour ce bénévole.',
+    justificatifPdf: 'Justificatif (PDF)',
+    justificatifXlsx: 'Justificatif (Excel)',
+    historique: 'Remboursements passés',
+    aucunHistorique: 'Aucun remboursement enregistré pour le moment.',
+    verse: 'versé',
+    toutSelectionner: 'Tout sélectionner',
+  },
+
   notifications: {
     bonjour: 'Bonjour',
     aTraiter: 'à traiter',

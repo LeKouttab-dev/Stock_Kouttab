@@ -487,3 +487,52 @@ export interface PendingSummary {
   comptes_a_valider: number;
   articles_en_alerte: number;
 }
+
+/** Bénévole et ce qu'on lui doit, dans l'écran comptable. */
+export interface VolunteerExpenses {
+  id_user: number;
+  nom_complet?: string | null;
+  email?: string | null;
+  nb_notes: number;
+  /** Notes « Approuvée » non encore payées : celles qu'un versement peut solder. */
+  nb_a_rembourser: number;
+  total_du: string | number;
+}
+
+/** Note soldée, telle qu'elle figure sur le justificatif. */
+export interface ReimbursementExpense {
+  id: number;
+  date_depense: string;
+  montant: string | number;
+  fournisseur?: string | null;
+  nature_charge?: string | null;
+  evenement?: string | null;
+  categorie?: string | null;
+}
+
+/** Un versement à un bénévole, soldant une ou plusieurs notes de frais. */
+export interface Reimbursement {
+  id: number;
+  id_user: number;
+  date_remboursement: string;
+  moyen: string;
+  etablissement: string;
+  approuve_par: string;
+  montant_total: string | number;
+  commentaire?: string | null;
+  created_at?: string | null;
+  /** Présence des documents, sans exposer leur chemin sur le serveur. */
+  a_pdf: boolean;
+  a_xlsx: boolean;
+  user_full_name?: string | null;
+  expenses: ReimbursementExpense[];
+}
+
+/** Listes figées du formulaire de remboursement, servies par l'API. */
+export interface ReimbursementOptions {
+  moyens: string[];
+  etablissements: string[];
+  moyen_defaut: string;
+  etablissement_defaut: string;
+  approbateur_defaut: string;
+}
