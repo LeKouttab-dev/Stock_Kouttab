@@ -97,6 +97,32 @@
     max-height: 62dvh;
   }
 
+  /**
+   * Hauteur d'une fenêtre plein écran, garantie visible en entier.
+   *
+   * `svh` (small viewport height) mesure l'écran **barres d'interface
+   * affichées** : c'est la hauteur minimale dont on dispose à coup sûr, quelle
+   * que soit la position de la barre d'adresse. `dvh` suit la barre et change
+   * pendant le défilement ; pour une fenêtre qui doit tenir entière du premier
+   * au dernier pixel, cette variation est un défaut, pas une qualité.
+   *
+   * Repli `vh` d'abord, pour les navigateurs qui ignorent `svh`.
+   */
+  .h-ecran-sur {
+    height: 100vh;
+    height: 100svh;
+  }
+
+  /**
+   * Marge basse qui épargne la barre de navigation des iPhone récents.
+   *
+   * Sans elle, le bouton du pied se retrouve sous la barre système : visible,
+   * mais la moitié des appuis atterrit à côté.
+   */
+  .pb-securise {
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  }
+
   .scrollbar-thin::-webkit-scrollbar {
     width: 6px;
     height: 6px;

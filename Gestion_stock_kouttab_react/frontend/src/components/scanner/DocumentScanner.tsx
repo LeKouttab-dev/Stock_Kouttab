@@ -296,18 +296,23 @@ export function DocumentScanner({ open, onClose, onScanned }: DocumentScannerPro
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      {/* `overflow-hidden` et `p-0` : le contenu par défaut du dialogue ajoute
-          son propre défilement, qui se superposait à celui de la page et
-          produisait deux barres de défilement imbriquées. Ici tout tient dans
-          la fenêtre, sans rien à faire défiler. */}
-      {/* Pas de `max-h-[…vh]` ici : la hauteur vient de `max-h-modale`, calée
-          sur l'écran réellement visible. Sur les grands iPhone, une hauteur en
-          `vh` poussait le pied de la fenêtre — donc le bouton de prise de vue —
-          hors de l'écran. */}
-      <DialogContent className="flex w-[min(96vw,52rem)] max-w-none flex-col gap-0 overflow-hidden p-0">
+      {/* Fenêtre PLEIN ÉCRAN, ancrée en haut — et non centrée comme les autres.
+
+          Le dialogue est en `position: fixed`, et sur iOS un élément fixe se
+          cale sur le viewport **barre d'adresse masquée**, plus haut que la
+          zone réellement visible. Centrer par `top: 50%` y place donc le milieu
+          de la fenêtre trop bas, et le pied — le bouton de prise de vue —
+          termine sous le bord de l'écran. Borner la hauteur n'y change rien :
+          c'est la position qui est fausse, pas la taille. D'où `top: 0` et une
+          hauteur en `svh`, la hauteur garantie visible.
+
+          `overflow-hidden` et `p-0` : le contenu par défaut du dialogue ajoute
+          son propre défilement, qui se superposait à celui de la page. Ici tout
+          tient dans la fenêtre, sans rien à faire défiler. */}
+      <DialogContent className="!left-0 !top-0 flex !max-h-none h-ecran-sur w-full max-w-none !translate-x-0 !translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-0 p-0">
         {/* `pr-12` : le bouton de fermeture du dialogue est posé en absolu dans
             ce coin, et recouvrait le sélecteur d'objectif sur écran étroit. */}
-        <div className="flex items-start justify-between gap-3 border-b py-3 pl-4 pr-12">
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b py-3 pl-4 pr-12">
           <div>
             <DialogTitle className="text-base">{fr.scanner.documentTitle}</DialogTitle>
             <p className="text-xs text-muted-foreground">
@@ -367,6 +372,10 @@ export function DocumentScanner({ open, onClose, onScanned }: DocumentScannerPro
               onPointerCancel={relacher}
               onPointerLeave={relacher}
             >
+              {/* Une seule limite de hauteur sur l'aperçu : cumuler
+                  `max-h-full` ferait dépendre la règle gagnante de l'ordre de
+                  compilation du CSS, et elle ne bornerait rien de toute façon —
+                  le parent immédiat a une hauteur automatique. */}
               <div className="relative">
                 <img
                   ref={imageRef}
@@ -429,7 +438,11 @@ export function DocumentScanner({ open, onClose, onScanned }: DocumentScannerPro
           )}
         </div>
 
-        <div className="flex flex-wrap items-center justify-end gap-2 border-t px-4 py-3">
+        {/* `pb-securise` : sur les iPhone à barre de navigation gestuelle, le
+            pied tombait sous cette barre — visible, mais un appui sur deux
+            partait à côté. `shrink-0` : ces boutons ne cèdent jamais leur place
+            à l'aperçu, ce sont eux qui font sortir du scanner. */}
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t px-4 pt-3 pb-securise">
           <Button type="button" variant="outline" onClick={onClose}>
             {fr.common.cancel}
           </Button>
