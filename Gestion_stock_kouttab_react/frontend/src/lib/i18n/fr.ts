@@ -15,7 +15,7 @@ export const fr = {
     dashboard: 'Tableau de bord',
     stock: 'Stock local',
     expenses: 'Notes de frais',
-    invoices: 'Dépôt de factures',
+    invoices: 'Dépôt de factures (CB Kouttâb)',
     buvette: 'Stock buvette',
     admin: 'Administration',
     database: 'Export / Import BDD',
@@ -167,8 +167,9 @@ export const fr = {
     commentaireUtilisateur: "Commentaires de l'utilisateur",
   },
   invoices: {
-    title: 'Dépôt de Factures',
-    subtitle: 'Déposez vos factures pour traitement par la comptabilité.',
+    title: 'Dépôt de factures (CB Kouttâb)',
+    subtitle:
+      "Factures réglées avec la carte bancaire du Kouttâb. Si vous avez avancé l'argent, passez par « Notes de frais » pour être remboursé.",
     depositTab: 'Déposer des factures',
     pole: 'Pôle de rattachement',
     polePlaceholder: 'Sélectionnez un pôle',
@@ -188,7 +189,10 @@ export const fr = {
     viewTab: 'Visionner les factures',
     important: 'Important',
     importantText:
-      'Veuillez vous assurer que la facture est bien établie au nom de Le Kouttâb ou E.C.L.A.T. Les factures établies à un autre nom ne pourront pas être traitées.',
+      'Cet écran ne concerne que les achats payés avec la carte bancaire du Kouttâb. ' +
+      'Une dépense avancée de votre poche se déclare dans « Notes de frais », sans quoi ' +
+      'vous ne serez pas remboursé. Assurez-vous par ailleurs que la facture est établie ' +
+      'au nom de Le Kouttâb ou E.C.L.A.T. : une facture à un autre nom ne peut pas être traitée.',
     upload: 'Téléversez une ou plusieurs factures (PDF, PNG, JPG)',
     comment: 'Commentaire (facultatif)',
     commentPlaceholder: "Ex: Facture d'électricité pour le mois de Juin…",
