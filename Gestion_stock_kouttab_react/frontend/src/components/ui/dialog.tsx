@@ -32,7 +32,10 @@ export const DialogContent = forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        'fixed left-1/2 top-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 border bg-background p-6 shadow-lg duration-200 sm:rounded-lg max-h-[90vh] overflow-y-auto',
+        // `max-h-modale` (cf. index.css) plutôt que `max-h-[90vh]` : sur iOS,
+        // `vh` déborde de l'écran visible et rejette le pied de la fenêtre
+        // hors d'atteinte.
+        'fixed left-1/2 top-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 border bg-background p-6 shadow-lg duration-200 sm:rounded-lg max-h-modale overflow-y-auto',
         className,
       )}
       {...props}

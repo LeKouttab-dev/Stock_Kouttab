@@ -300,8 +300,14 @@ export function DocumentScanner({ open, onClose, onScanned }: DocumentScannerPro
           son propre défilement, qui se superposait à celui de la page et
           produisait deux barres de défilement imbriquées. Ici tout tient dans
           la fenêtre, sans rien à faire défiler. */}
-      <DialogContent className="flex max-h-[92vh] w-[min(96vw,52rem)] max-w-none flex-col gap-0 overflow-hidden p-0">
-        <div className="flex items-start justify-between gap-3 border-b px-4 py-3">
+      {/* Pas de `max-h-[…vh]` ici : la hauteur vient de `max-h-modale`, calée
+          sur l'écran réellement visible. Sur les grands iPhone, une hauteur en
+          `vh` poussait le pied de la fenêtre — donc le bouton de prise de vue —
+          hors de l'écran. */}
+      <DialogContent className="flex w-[min(96vw,52rem)] max-w-none flex-col gap-0 overflow-hidden p-0">
+        {/* `pr-12` : le bouton de fermeture du dialogue est posé en absolu dans
+            ce coin, et recouvrait le sélecteur d'objectif sur écran étroit. */}
+        <div className="flex items-start justify-between gap-3 border-b py-3 pl-4 pr-12">
           <div>
             <DialogTitle className="text-base">{fr.scanner.documentTitle}</DialogTitle>
             <p className="text-xs text-muted-foreground">
@@ -366,7 +372,7 @@ export function DocumentScanner({ open, onClose, onScanned }: DocumentScannerPro
                   ref={imageRef}
                   src={apercu ?? ''}
                   alt=""
-                  className="max-h-[62vh] max-w-full object-contain"
+                  className="max-h-apercu max-w-full object-contain"
                 />
 
                 {coins.length === 4 && (

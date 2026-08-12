@@ -43,8 +43,16 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-family:
-      'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell,
-      'Helvetica Neue', sans-serif;
+      'Inter',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      Roboto,
+      Oxygen,
+      Ubuntu,
+      Cantarell,
+      'Helvetica Neue',
+      sans-serif;
   }
   html,
   body,
@@ -60,6 +68,35 @@
 }
 
 @layer utilities {
+  /**
+   * Hauteur maximale d'une fenêtre modale, bornée à l'écran RÉELLEMENT visible.
+   *
+   * Sur iOS, `vh` mesure l'écran barre d'adresse escamotée — une hauteur que
+   * l'on n'a pas tant que cette barre est affichée. Une modale à 90vh dépasse
+   * donc la zone visible, et comme elle est centrée, elle déborde en haut ET
+   * en bas : sur les grands iPhone, le choix de l'objectif et le bouton de
+   * prise de vue du scanner sortaient de l'écran, hors d'atteinte. Ils
+   * existaient bel et bien, on ne pouvait simplement pas les toucher.
+   *
+   * `dvh` suit la hauteur visible du moment et règle le cas. La déclaration
+   * `vh` la précède comme repli pour les navigateurs qui ignorent `dvh`
+   * (iOS antérieur à 15.4) : ils gardent le comportement d'avant, pas pire.
+   *
+   * Utilitaire CSS plutôt que valeur Tailwind arbitraire : deux déclarations
+   * de la même propriété dans une seule règle sont la façon dont un repli
+   * s'écrit en CSS, et `tailwind-merge` ne saurait pas les départager.
+   */
+  .max-h-modale {
+    max-height: 90vh;
+    max-height: 90dvh;
+  }
+
+  /** Aperçu du document à recadrer : même repli, laisse la place au pied. */
+  .max-h-apercu {
+    max-height: 62vh;
+    max-height: 62dvh;
+  }
+
   .scrollbar-thin::-webkit-scrollbar {
     width: 6px;
     height: 6px;
