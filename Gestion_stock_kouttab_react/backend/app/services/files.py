@@ -169,6 +169,15 @@ async def save_upload_file(upload: UploadFile, subdir: str) -> dict[str, object]
         "path": str(target_path),
         "size": total,
         "mime": mime,
+        # Contenu relu depuis le disque pour etre stocke EN BASE : c'est la
+        # seule copie reellement sauvegardee (O2Switch sauvegarde la base, pas
+        # le disque du VPS). L'ecriture disque est conservee comme cache local
+        # et comme filet le temps de la transition.
+        #
+        # Relecture plutot qu'accumulation en memoire pendant le transfert :
+        # l'ecriture par morceaux ci-dessus protege des fichiers enormes, et la
+        # taille est de toute facon bornee par MAX_UPLOAD_MB.
+        "contenu": target_path.read_bytes(),
     }
 
 
@@ -219,3 +228,52 @@ async def save_many(uploads: Iterable[UploadFile], subdir: str) -> list[dict[str
             continue
         results.append(await save_upload_file(upload, subdir))
     return results
+
+
+# ---------------------------------------------------------------------------
+# Lecture d'un justificatif
+# ---------------------------------------------------------------------------
+
+
+def contenu_du_fichier(file_row: object) -> bytes | None:
+    """Octets d'un justificatif : la base d'abord, le disque en repli.
+
+    La base fait autorite — c'est la seule copie sauvegardee. Le repli disque
+    couvre les pieces deposees avant la migration, dont la colonne est vide, et
+    disparaitra le jour ou plus aucune ligne ne sera dans ce cas.
+    """
+    contenu = getattr(file_row, "contenu", None)
+    if contenu:
+        return bytes(contenu)
+
+    chemin = getattr(file_row, "chemin_fichier", None)
+    if not chemin:
+        return None
+    fichier = get_file_path(str(chemin))
+    return fichier.read_bytes() if fichier else None
+
+
+def materialiser(file_row: object, *, dossier: Path) -> Path | None:
+    """Rend le justificatif accessible SUR LE DISQUE, pour ce qui l'exige.
+
+    La conversion en PDF et l'envoi en piece jointe travaillent sur des chemins.
+    Si le fichier est deja la, on le sert tel quel ; s'il n'existe qu'en base —
+    cas d'une restauration ou l'on n'aurait remonte que la base — on l'ecrit
+    dans le repertoire indique.
+    """
+    chemin = getattr(file_row, "chemin_fichier", None)
+    if chemin:
+        existant = get_file_path(str(chemin))
+        if existant:
+            return existant
+
+    contenu = getattr(file_row, "contenu", None)
+    if not contenu:
+        return None
+
+    dossier.mkdir(parents=True, exist_ok=True)
+    nom = Path(str(chemin)).name if chemin else f"{uuid.uuid4().hex}.bin"
+    cible = dossier / nom
+    cible.write_bytes(bytes(contenu))
+    logger.info("Justificatif materialise depuis la base : %s", cible.name)
+    return cible

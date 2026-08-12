@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.logger import get_logger
 from app.db.models import Expense, Invoice, OutboundEmail
+from app.services import files as files_service
 from app.services import naming, outbox, pdf
 
 
@@ -58,8 +59,19 @@ def _prepare_attachments(
     attachments: list[Path] = []
     for file_row, filename in zip(files, names):
         stem = filename.rsplit(".", 1)[0]
+        # Le justificatif vit en base ; la conversion PDF, elle, travaille
+        # sur un chemin. `materialiser` sert le fichier du disque s'il est
+        # la, et l'ecrit depuis la base sinon — cas d'une restauration ou
+        # l'on n'aurait remonte que la base.
+        source = files_service.materialiser(file_row, dossier=target_dir / "source")
+        if source is None:
+            logger.warning(
+                "Justificatif introuvable (ni en base, ni sur disque) : %s",
+                getattr(file_row, "nom_fichier", "?"),
+            )
+            continue
         produced, converted = pdf.ensure_pdf(
-            Path(file_row.chemin_fichier), target_dir=target_dir, target_stem=stem
+            source, target_dir=target_dir, target_stem=stem
         )
         logger.info(
             "Piece comptable prete : %s (%s)",

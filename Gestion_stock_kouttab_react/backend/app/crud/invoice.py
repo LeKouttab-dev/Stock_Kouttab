@@ -149,6 +149,7 @@ def attach_file(
     chemin_fichier: str,
     taille_fichier: int | None,
     type_fichier: str | None,
+    contenu: bytes | None = None,
 ) -> InvoiceFile:
     f = InvoiceFile(
         id_facture=invoice_id,
@@ -156,6 +157,7 @@ def attach_file(
         chemin_fichier=chemin_fichier,
         taille_fichier=taille_fichier,
         type_fichier=type_fichier,
+        contenu=contenu,
     )
     db.add(f)
     db.commit()

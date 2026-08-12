@@ -776,10 +776,18 @@ objet ici, l'application existe et tourne.
   enchaînent les requêtes et du lazy-loading des relations.
 - **Le schéma DB est partagé avec la version legacy Streamlit.** Toute migration
   se fait sur une base de production réelle : sauvegarde d'abord.
-- **Les justificatifs ne sont pas en base** : la table n'en garde que le chemin,
-  les fichiers vivent dans les volumes Docker du VPS. La sauvegarde O2Switch de
-  MySQL ne les couvre donc pas — c'est le service `backup` du `compose.yml` qui
-  s'en charge (`DEPLOIEMENT-VPS.md` §11).
+- **Les justificatifs sont stockés EN BASE** (`FichiersNotesDeFrais.contenu`,
+  `FichiersFactures.contenu`, `LONGBLOB`), et non plus seulement sur le disque
+  du VPS : la base est sauvegardée par O2Switch, pas le disque. Décision prise
+  sur mesure — 11 Mo pour l'ensemble, 4,5 Mo pour le plus gros fichier ; elle
+  serait à revoir au-delà de quelques centaines de mégaoctets.
+  - La colonne est **`deferred=True`** : sans cela, lister les notes de frais
+    rapatrierait tous les octets de tous les justificatifs depuis une base
+    distante.
+  - `chemin_fichier` reste renseigné : cache local, trace de l'origine, et
+    repli pour les pièces antérieures à la migration `f6b3d1e8a295`.
+  - Ce qui exige un chemin (conversion PDF, pièces jointes) passe par
+    `files.materialiser`, qui réécrit le fichier depuis la base au besoin.
 - **`compose.yml` ne se déploie pas tout seul.** Le workflow ne pousse que les
   images ; le fichier a été copié à la main sur le VPS. Y ajouter un service
   suppose de le recopier là-bas, sans quoi il ne démarrera jamais et rien ne le

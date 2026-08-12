@@ -144,6 +144,7 @@ def attach_file(
     chemin_fichier: str,
     taille_fichier: int | None,
     type_fichier: str | None,
+    contenu: bytes | None = None,
 ) -> ExpenseFile:
     file_row = ExpenseFile(
         id_note_de_frais=expense_id,
@@ -151,6 +152,7 @@ def attach_file(
         chemin_fichier=chemin_fichier,
         taille_fichier=taille_fichier,
         type_fichier=type_fichier,
+        contenu=contenu,
     )
     db.add(file_row)
     db.commit()

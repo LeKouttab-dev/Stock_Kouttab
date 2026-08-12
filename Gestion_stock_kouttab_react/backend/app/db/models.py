@@ -7,6 +7,7 @@ from decimal import Decimal
 
 from sqlalchemy import (
     BigInteger,
+    LargeBinary,
     Boolean,
     DECIMAL,
     Date,
@@ -19,6 +20,7 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
+from sqlalchemy.dialects.mysql import LONGBLOB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -615,6 +617,27 @@ class ExpenseFile(Base):
     chemin_fichier: Mapped[str] = mapped_column(String(500), nullable=False)
     taille_fichier: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     type_fichier: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # Contenu binaire du justificatif, stocke EN BASE.
+    #
+    # Les fichiers vivaient uniquement sur le disque du VPS, hors de toute
+    # sauvegarde : la table ne gardait qu'un chemin, et perdre la machine
+    # revenait a perdre des pieces comptables a conserver plusieurs annees.
+    # Mesure faite : 11 Mo pour l'ensemble des justificatifs, le plus gros
+    # fichier a 4,5 Mo. A cette echelle, la base — deja sauvegardee par
+    # O2Switch — est le bon endroit, et supprime le probleme au lieu d'ajouter
+    # un mecanisme de sauvegarde de plus.
+    #
+    # `deferred=True` est INDISPENSABLE : sans lui, lister les notes de frais
+    # chargerait tous les octets de tous les justificatifs en memoire, depuis
+    # une base distante. Le contenu n'est lu qu'a l'acces explicite.
+    #
+    # `chemin_fichier` est conserve : il reste renseigne, sert de repli pour
+    # les pieces anterieures a la migration, et documente d'ou vient le fichier.
+    contenu: Mapped[bytes | None] = mapped_column(
+        LargeBinary().with_variant(LONGBLOB(), "mysql"),
+        nullable=True,
+        deferred=True,
+    )
     date_upload: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     expense: Mapped["Expense"] = relationship("Expense", back_populates="files")
@@ -697,6 +720,27 @@ class InvoiceFile(Base):
     chemin_fichier: Mapped[str] = mapped_column(String(500), nullable=False)
     taille_fichier: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     type_fichier: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # Contenu binaire du justificatif, stocke EN BASE.
+    #
+    # Les fichiers vivaient uniquement sur le disque du VPS, hors de toute
+    # sauvegarde : la table ne gardait qu'un chemin, et perdre la machine
+    # revenait a perdre des pieces comptables a conserver plusieurs annees.
+    # Mesure faite : 11 Mo pour l'ensemble des justificatifs, le plus gros
+    # fichier a 4,5 Mo. A cette echelle, la base — deja sauvegardee par
+    # O2Switch — est le bon endroit, et supprime le probleme au lieu d'ajouter
+    # un mecanisme de sauvegarde de plus.
+    #
+    # `deferred=True` est INDISPENSABLE : sans lui, lister les notes de frais
+    # chargerait tous les octets de tous les justificatifs en memoire, depuis
+    # une base distante. Le contenu n'est lu qu'a l'acces explicite.
+    #
+    # `chemin_fichier` est conserve : il reste renseigne, sert de repli pour
+    # les pieces anterieures a la migration, et documente d'ou vient le fichier.
+    contenu: Mapped[bytes | None] = mapped_column(
+        LargeBinary().with_variant(LONGBLOB(), "mysql"),
+        nullable=True,
+        deferred=True,
+    )
     date_upload: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     invoice: Mapped["Invoice"] = relationship("Invoice", back_populates="files")

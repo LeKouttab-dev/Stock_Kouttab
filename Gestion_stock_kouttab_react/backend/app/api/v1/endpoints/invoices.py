@@ -15,7 +15,7 @@ from fastapi import (
     Query,
     UploadFile,
 )
-from fastapi.responses import FileResponse
+from fastapi import Response
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_roles
@@ -29,7 +29,7 @@ from app.schemas.auth import MessageOut
 from app.schemas.invoice import InvoiceOut, InvoiceStatusUpdate
 from app.services import compta_dispatch, outbox
 from app.services import email as email_service
-from app.services.files import delete_file, get_file_path, save_upload_file
+from app.services.files import contenu_du_fichier, delete_file, save_upload_file
 
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
@@ -157,6 +157,7 @@ async def create_invoice(
             chemin_fichier=str(meta["path"]),
             taille_fichier=int(meta["size"]),
             type_fichier=str(meta["mime"]),
+            contenu=meta.get("contenu"),  # type: ignore[arg-type]
         )
 
     inv = invoice_crud.get_invoice(db, invoice.id)
@@ -259,14 +260,7 @@ def download_invoice_file(
     file_row = invoice_crud.get_file(db, file_id)
     if not file_row or file_row.id_facture != invoice_id:
         raise AppException(ErrorCode.FILE_NOT_FOUND)
-    path = get_file_path(file_row.chemin_fichier)
-    if not path:
-        raise AppException(ErrorCode.FILE_PHYSICALLY_MISSING)
-    return FileResponse(
-        path,
-        media_type=file_row.type_fichier or "application/octet-stream",
-        filename=file_row.nom_fichier,
-    )
+    return _servir(file_row)
 
 
 @router.delete("/{invoice_id}", response_model=MessageOut)
@@ -321,3 +315,24 @@ async def _notify_new_invoice_safe(
         )
     finally:
         db.close()
+
+
+def _servir(file_row) -> Response:
+    """Sert un justificatif depuis la base, ou depuis le disque a defaut.
+
+    La base fait autorite : c'est la seule copie sauvegardee. Le repli disque
+    couvre les pieces deposees avant la migration.
+
+    `Response` et non `FileResponse` : le contenu vient de la base, il n'y a pas
+    toujours de fichier a pointer. `Content-Disposition` reprend le nom
+    d'origine, comme avant.
+    """
+    contenu = contenu_du_fichier(file_row)
+    if contenu is None:
+        raise AppException(ErrorCode.FILE_PHYSICALLY_MISSING)
+    nom = (file_row.nom_fichier or "justificatif").replace('"', "")
+    return Response(
+        content=contenu,
+        media_type=file_row.type_fichier or "application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{nom}"'},
+    )
