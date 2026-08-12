@@ -220,6 +220,9 @@ le démarrage en production. Les valeurs en clair héritées restent lisibles
 | Justificatifs — demander, relancer, clore | — | — | ✅ | ✅ |
 | Justificatifs — voir ce qu'on me demande | ✅ | ✅ | ✅ | ✅ |
 | Notes de frais — voir RIB utilisateur | — | — | ✅ | ✅ |
+| RIB en document — déposer le sien | ✅ | ✅ | ✅ | ✅ |
+| RIB en document — télécharger celui d'un autre | — | — | ✅ | ✅ |
+| Contact — écrire à la compta ou à l'administration | ✅ | ✅ | ✅ | ✅ |
 | Factures — déposer | ✅ | ✅ | ✅ | ✅ |
 | Factures — changer statut | — | — | ✅ | ✅ |
 | Admin — valider comptes pending | — | — | — | ✅ |
@@ -255,6 +258,11 @@ Préfixe : `/api/v1`. Auth : header `Authorization: Bearer <jwt>` (sauf `/auth/*
 - `DELETE /users/{id}` — supprimer (Super Admin)
 - `GET /users/me/profile` — profil + RIB
 - `PATCH /users/me/profile` — modifier profil + RIB
+- `GET /users/annuaire` — bénévoles inscrits, **lecture seule** (Compta+), sans RIB
+- `POST|GET|DELETE /users/me/rib-document` — le RIB en document (PDF ou image)
+- `GET /users/{id}/rib-document` — téléchargement par le propriétaire, la
+  Compta ou le Super Admin. Le contrôle porte sur le rôle **et** sur la
+  propriété : les identifiants se devinent, ils se suivent.
 
 ### Invitations
 - `POST /invitations` — créer invitation admin (Super Admin)
@@ -401,6 +409,14 @@ Les relances sont portées par `scripts/process_outbound_emails.py`, devenu
 « file d'envoi et relances programmées ». Un service dédié aurait imposé de
 recopier `compose.yml` à la main sur le VPS — étape hors du déploiement
 automatique (cf. `DEPLOIEMENT-VPS.md` §13).
+
+### Espace de contact
+- `POST /contact` — question d'un bénévole, `destinataire` valant `compta` ou
+  `admin`. **Le destinataire est un mot-clé, pas une adresse** : accepter une
+  adresse ferait de l'endpoint un relais de courriel ouvert. L'identité de
+  l'auteur vient du compte connecté, jamais du formulaire — un champ « votre
+  nom » se remplit de n'importe quoi. L'envoi passe par `outbox.enqueue` : une
+  question posée ne doit pas se perdre parce que le SMTP hoquetait.
 
 ### Notifications
 - `GET /notifications/summary` — dossiers en attente pour l'utilisateur
@@ -776,6 +792,12 @@ objet ici, l'application existe et tourne.
   enchaînent les requêtes et du lazy-loading des relations.
 - **Le schéma DB est partagé avec la version legacy Streamlit.** Toute migration
   se fait sur une base de production réelle : sauvegarde d'abord.
+- **Le RIB en document** (`Admins.rib_document`, `deferred`) est en base et
+  **sans copie disque**, contrairement aux justificatifs : rien ne l'envoie par
+  courriel, donc rien n'a besoin d'un chemin, et une copie de plus d'une donnée
+  bancaire serait une surface de fuite de plus. `files.lire_en_memoire` valide
+  sans écrire. Le contenu n'est pas chiffré — `ChampChiffre` travaille sur du
+  texte, et la protection utile ici est le contrôle d'accès.
 - **Les justificatifs sont stockés EN BASE** (`FichiersNotesDeFrais.contenu`,
   `FichiersFactures.contenu`, `LONGBLOB`), et non plus seulement sur le disque
   du VPS : la base est sauvegardée par O2Switch, pas le disque. Décision prise

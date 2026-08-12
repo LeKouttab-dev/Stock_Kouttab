@@ -350,6 +350,22 @@ function ValidateExpenseDetail({ expense, total }: DetailProps) {
             <Copy className="h-4 w-4" />
             {fr.expenses.copierRib}
           </Button>
+          {/* Le document de la banque, quand le bénévole l'a déposé : l'IBAN
+              ci-contre suffit au virement, celui-ci sert de preuve au dossier. */}
+          {expense.user_rib_document_nom && (
+            <Button
+              variant="outline"
+              onClick={() =>
+                download(
+                  `/users/${expense.id_user}/rib-document`,
+                  expense.user_rib_document_nom as string,
+                )
+              }
+            >
+              <Download className="h-4 w-4" />
+              {fr.expenses.ribDocumentTelecharger}
+            </Button>
+          )}
         </div>
       ) : (
         <Alert variant="warning">

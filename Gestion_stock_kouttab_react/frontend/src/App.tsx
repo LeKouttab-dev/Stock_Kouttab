@@ -61,6 +61,7 @@ const DatabaseManagementPage = lazyNamed(
   'DatabaseManagementPage',
 );
 const ProfilePage = lazyNamed(() => import('@/pages/ProfilePage'), 'ProfilePage');
+const ContactPage = lazyNamed(() => import('@/pages/contact/ContactPage'), 'ContactPage');
 const NotFoundPage = lazyNamed(() => import('@/pages/NotFoundPage'), 'NotFoundPage');
 
 import { ACTIONS } from '@/lib/auth';
@@ -144,6 +145,7 @@ export default function App() {
                 />
 
                 <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/contact" element={<ContactPage />} />
               </Route>
 
               <Route path="*" element={<NotFoundPage />} />

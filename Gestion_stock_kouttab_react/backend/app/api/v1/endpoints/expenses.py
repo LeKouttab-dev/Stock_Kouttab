@@ -64,6 +64,7 @@ def _to_out(row: dict[str, Any], *, requester: Admin) -> ExpenseOut:
     if not _can_see_rib(requester, row["id_user"]):
         row = dict(row)
         row["user_rib"] = None
+        row["user_rib_document_nom"] = None
     return ExpenseOut(**row)
 
 

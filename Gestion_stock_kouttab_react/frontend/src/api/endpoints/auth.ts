@@ -104,6 +104,24 @@ async function updateProfile(payload: ProfileUpdateRequest): Promise<User> {
   return data;
 }
 
+/**
+ * Relevé d'identité bancaire déposé en document.
+ *
+ * L'IBAN saisi sert au virement, ce document sert de preuve. Il ne transite
+ * jamais dans le profil : `GET /users/me/profile` n'en donne que le nom, le
+ * contenu a son propre endpoint.
+ */
+async function uploadRibDocument(file: File): Promise<User> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const { data } = await api.post<User>('/users/me/rib-document', formData);
+  return data;
+}
+
+async function deleteRibDocument(): Promise<void> {
+  await api.delete('/users/me/rib-document');
+}
+
 async function logoutApi(): Promise<void> {
   try {
     await api.post('/auth/logout');
@@ -194,6 +212,26 @@ export function useLogout() {
     onSettled: () => {
       logout();
       qc.clear();
+    },
+  });
+}
+
+export function useUploadRibDocument() {
+  const qc = useQueryClient();
+  return useApiMutation({
+    mutationFn: uploadRibDocument,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: authQueryKeys.profile });
+    },
+  });
+}
+
+export function useDeleteRibDocument() {
+  const qc = useQueryClient();
+  return useApiMutation({
+    mutationFn: deleteRibDocument,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: authQueryKeys.profile });
     },
   });
 }

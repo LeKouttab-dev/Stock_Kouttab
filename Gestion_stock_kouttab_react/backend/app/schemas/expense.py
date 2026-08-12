@@ -73,6 +73,7 @@ class ExpenseOut(ExpenseBase):
     user_full_name: str | None = None
     user_email: str | None = None
     user_rib: str | None = None
+    user_rib_document_nom: str | None = None
     files: list[ExpenseFileOut] = []
 
     model_config = ConfigDict(from_attributes=True)

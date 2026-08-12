@@ -22,6 +22,8 @@ export interface User {
   email: string;
   telephone?: string | null;
   rib?: string | null;
+  /** Nom du RIB déposé, ou `null`. Le contenu s'obtient par son endpoint. */
+  rib_document_nom?: string | null;
   password_must_change?: boolean;
   created_at?: string;
 }
@@ -155,6 +157,8 @@ export interface Expense {
   user_full_name: string | null;
   user_email?: string | null;
   user_rib?: string | null;
+  /** Nom du RIB déposé par le bénévole ; même visibilité que `user_rib`. */
+  user_rib_document_nom?: string | null;
   date_depense: string;
   /** Champ libre historique, remplacé par pôle + événement + date. */
   rattachement?: string | null;

@@ -8,6 +8,7 @@ from app.api.v1.endpoints import (
     admin,
     auth,
     buvette,
+    contact,
     events,
     expense_categories,
     expenses,
@@ -39,3 +40,4 @@ api_router.include_router(events.router)
 api_router.include_router(admin.router)
 api_router.include_router(buvette.router)
 api_router.include_router(scan.router)
+api_router.include_router(contact.router)

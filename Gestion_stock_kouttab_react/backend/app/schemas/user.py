@@ -33,6 +33,10 @@ class UserDetailOut(UserOut):
     """Includes RIB, restricted to Super Admin / Compta."""
 
     rib: str | None = None
+    # Nom du document depose, et non son contenu : l'ecran a besoin de savoir
+    # s'il y a une piece et laquelle, pas de recevoir les octets a chaque
+    # affichage du profil. Le telechargement a son propre endpoint.
+    rib_document_nom: str | None = None
 
 
 class UserCreate(BaseModel):

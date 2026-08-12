@@ -20,6 +20,7 @@ export const fr = {
     admin: 'Administration',
     database: 'Export / Import BDD',
     profile: 'Mon profil',
+    contact: 'Nous contacter',
     logout: 'Se déconnecter',
   },
   auth: {
@@ -145,6 +146,17 @@ export const fr = {
     editer: 'Éditer la note de frais',
     informationsRemboursement: 'Mes informations de remboursement',
     iban: 'IBAN (RIB)',
+    ribDocument: 'Votre RIB en document',
+    ribDocumentAide:
+      'Le PDF de votre banque, ou une photo nette. L’IBAN ci-dessus sert au virement, ce document sert de preuve.',
+    ribDocumentDepose: 'Document déposé',
+    ribDocumentAucun: 'Aucun document déposé pour l’instant.',
+    ribDocumentDeposer: 'Déposer mon RIB',
+    ribDocumentRemplacer: 'Remplacer',
+    ribDocumentSupprimer: 'Supprimer',
+    ribDocumentEnvoye: 'RIB enregistré.',
+    ribDocumentSupprime: 'RIB supprimé.',
+    ribDocumentTelecharger: 'Télécharger le RIB',
     profilUpdated: 'Votre profil a été mis à jour.',
     dashboardCompta: 'Dashboard de validation des notes de frais',
     aucuneATraiter: 'Aucune note de frais à traiter pour le moment.',
@@ -503,6 +515,22 @@ export const fr = {
     useCode: 'Utiliser',
     fallbackEngine:
       "Ce navigateur n'a pas de lecteur intégré : la détection peut demander un cadrage plus net.",
+  },
+  contact: {
+    title: 'Nous contacter',
+    subtitle: 'Une question ? Écrivez à la comptabilité ou à l’administration.',
+    formTitle: 'Votre message',
+    destinataire: 'À qui souhaitez-vous écrire ?',
+    versCompta: 'La comptabilité',
+    versAdmin: 'L’administration',
+    aideCompta: 'Remboursements, notes de frais, factures, justificatifs demandés.',
+    aideAdmin: 'Compte, accès, rôles, stock, buvette, et tout le reste.',
+    sujet: 'Objet',
+    sujetPlaceholder: 'Ex. : ma note de frais du 12 juin',
+    message: 'Votre message',
+    envoyer: 'Envoyer le message',
+    identiteAuto:
+      'Votre nom, votre adresse et votre téléphone sont joints automatiquement : inutile de les rappeler.',
   },
   common: {
     loading: 'Chargement…',

@@ -46,6 +46,9 @@ def _serialize(expense: Expense) -> dict[str, Any]:
         # qu'une formule anonyme.
         "user_prenom": user.prenom if user else None,
         "user_rib": user.rib if user else None,
+        # Presence du document, pas son contenu : la colonne est `deferred`,
+        # et lister les notes ne doit pas rapatrier les RIB de tout le monde.
+        "user_rib_document_nom": user.rib_document_nom if user else None,
         "files": [
             {
                 "id": f.id,

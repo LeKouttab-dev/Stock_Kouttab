@@ -37,6 +37,9 @@ EXTENSIONS_ALLOWED: dict[str, set[str]] = {
     # photo brute que la chaine reconvertissait ensuite.
     "expenses": {"png", "jpg", "jpeg", "pdf"},
     "invoices": {"png", "jpg", "jpeg", "pdf"},
+    # Releve d'identite bancaire depose par le benevole : le document de sa
+    # banque, en PDF le plus souvent, parfois photographie.
+    "rib": {"png", "jpg", "jpeg", "pdf"},
 }
 
 # Magic byte signatures (read first bytes from file).
@@ -105,6 +108,11 @@ def validate_file_type(
         raise AppException(
             ErrorCode.INVALID_FILE_TYPE,
             detail="Seules les images et PDF sont autorisees pour les factures.",
+        )
+    if allowed_subdir == "rib" and detected not in INVOICE_MIMES:
+        raise AppException(
+            ErrorCode.INVALID_FILE_TYPE,
+            detail="Le releve d'identite bancaire doit etre un PDF ou une image.",
         )
     canonical_ext = INVOICE_MIMES.get(detected, IMAGE_MIMES.get(detected, extension))
     return detected, canonical_ext
@@ -178,6 +186,45 @@ async def save_upload_file(upload: UploadFile, subdir: str) -> dict[str, object]
         # l'ecriture par morceaux ci-dessus protege des fichiers enormes, et la
         # taille est de toute facon bornee par MAX_UPLOAD_MB.
         "contenu": target_path.read_bytes(),
+    }
+
+
+async def lire_en_memoire(upload: UploadFile, subdir: str) -> dict[str, object]:
+    """Valide un fichier et rend son contenu, **sans jamais l'ecrire sur disque**.
+
+    Pour ce qui ne vit qu'en base et n'a pas besoin de cache local : le releve
+    d'identite bancaire, notamment. `save_upload_file` laisse une copie dans
+    `uploads/`, utile pour un justificatif que la chaine comptable doit joindre
+    a un courriel, inutile ici — et une copie de plus d'une donnee bancaire est
+    une surface de fuite de plus.
+
+    Meme validation que les autres depots : signature du contenu, extension
+    autorisee, taille bornee par ``MAX_UPLOAD_MB``.
+    """
+    if subdir not in EXTENSIONS_ALLOWED:
+        raise AppException(ErrorCode.VALIDATION_ERROR, detail="Sous-dossier d'upload inconnu.")
+
+    contenu = await upload.read(_max_bytes() + 1)
+    if len(contenu) > _max_bytes():
+        raise AppException(
+            ErrorCode.FILE_TOO_LARGE,
+            detail=f"Fichier trop volumineux (> {settings.max_upload_mb} Mo).",
+            extras={"max_mb": settings.max_upload_mb},
+        )
+    if not contenu:
+        raise AppException(ErrorCode.VALIDATION_ERROR, detail="Fichier vide.")
+
+    mime, _ext_canonique = validate_file_type(
+        upload.filename or "",
+        upload.content_type,
+        contenu[:1024],
+        allowed_subdir=subdir,
+    )
+    return {
+        "filename": upload.filename or "document",
+        "mime": mime,
+        "size": len(contenu),
+        "contenu": contenu,
     }
 
 

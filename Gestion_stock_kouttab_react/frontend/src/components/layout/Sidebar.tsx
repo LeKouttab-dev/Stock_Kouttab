@@ -8,6 +8,7 @@ import {
   Database,
   User,
   Beer,
+  LifeBuoy,
   X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -86,6 +87,9 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       visible: can(ACTIONS.ADMIN_DATABASE),
     },
     { to: '/profile', label: fr.nav.profile, icon: User, visible: true },
+    // Visible de tous : c'est justement la personne sans droits qui a le
+    // plus besoin de savoir a qui s'adresser.
+    { to: '/contact', label: fr.nav.contact, icon: LifeBuoy, visible: true },
   ];
 
   return (
