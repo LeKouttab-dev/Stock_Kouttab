@@ -196,3 +196,49 @@ def test_la_cloture_fait_retomber_le_compteur(
         "/api/v1/notifications/summary", headers=auth_headers(benevole_user)
     ).json()
     assert resume["justificatifs_demandes"] == 0
+
+
+# ---- Destinataires ----------------------------------------------------------
+
+
+def test_la_comptabilite_peut_lister_les_destinataires(
+    client: TestClient, compta_user, benevole_user, auth_headers
+):
+    """Le menu deroulant du formulaire etait vide : il interrogeait `GET /users`,
+    reserve au Super Admin, et la comptabilite recevait un refus."""
+    reponse = client.get("/api/v1/tickets/destinataires", headers=auth_headers(compta_user))
+
+    assert reponse.status_code == 200, reponse.text
+    noms = {d["id"]: d["nom_complet"] for d in reponse.json()}
+    assert benevole_user.id in noms
+    assert noms[benevole_user.id]
+
+
+def test_les_destinataires_ne_livrent_que_l_identite(
+    client: TestClient, compta_user, benevole_user, auth_headers
+):
+    """Ni adresse, ni role, ni telephone : ce menu n'en a pas besoin."""
+    premier = client.get(
+        "/api/v1/tickets/destinataires", headers=auth_headers(compta_user)
+    ).json()[0]
+    assert set(premier) == {"id", "nom_complet"}
+
+
+def test_un_compte_en_attente_n_est_pas_proposable(
+    client: TestClient, compta_user, pending_user, auth_headers
+):
+    """Lui reclamer une piece enverrait un courriel dans le vide."""
+    ids = [
+        d["id"]
+        for d in client.get(
+            "/api/v1/tickets/destinataires", headers=auth_headers(compta_user)
+        ).json()
+    ]
+    assert pending_user.id not in ids
+
+
+def test_un_benevole_ne_liste_pas_les_destinataires(
+    client: TestClient, benevole_user, auth_headers
+):
+    reponse = client.get("/api/v1/tickets/destinataires", headers=auth_headers(benevole_user))
+    assert reponse.status_code == 403, reponse.text

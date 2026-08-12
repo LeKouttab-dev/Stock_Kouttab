@@ -18,9 +18,9 @@ import {
   useCloseTicket,
   useCreateTicket,
   useRemindTicket,
+  useTicketRecipients,
   useTickets,
 } from '@/api/endpoints/tickets';
-import { useUsers } from '@/api/endpoints/users';
 import { useToast } from '@/hooks/useToast';
 import { formatCurrency, formatDate } from '@/lib/format';
 import { fr } from '@/lib/i18n/fr';
@@ -39,7 +39,7 @@ import { fr } from '@/lib/i18n/fr';
  */
 export function TicketsManagementSection() {
   const { data: tickets = [], isLoading } = useTickets();
-  const { data: users = [] } = useUsers();
+  const { data: destinataires = [] } = useTicketRecipients();
   const create = useCreateTicket();
   const close = useCloseTicket();
   const remind = useRemindTicket();
@@ -120,9 +120,9 @@ export function TicketsManagementSection() {
                     <SelectValue placeholder={fr.tickets.choisirBenevole} />
                   </SelectTrigger>
                   <SelectContent>
-                    {users.map((u) => (
-                      <SelectItem key={u.id} value={String(u.id)}>
-                        {u.nom || u.prenom ? `${u.prenom ?? ''} ${u.nom ?? ''}`.trim() : u.username}
+                    {destinataires.map((d) => (
+                      <SelectItem key={d.id} value={String(d.id)}>
+                        {d.nom_complet}
                       </SelectItem>
                     ))}
                   </SelectContent>

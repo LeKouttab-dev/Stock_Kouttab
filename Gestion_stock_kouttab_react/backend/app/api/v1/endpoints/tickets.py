@@ -12,10 +12,17 @@ from app.core.errors import ErrorCode
 from app.core.exceptions import AppException
 from app.core.logger import get_logger
 from app.crud import ticket as ticket_crud
+from app.crud import user as user_crud
 from app.db.models import Admin, JustificatifTicket
 from app.db.session import SessionLocal, get_db
 from app.schemas.auth import MessageOut
-from app.schemas.ticket import TicketClose, TicketCreate, TicketOut, TicketUpdate
+from app.schemas.ticket import (
+    TicketClose,
+    TicketCreate,
+    TicketOut,
+    TicketRecipientOut,
+    TicketUpdate,
+)
 from app.services import email as email_service
 
 
@@ -30,6 +37,31 @@ def _to_out(ticket: JustificatifTicket) -> TicketOut:
     out = TicketOut.model_validate(ticket)
     out.user_full_name = ticket.user.full_name if ticket.user else None
     return out
+
+
+@router.get(
+    "/destinataires",
+    response_model=list[TicketRecipientOut],
+    dependencies=[Depends(require_roles(*_ACCOUNTANT_ROLES))],
+)
+def list_recipients(db: Session = Depends(get_db)) -> Any:
+    """Personnes a qui un justificatif peut etre demande.
+
+    Endpoint distinct plutot que `GET /users`, reserve au Super Admin : la
+    comptabilite a besoin de nommer un benevole, pas de consulter l'annuaire.
+    On ne renvoie donc **que l'identifiant et le nom** — ni adresse, ni role, ni
+    telephone. Elargir les droits de `/users` aurait donne bien plus que ce que
+    ce menu deroulant demande.
+
+    Seuls les comptes actifs : demander une piece a un compte en attente de
+    validation ou refuse n'aurait pas de sens, et le courriel partirait dans le
+    vide.
+    """
+    return [
+        TicketRecipientOut(id=u.id, nom_complet=u.full_name)
+        for u in user_crud.list_users(db)
+        if u.validation_status == "active"
+    ]
 
 
 @router.get("/me", response_model=list[TicketOut])

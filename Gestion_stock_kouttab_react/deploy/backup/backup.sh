@@ -14,7 +14,19 @@
 #
 # Toute la rotation distante se fait à partir des NOMS de fichiers, qui portent
 # leur date au format ISO. Aucune dépendance à un shell distant ni au parsing
-# d'un listing : la clé peut donc être restreinte au seul SFTP côté O2Switch.
+# d'un listing : l'accès distant peut donc rester au minimum de privilèges.
+#
+# DEUX PROTOCOLES, choisis par `BACKUP_PROTOCOLE` :
+#
+#   sftp  — le meilleur : clé SSH, révocable, restreignable au seul transfert.
+#   ftps  — FTP chiffré par TLS, pour les hébergements qui n'ouvrent pas SSH.
+#           C'est le cas d'O2Switch sur ce compte : le port 22 est fermé, le 21
+#           répond. Le FTP en clair, lui, n'est jamais utilisé — ces archives
+#           contiennent des noms, des montants et des pièces comptables.
+#
+# En FTPS, un mot de passe remplace la clé. Il vit dans le `.env` (600) et doit
+# appartenir à un compte FTP **dédié, cantonné au dossier des sauvegardes** :
+# s'il fuite, il n'ouvre que cela.
 # ---------------------------------------------------------------------------
 set -eu
 

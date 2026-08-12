@@ -9,12 +9,13 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useApiMutation } from '@/hooks/useApiMutation';
 import { api } from '../client';
 import { notificationQueryKeys } from './notifications';
-import type { JustificatifTicket } from '@/types/api';
+import type { JustificatifTicket, TicketRecipient } from '@/types/api';
 
 export const ticketQueryKeys = {
   all: ['tickets'] as const,
   list: (statut?: string) => [...ticketQueryKeys.all, 'list', { statut }] as const,
   mine: () => [...ticketQueryKeys.all, 'mine'] as const,
+  recipients: () => [...ticketQueryKeys.all, 'recipients'] as const,
 };
 
 export interface CreateTicketPayload {
@@ -33,6 +34,23 @@ export function useTickets(statut?: string) {
       const { data } = await api.get<JustificatifTicket[]>('/tickets', {
         params: statut ? { statut } : undefined,
       });
+      return data;
+    },
+  });
+}
+
+/**
+ * Bénévoles à qui une demande peut être adressée.
+ *
+ * Et non `useUsers()` : cet appel vise `GET /users`, réservé au Super Admin.
+ * Le menu déroulant restait donc vide pour la comptabilité, qui recevait un
+ * refus silencieux.
+ */
+export function useTicketRecipients() {
+  return useQuery({
+    queryKey: ticketQueryKeys.recipients(),
+    queryFn: async () => {
+      const { data } = await api.get<TicketRecipient[]>('/tickets/destinataires');
       return data;
     },
   });

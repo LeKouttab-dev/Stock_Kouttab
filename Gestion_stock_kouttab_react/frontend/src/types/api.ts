@@ -559,3 +559,15 @@ export interface JustificatifTicket {
   closed_at?: string | null;
   user_full_name?: string | null;
 }
+
+/**
+ * Destinataire possible d'une demande de justificatif.
+ *
+ * Volontairement pauvre : `GET /users` est réservé au Super Admin, et la
+ * comptabilité n'a besoin que de nommer un bénévole — pas de son adresse ni de
+ * son rôle.
+ */
+export interface TicketRecipient {
+  id: number;
+  nom_complet: string;
+}

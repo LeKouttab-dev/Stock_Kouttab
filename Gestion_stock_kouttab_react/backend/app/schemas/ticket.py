@@ -57,3 +57,15 @@ class TicketOut(BaseModel):
     created_at: datetime | None = None
     closed_at: datetime | None = None
     user_full_name: str | None = None
+
+
+class TicketRecipientOut(BaseModel):
+    """Destinataire possible d'une demande, reduit au strict necessaire.
+
+    Volontairement pauvre : ce menu deroulant a besoin d'un identifiant et d'un
+    nom. Ni adresse, ni role, ni telephone — la comptabilite nomme un benevole,
+    elle ne consulte pas l'annuaire.
+    """
+
+    id: int
+    nom_complet: str
