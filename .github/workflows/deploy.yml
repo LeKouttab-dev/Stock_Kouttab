@@ -109,7 +109,14 @@ jobs:
 
           # Migrations avant le redémarrage : le nouveau code suppose le
           # nouveau schéma. Conteneur jetable, l'API tourne encore.
-          docker compose run --rm api alembic upgrade head
+          # `-T` et `</dev/null` : SANS EUX, TOUT CE QUI SUIT EST AVALÉ.
+          # Ce script est transmis au shell distant par l'entrée standard ;
+          # `docker compose run` alloue un TTY et consomme cette même entrée,
+          # emportant le reste du fichier. Le déploiement s'arrêtait donc ici,
+          # en silence et en succès : `up -d` n'était jamais exécuté, et la
+          # production est restée trois versions en arrière sans que rien ne le
+          # signale.
+          docker compose run --rm -T api alembic upgrade head </dev/null
 
           docker compose up -d
 
