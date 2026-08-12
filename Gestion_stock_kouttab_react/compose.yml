@@ -82,6 +82,37 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  # Sauvegarde quotidienne des fichiers déposés.
+  #
+  # Les justificatifs ne sont pas en base — la table ne garde qu'un chemin — et
+  # la sauvegarde O2Switch de MySQL ne les couvre donc pas. Sans ce service, la
+  # perte du VPS emportait toutes les pièces comptables.
+  #
+  # Volumes en lecture seule : une sauvegarde n'a aucune raison d'écrire dans
+  # ce qu'elle archive, et cette contrainte écarte d'emblée le scénario où un
+  # bug du script abîme les originaux.
+  backup:
+    image: ghcr.io/${GHCR_OWNER}/kouttab-backup:${IMAGE_TAG:-latest}
+    container_name: kouttab-stock-backup
+    restart: unless-stopped
+    env_file: [.env]
+    volumes:
+      - uploads:/data/uploads:ro
+      - outbox:/data/outbox:ro
+      - ./backups:/backups
+      # Le RÉPERTOIRE des secrets, pas les fichiers un par un : Docker
+      # remplace un fichier monté mais absent par un dossier vide, et le
+      # conteneur meurt sur « Is a directory » avant d'avoir pu expliquer
+      # quoi que ce soit. Monté ainsi, le script constate l'absence de clé et
+      # le dit clairement dans ses journaux.
+      - ./secrets:/etc/backup:ro
+    # Pas de `networks:` : ce conteneur détient une clé SSH et n'a rien à faire
+    # sur le réseau partagé avec les autres projets de la machine. Compose lui
+    # attache le réseau par défaut du projet, d'où la sortie Internet suffit.
+    mem_limit: 256m
+    security_opt:
+      - no-new-privileges:true
+
 volumes:
   uploads:
   outbox:

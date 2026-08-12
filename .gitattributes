@@ -1,0 +1,7 @@
+# Les scripts shell partent dans des images Linux : livrés avec des fins de
+# ligne Windows, ils échouent au démarrage du conteneur sur un « bad
+# interpreter » que rien dans le message ne rattache au vrai problème.
+#
+# Volontairement limité aux `.sh` : YAML et Dockerfile s'accommodent des deux,
+# et les renormaliser noierait les prochains diffs sans rien corriger.
+*.sh text eol=lf
