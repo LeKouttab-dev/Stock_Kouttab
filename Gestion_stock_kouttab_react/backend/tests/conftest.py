@@ -8,9 +8,28 @@ import uuid
 from collections.abc import Callable, Generator
 from typing import Any
 
-# Cle de chiffrement du RIB, posee AVANT tout import de l'application : sans
-# elle, la moindre ecriture de RIB leve `CleAbsente`. Valeur fixe et sans
-# secret — elle ne protege rien d'autre qu'une base SQLite en memoire.
+# ---------------------------------------------------------------------------
+# Environnement de test, pose AVANT tout import de l'application : `settings`
+# est construit a l'import du premier module applicatif, et lit le `.env` du
+# poste. Ce qui est defini ici l'emporte (pydantic-settings fait primer les
+# variables d'environnement sur le fichier).
+# ---------------------------------------------------------------------------
+
+# AUCUN courriel ne part pendant les tests. Ce n'est pas une precaution
+# theorique : le `.env` de developpement porte les identifiants SMTP reels de
+# l'association, et la suite a arrose la boite de la comptabilite de fausses
+# factures (« [Facture] EV(T) — Gala d'ete 2026 ») a chaque execution.
+#
+# La fixture `captured_emails` n'interceptait que `_send`, alors que le circuit
+# comptable — celui qui envoie les PDF — passe par `_send_raw`. Le coupe-circuit
+# `EMAIL_ENABLED` existait deja dans `services/email.py` mais rien ne l'armait
+# ici : c'est desormais le cas, en amont de tout patch, pour qu'aucun chemin
+# d'envoi present ou futur ne puisse joindre un vrai serveur.
+os.environ["EMAIL_ENABLED"] = "false"
+
+# Cle de chiffrement du RIB : sans elle, la moindre ecriture de RIB leve
+# `CleAbsente`. Valeur fixe et sans secret — elle ne protege rien d'autre
+# qu'une base SQLite en memoire.
 os.environ.setdefault(
     "RIB_ENCRYPTION_KEY", base64.urlsafe_b64encode(bytes(range(32))).decode()
 )
@@ -48,7 +67,13 @@ from app.api.v1.endpoints import buvette as buvette_endpoint  # noqa: E402
 from app.api.v1.endpoints import expenses as expenses_endpoint  # noqa: E402
 from app.api.v1.endpoints import invoices as invoices_endpoint  # noqa: E402
 from app.db import session as db_session_module  # noqa: E402
+from app.services import email as email_service  # noqa: E402
 from app.services import outbox as outbox_service  # noqa: E402
+
+# Reference vers la VRAIE fonction d'envoi, capturee avant tout patch : les
+# tests qui verifient son comportement (coupe-circuit, TLS) en ont besoin,
+# alors que la fixture `captured_emails` la remplace pour tous les autres.
+_SEND_RAW_REEL = email_service._send_raw
 
 
 _engine = create_engine(
@@ -141,6 +166,16 @@ def first_category():
         return categories[0]
     finally:
         db.close()
+
+
+@pytest.fixture()
+def send_raw_reel():
+    """La vraie ``_send_raw``, pour les tests qui verifient son comportement.
+
+    Passer par la fonction du module rendrait ces tests inoperants : la
+    fixture `captured_emails` l'a remplacee pour empecher tout envoi.
+    """
+    return _SEND_RAW_REEL
 
 
 @pytest.fixture()
@@ -340,7 +375,17 @@ def captured_emails(monkeypatch: pytest.MonkeyPatch) -> list[_SentEmail]:
     async def _fake_status_change(*, recipient, subject, body, auteur_email=None):
         sent.append(_SentEmail(subject, body, [recipient], kind="status_change"))
 
+    async def _fake_send_raw(subject, body, recipients, *, html=False, attachments=None):  # noqa: ANN001
+        """Envois du circuit comptable — ceux qui portent les PDF.
+
+        Deuxieme barriere apres `EMAIL_ENABLED=false` : sans ce patch, un test
+        rejoignait le vrai serveur SMTP, et la boite de la comptabilite recevait
+        les fausses factures de la suite a chaque execution.
+        """
+        sent.append(_SentEmail(subject, body, list(recipients), kind="compta"))
+
     monkeypatch.setattr("app.services.email._send", _fake_send)
+    monkeypatch.setattr("app.services.email._send_raw", _fake_send_raw)
     monkeypatch.setattr(
         "app.services.email.send_admin_invitation", _fake_admin_invitation
     )

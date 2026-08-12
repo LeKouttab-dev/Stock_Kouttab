@@ -64,6 +64,7 @@ def test_compta_emails_is_empty_when_unset(monkeypatch: pytest.MonkeyPatch) -> N
 @pytest.mark.asyncio
 async def test_no_mail_leaves_the_process_when_sending_is_disabled(
     monkeypatch: pytest.MonkeyPatch,
+    send_raw_reel,
 ) -> None:
     """EMAIL_ENABLED=false doit couper l'envoi avant toute connexion SMTP.
 
@@ -82,13 +83,15 @@ async def test_no_mail_leaves_the_process_when_sending_is_disabled(
     monkeypatch.setattr(email_service, "_mailer", _MailerEspion())
     monkeypatch.setattr(email_service.settings, "email_enabled", False)
 
-    await email_service._send_raw("Sujet", "Corps", ["vrai.destinataire@example.com"])
+    await send_raw_reel("Sujet", "Corps", ["vrai.destinataire@example.com"])
 
     assert envoyes == [], "aucun message ne doit atteindre le serveur SMTP"
 
 
 @pytest.mark.asyncio
-async def test_mail_is_sent_when_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_mail_is_sent_when_enabled(
+    monkeypatch: pytest.MonkeyPatch, send_raw_reel
+) -> None:
     from app.services import email as email_service
 
     envoyes: list[object] = []
@@ -100,7 +103,7 @@ async def test_mail_is_sent_when_enabled(monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setattr(email_service, "_mailer", _MailerEspion())
     monkeypatch.setattr(email_service.settings, "email_enabled", True)
 
-    await email_service._send_raw("Sujet", "Corps", ["destinataire@example.com"])
+    await send_raw_reel("Sujet", "Corps", ["destinataire@example.com"])
 
     assert len(envoyes) == 1
 
