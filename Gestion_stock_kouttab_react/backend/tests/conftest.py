@@ -2,9 +2,18 @@
 
 from __future__ import annotations
 
+import base64
+import os
 import uuid
 from collections.abc import Callable, Generator
 from typing import Any
+
+# Cle de chiffrement du RIB, posee AVANT tout import de l'application : sans
+# elle, la moindre ecriture de RIB leve `CleAbsente`. Valeur fixe et sans
+# secret — elle ne protege rien d'autre qu'une base SQLite en memoire.
+os.environ.setdefault(
+    "RIB_ENCRYPTION_KEY", base64.urlsafe_b64encode(bytes(range(32))).decode()
+)
 
 import bcrypt
 import pytest
@@ -28,6 +37,7 @@ bcrypt.gensalt = _fast_gensalt  # type: ignore[assignment]
 from app.core.config import settings  # noqa: E402
 from app.core.rate_limit import limiter  # noqa: E402
 from app.core.security import create_access_token  # noqa: E402
+from app.crud import expense_category as category_crud  # noqa: E402
 from app.crud import pole as pole_crud  # noqa: E402
 from app.crud import user as user_crud  # noqa: E402
 from app.db.base import Base  # noqa: E402
@@ -57,6 +67,7 @@ Base.metadata.create_all(bind=_engine)
 _bootstrap = sessionmaker(bind=_engine)()
 try:
     pole_crud.ensure_default_poles(_bootstrap)
+    category_crud.ensure_default_categories(_bootstrap)
 finally:
     _bootstrap.close()
 
@@ -109,6 +120,30 @@ def first_pole():
 
 
 @pytest.fixture()
+def local_pole():
+    """Pole « Local » : le cas sans evenement, avec categorie obligatoire."""
+    db = _TestingSessionLocal()
+    try:
+        poles = [p for p in pole_crud.list_poles(db) if not p.requiert_evenement]
+        assert poles, "aucun pole sans evenement dans le referentiel de base"
+        return poles[0]
+    finally:
+        db.close()
+
+
+@pytest.fixture()
+def first_category():
+    """Premiere categorie de depense du referentiel de base (« Courses »)."""
+    db = _TestingSessionLocal()
+    try:
+        categories = category_crud.list_categories(db)
+        assert categories, "le referentiel de categories n'a pas ete amorce"
+        return categories[0]
+    finally:
+        db.close()
+
+
+@pytest.fixture()
 def db_session() -> Generator[Session, None, None]:
     db = _TestingSessionLocal()
     try:
@@ -155,6 +190,7 @@ def _isolate_test_state() -> Generator[None, None, None]:
         db.commit()
         # Le referentiel de base fait partie de l'etat initial attendu.
         pole_crud.ensure_default_poles(db)
+        category_crud.ensure_default_categories(db)
     finally:
         db.close()
 

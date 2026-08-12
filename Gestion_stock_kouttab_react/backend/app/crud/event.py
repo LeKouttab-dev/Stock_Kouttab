@@ -139,7 +139,11 @@ def resolve_event(
 
 
 def create_manual_event(
-    db: Session, *, nom: str, date_evenement: date | None = None
+    db: Session,
+    *,
+    nom: str,
+    date_evenement: date | None = None,
+    type_ev: str | None = None,
 ) -> Event:
     cleaned = (nom or "").strip()
     if not cleaned:
@@ -149,6 +153,7 @@ def create_manual_event(
     event = Event(
         nom=cleaned,
         date_evenement=date_evenement,
+        type_ev=(type_ev or None),
         source=SOURCE_MANUAL,
         is_active=True,
     )
@@ -164,9 +169,13 @@ def update_event(
     *,
     nom: str | None = None,
     date_evenement: date | None = None,
+    type_ev: str | None = None,
     is_active: bool | None = None,
 ) -> Event:
     event = get_event_or_404(db, event_id)
+    if type_ev is not None:
+        # Chaine vide = retirer la famille, et non « ne rien changer ».
+        event.type_ev = type_ev.strip() or None
     if nom is not None:
         cleaned = nom.strip()
         if not cleaned:

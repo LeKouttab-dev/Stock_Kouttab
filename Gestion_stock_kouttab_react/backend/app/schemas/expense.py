@@ -65,6 +65,8 @@ class ExpenseOut(ExpenseBase):
     pole: str | None = None
     id_event: int | None = None
     evenement: str | None = None
+    id_categorie: int | None = None
+    categorie: str | None = None
     date_evenement: date | None = None
     validated_by: int | None = None
     validated_at: datetime | None = None

@@ -21,9 +21,8 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, require_roles
 from app.core.errors import ErrorCode
 from app.core.exceptions import AppException
-from app.crud import event as event_crud
 from app.crud import invoice as invoice_crud
-from app.crud import pole as pole_crud
+from app.crud import rattachement as rattachement_crud
 from app.db.models import Admin
 from app.db.session import SessionLocal, get_db
 from app.schemas.auth import MessageOut
@@ -47,16 +46,6 @@ def _parse_optional_date(value: str | None) -> date_type | None:
         raise AppException(
             ErrorCode.INVALID_DATE, detail="Date invalide (format YYYY-MM-DD)."
         ) from exc
-
-
-def _parse_required_date(value: str) -> date_type:
-    parsed = _parse_optional_date(value)
-    if parsed is None:
-        raise AppException(
-            ErrorCode.REQUIRED_FIELD_MISSING,
-            detail="La date de l'evenement est obligatoire.",
-        )
-    return parsed
 
 
 def _parse_optional_decimal(value: str | None) -> Decimal | None:
@@ -105,9 +94,13 @@ def list_invoices(
 async def create_invoice(
     background: BackgroundTasks,
     id_pole: int = Form(...),
-    date_evenement: str = Form(...),
+    # Optionnelle depuis l'introduction des poles sans evenement : sous « Local »
+    # il n'y a pas d'evenement, donc pas de date d'evenement. L'obligation est
+    # portee par la resolution du rattachement, qui sait ce que le pole attend.
+    date_evenement: str | None = Form(default=None),
     id_event: int | None = Form(default=None),
     evenement_libre: str | None = Form(default=None),
+    id_categorie: int | None = Form(default=None),
     fournisseur: str | None = Form(default=None),
     montant: str | None = Form(default=None),
     commentaire: str | None = Form(default=None),
@@ -125,25 +118,30 @@ async def create_invoice(
             ErrorCode.TOO_MANY_FILES, detail="Maximum 10 fichiers par depot."
         )
 
-    # Le pole et l'evenement sont resolus AVANT toute ecriture : ils composent le
-    # nom du fichier envoye au comptable, une erreur ici doit etre signalee au
-    # deposant plutot que produire une piece mal nommee.
-    pole = pole_crud.get_pole_or_404(db, id_pole)
-    event_id, event_label = event_crud.resolve_event(
-        db, event_id=id_event, evenement_libre=evenement_libre
+    # Le rattachement est resolu AVANT toute ecriture : il compose le nom du
+    # fichier envoye au comptable, une erreur ici doit etre signalee au deposant
+    # plutot que produire une piece mal nommee.
+    rattachement = rattachement_crud.resoudre(
+        db,
+        id_pole=id_pole,
+        id_event=id_event,
+        evenement_libre=evenement_libre,
+        id_categorie=id_categorie,
+        date_evenement=_parse_optional_date(date_evenement),
     )
-    date_event = _parse_required_date(date_evenement)
 
     invoice = invoice_crud.create_invoice(
         db,
         user_id=current_user.id,
         commentaire=commentaire,
         date_depot=_parse_optional_date(date_depot),
-        id_pole=pole.id,
-        pole=pole.nom,
-        id_event=event_id,
-        evenement=event_label,
-        date_evenement=date_event,
+        id_pole=rattachement.id_pole,
+        pole=rattachement.pole,
+        id_event=rattachement.id_event,
+        evenement=rattachement.evenement,
+        id_categorie=rattachement.id_categorie,
+        categorie=rattachement.categorie,
+        date_evenement=rattachement.date_evenement,
         fournisseur=fournisseur,
         montant=_parse_optional_decimal(montant),
     )

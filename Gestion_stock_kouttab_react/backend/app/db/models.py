@@ -22,6 +22,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+from app.db.types import ChampChiffre
 
 
 # ---- Stock ------------------------------------------------------------------
@@ -99,7 +100,10 @@ class Admin(Base):
     prenom: Mapped[str | None] = mapped_column(String(255), nullable=True)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     telephone: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    rib: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Chiffre au repos : c'est le champ le plus sensible de la base, et les
+    # permissions applicatives ne protegent rien de ce qui contourne
+    # l'application (export, sauvegarde, acces MySQL direct).
+    rib: Mapped[str | None] = mapped_column(ChampChiffre(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
@@ -256,6 +260,53 @@ class Pole(Base):
     # pole lisible meme si celui-ci n'est plus propose en 2027.
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     ordre: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Ce que le depot demande sous ce pole : un evenement, ou une categorie.
+    #
+    # Seul le pole evenementiel se rattache a un evenement. Une depense du local
+    # — des courses, du gouter, du materiel — n'en a aucun, et l'exiger obligeait
+    # a inventer un libelle pour satisfaire le formulaire. Le drapeau vit sur le
+    # pole plutot que dans le code : un pole cree demain declare lui-meme ce
+    # qu'il attend, sans redeploiement.
+    requiert_evenement: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
+    # Famille d'evenements proposee sous ce pole : « T », « G », « J »...
+    #
+    # Les poles evenementiels sont declines par famille (EV(T), EV(G), EV(J)) et
+    # n'ont pas a proposer les evenements des autres. `NULL` = aucun filtre, la
+    # liste complete est proposee.
+    type_evenement: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+
+class ExpenseCategory(Base):
+    """Categorie d'une depense hors evenement (referentiel administrable).
+
+    Ce que l'evenement est au pole evenementiel, la categorie l'est aux autres :
+    la deuxieme composante du nom du justificatif envoye au comptable, celle qui
+    dit a quoi la depense se rattache. « Local_Courses_2026-08-12.pdf » s'impute
+    sans avoir a ouvrir le PDF.
+
+    Table plutot qu'enumeration figee, comme ``Poles`` et pour la meme raison :
+    la liste evoluera, et la faire evoluer ne doit pas demander un deploiement.
+    """
+
+    __tablename__ = "CategoriesDepense"
+    __table_args__ = (
+        Index("idx_catdep_nom", "nom"),
+        Index("idx_catdep_active", "is_active"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    nom: Mapped[str] = mapped_column(String(120), nullable=False, unique=True)
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Desactivation plutot que suppression, meme raison que pour les poles : une
+    # note de 2026 doit rester lisible si la categorie disparait en 2027.
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    ordre: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
@@ -292,6 +343,15 @@ class Event(Base):
     helloasso_state: Mapped[str | None] = mapped_column(String(20), nullable=True)
     # 'helloasso' | 'manuel' — la synchronisation ne touche jamais au manuel.
     source: Mapped[str] = mapped_column(String(20), default="helloasso", nullable=False)
+    # Famille de l'evenement : « T », « G », « J ». Elle determine sous quel
+    # pole EV il apparait au depot.
+    #
+    # Renseignee a la main : HelloAsso ne connait pas cette classification, et la
+    # synchronisation n'y touche donc jamais. Un evenement non classe (`NULL`)
+    # reste propose sous TOUS les poles EV — sans quoi la premiere
+    # synchronisation viderait les listes, chaque evenement importe arrivant
+    # sans famille.
+    type_ev: Mapped[str | None] = mapped_column(String(10), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
@@ -385,6 +445,9 @@ class Expense(Base):
     id_event: Mapped[int | None] = mapped_column(Integer, nullable=True)
     evenement: Mapped[str | None] = mapped_column(String(255), nullable=True)
     date_evenement: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # Alternative a l'evenement, sous un pole qui n'en attend pas (cf. Invoice).
+    id_categorie: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    categorie: Mapped[str | None] = mapped_column(String(120), nullable=True)
 
     status: Mapped[str] = mapped_column(String(20), default="En attente")
     commentaires_compta: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -462,6 +525,11 @@ class Invoice(Base):
     id_event: Mapped[int | None] = mapped_column(Integer, nullable=True)
     evenement: Mapped[str | None] = mapped_column(String(255), nullable=True)
     date_evenement: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # Alternative a l'evenement, sous un pole qui n'en attend pas. Identifiant
+    # et libelle en double, meme raison que pour le pole : le nom du PDF deja
+    # envoye ne doit pas bouger si la categorie est renommee.
+    id_categorie: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    categorie: Mapped[str | None] = mapped_column(String(120), nullable=True)
     fournisseur: Mapped[str | None] = mapped_column(String(255), nullable=True)
     montant: Mapped[Decimal | None] = mapped_column(DECIMAL(10, 2), nullable=True)
 

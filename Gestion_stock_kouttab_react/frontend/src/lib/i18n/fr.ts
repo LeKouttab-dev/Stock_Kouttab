@@ -256,7 +256,36 @@ export const fr = {
     source: 'Source',
     manuel: 'Manuel',
     helloasso: 'HelloAsso',
+    famille: "Famille de l'événement",
+    familleAucune: 'Toutes familles',
     aucun: 'Aucun événement enregistré.',
+  },
+
+  notifications: {
+    bonjour: 'Bonjour',
+    aTraiter: 'à traiter',
+    notesAValider: 'note(s) de frais à valider',
+    facturesATraiter: 'facture(s) à traiter',
+    modificationsStock: 'demande(s) de modification de stock',
+    comptesAValider: 'compte(s) en attente de validation',
+    articlesEnAlerte: "article(s) sous le seuil d'alerte",
+  },
+
+  categories: {
+    title: 'Catégories de dépense',
+    subtitle:
+      'Proposées au dépôt sous les pôles qui ne se rattachent pas à un événement (local, institut).',
+    label: 'Catégorie',
+    selectPlaceholder: 'Sélectionnez une catégorie',
+    unavailable: 'La liste des catégories est momentanément indisponible.',
+    description: "Description de l'achat",
+    descriptionPlaceholder: 'Ex. : eau, gobelets et gâteaux pour le local',
+    ajouter: 'Ajouter une catégorie',
+    nom: 'Nom de la catégorie',
+    aucune: 'Aucune catégorie enregistrée.',
+    supprimee: 'Catégorie supprimée.',
+    creee: 'Catégorie ajoutée.',
+    modifiee: 'Catégorie modifiée.',
   },
 
   admin: {

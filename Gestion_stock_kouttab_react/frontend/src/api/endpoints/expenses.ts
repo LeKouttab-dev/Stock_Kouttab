@@ -25,9 +25,18 @@ async function fetchAllExpenses(): Promise<Expense[]> {
   return data;
 }
 
+/**
+ * Champs qui n'existent que dans le formulaire.
+ *
+ * `requiert_evenement` recopie le réglage du pôle pour que Zod puisse valider
+ * conditionnellement ; l'API le déduit elle-même du pôle et n'en veut pas.
+ */
+const CHAMPS_INTERNES = new Set(['requiert_evenement']);
+
 async function createExpense(payload: ExpenseCreateRequest, files: File[]): Promise<Expense> {
   const formData = new FormData();
   Object.entries(payload).forEach(([k, v]) => {
+    if (CHAMPS_INTERNES.has(k)) return;
     if (v !== undefined && v !== null && v !== '') formData.append(k, String(v));
   });
   files.forEach((file) => formData.append('files', file));

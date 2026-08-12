@@ -175,6 +175,9 @@ export interface Expense {
   pole?: string | null;
   id_event?: number | null;
   evenement?: string | null;
+  /* Alternative à l'événement, sous un pôle qui n'en attend pas. */
+  id_categorie?: number | null;
+  categorie?: string | null;
   date_evenement?: string | null;
   files?: ExpenseFile[];
 }
@@ -188,9 +191,12 @@ export interface ExpenseCreateRequest {
      saisie libre — l'un des deux, jamais aucun. Les valeurs nulles ou vides
      sont écartées avant l'envoi du FormData. */
   id_pole: number;
-  date_evenement: string;
+  /* Facultative sous un pôle sans événement : il n'y a alors pas d'événement
+     à dater, et c'est la date de la dépense qui nomme le fichier comptable. */
+  date_evenement?: string;
   id_event?: number | null;
   evenement_libre?: string;
+  id_categorie?: number | null;
   /** Champ libre historique, plus saisi mais toujours accepté par l'API. */
   rattachement?: string;
   nature_charge?: string;
@@ -229,6 +235,9 @@ export interface Invoice {
   pole?: string | null;
   id_event?: number | null;
   evenement?: string | null;
+  /* Alternative à l'événement, sous un pôle qui n'en attend pas. */
+  id_categorie?: number | null;
+  categorie?: string | null;
   date_evenement?: string | null;
   fournisseur?: string | null;
   montant?: string | number | null;
@@ -238,6 +247,31 @@ export interface Invoice {
 
 /* Référentiels comptables */
 export interface Pole {
+  id: number;
+  nom: string;
+  is_default: boolean;
+  is_active: boolean;
+  ordre: number;
+  /**
+   * Ce que le dépôt demande sous ce pôle : un événement, ou une catégorie.
+   *
+   * Seul le pôle événementiel se rattache à un événement. Le formulaire s'y fie
+   * plutôt que de reconnaître des pôles par leur nom — un pôle créé demain se
+   * comporte selon son propre réglage.
+   */
+  requiert_evenement: boolean;
+  /**
+   * Famille d'événements proposée sous ce pôle (« T », « G », « J »).
+   *
+   * Les pôles EV sont déclinés par famille et n'ont pas à proposer les
+   * événements des autres. `null` = aucun filtre.
+   */
+  type_evenement?: string | null;
+  created_at?: string | null;
+}
+
+/** Catégorie d'une dépense sous un pôle sans événement (courses, goûter...). */
+export interface ExpenseCategory {
   id: number;
   nom: string;
   is_default: boolean;
@@ -259,6 +293,8 @@ export interface AppEvent {
   date_fin?: string | null;
   url?: string | null;
   source: 'helloasso' | 'manuel';
+  /** Famille de l'événement (« T », « G », « J »), saisie à la main. */
+  type_ev?: string | null;
   is_active: boolean;
   helloasso_state?: string | null;
   last_synced_at?: string | null;
@@ -436,4 +472,18 @@ export interface BarcodeLookupResponse {
   stock_item: StockItem | null;
   buvette_product: BuvetteProduct | null;
   openfoodfacts: OpenFoodFactsData | null;
+}
+
+/**
+ * Dossiers en attente pour l'utilisateur connecté, déjà filtrés par ses droits.
+ *
+ * Un compteur à 0 signifie « rien à traiter » **ou** « pas concerné » : le
+ * serveur ne renvoie jamais le nombre réel à qui n'a pas à le connaître.
+ */
+export interface PendingSummary {
+  notes_a_valider: number;
+  factures_a_traiter: number;
+  modifications_stock: number;
+  comptes_a_valider: number;
+  articles_en_alerte: number;
 }

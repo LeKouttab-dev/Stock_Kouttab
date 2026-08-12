@@ -22,6 +22,13 @@ interface EventSelectProps {
   onFreeTextChange: (value: string) => void;
   /** Appelé avec la date de l'événement sélectionné, pour pré-remplir le champ. */
   onEventDate?: (date: string | null) => void;
+  /**
+   * Famille d'événements du pôle choisi (« T », « G », « J »).
+   *
+   * Les pôles EV sont déclinés par famille : sous EV(T), proposer les
+   * événements de EV(G) n'a pas de sens. `undefined` ou `null` = aucun filtre.
+   */
+  typeEvenement?: string | null;
   disabled?: boolean;
 }
 
@@ -39,11 +46,27 @@ export function EventSelect({
   onEventIdChange,
   onFreeTextChange,
   onEventDate,
+  typeEvenement,
   disabled,
 }: EventSelectProps) {
   const { data: events, isLoading, isError } = useEvents();
 
   const value = eventId !== null ? String(eventId) : freeText ? FREE_EVENT : '';
+
+  /**
+   * Événements proposés : ceux de la famille demandée, **et ceux qui n'en ont
+   * aucune**.
+   *
+   * La famille se renseigne à la main — HelloAsso ne la connaît pas. Filtrer
+   * strictement viderait donc la liste au lendemain d'une synchronisation,
+   * chaque événement importé arrivant non classé. Les non classés restent
+   * visibles jusqu'à ce qu'on les range.
+   */
+  const proposes = useMemo(() => {
+    if (!events) return [];
+    if (!typeEvenement) return events;
+    return events.filter((e) => !e.type_ev || e.type_ev === typeEvenement);
+  }, [events, typeEvenement]);
 
   const selected = useMemo(() => events?.find((e) => e.id === eventId) ?? null, [events, eventId]);
 
@@ -70,13 +93,17 @@ export function EventSelect({
           <SelectValue placeholder={fr.events.selectPlaceholder} />
         </SelectTrigger>
         <SelectContent>
-          {(events ?? []).map((event) => (
+          {/* La saisie libre est proposée EN TÊTE, pas en fin de liste : elle y
+              était invisible dès que le référentiel comptait quelques
+              événements, et les déposants concluaient que le leur ne pouvait
+              pas être saisi. C'est pourtant le cas le plus courant. */}
+          <SelectItem value={FREE_EVENT}>{fr.events.notListed}</SelectItem>
+          {proposes.map((event) => (
             <SelectItem key={event.id} value={String(event.id)}>
               {event.nom}
               {event.date_evenement ? ` — ${event.date_evenement}` : ''}
             </SelectItem>
           ))}
-          <SelectItem value={FREE_EVENT}>{fr.events.notListed}</SelectItem>
         </SelectContent>
       </Select>
 

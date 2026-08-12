@@ -31,7 +31,10 @@ export interface CreateInvoicePayload {
   /** Événement du référentiel, ou `null` si saisi à la main. */
   eventId?: number | null;
   eventLibre?: string;
-  dateEvenement: string;
+  /** Vide sous un pôle sans événement : il n'y a alors rien à dater. */
+  dateEvenement?: string;
+  /** Rattachement des pôles sans événement (courses, goûter, matériel...). */
+  categorieId?: number | null;
   fournisseur?: string;
   montant?: string;
 }
@@ -40,8 +43,11 @@ async function createInvoice(payload: CreateInvoicePayload): Promise<Invoice> {
   const formData = new FormData();
   if (payload.comment) formData.append('commentaire', payload.comment);
   formData.append('id_pole', String(payload.poleId));
-  formData.append('date_evenement', payload.dateEvenement);
-  // Exclusifs : le backend refuse les deux à la fois.
+  // Événement et catégorie s'excluent, et le backend refuse le mélange : on
+  // n'envoie que ce que le pôle attend, jamais un champ résiduel.
+  if (payload.dateEvenement?.trim())
+    formData.append('date_evenement', payload.dateEvenement.trim());
+  if (payload.categorieId != null) formData.append('id_categorie', String(payload.categorieId));
   if (payload.eventId != null) formData.append('id_event', String(payload.eventId));
   else if (payload.eventLibre?.trim())
     formData.append('evenement_libre', payload.eventLibre.trim());

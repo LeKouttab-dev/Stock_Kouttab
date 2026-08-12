@@ -20,9 +20,8 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, require_roles
 from app.core.errors import ErrorCode
 from app.core.exceptions import AppException
-from app.crud import event as event_crud
 from app.crud import expense as expense_crud
-from app.crud import pole as pole_crud
+from app.crud import rattachement as rattachement_crud
 from app.db.models import Admin
 from app.db.session import SessionLocal, get_db
 from app.schemas.auth import MessageOut
@@ -120,7 +119,10 @@ async def create_expense(
     montant: str = Form(...),
     fournisseur: str = Form(...),
     id_pole: int = Form(...),
-    date_evenement: str = Form(...),
+    # Optionnelle depuis l'introduction des poles sans evenement : sous « Local »
+    # il n'y a pas d'evenement, donc pas de date d'evenement. L'obligation est
+    # portee par la resolution du rattachement, qui sait ce que le pole attend.
+    date_evenement: str | None = Form(default=None),
     rattachement: str | None = Form(default=None),
     nature_charge: str | None = Form(default=None),
     commentaires: str | None = Form(default=None),
@@ -128,27 +130,32 @@ async def create_expense(
     remise: str | None = Form(default=None),
     id_event: int | None = Form(default=None),
     evenement_libre: str | None = Form(default=None),
+    id_categorie: int | None = Form(default=None),
     files: list[UploadFile] | None = File(default=None),
     db: Session = Depends(get_db),
     current_user: Admin = Depends(get_current_user),
 ) -> Any:
-    # Pole, evenement et date composent le nom du ticket envoye au comptable :
-    # ils sont exiges, au meme titre que sur les factures. Une note deposee sans
-    # eux arrivait chez le comptable sous un nom incomplet, impossible a imputer.
+    # Le rattachement compose le nom du ticket envoye au comptable : il est
+    # exige, au meme titre que sur les factures. Une note deposee sans lui
+    # arrivait chez le comptable sous un nom incomplet, impossible a imputer.
+    # Selon le pole, ce rattachement est un evenement ou une categorie.
     # `rattachement` reste accepte en entree sans etre requis : les notes
     # anterieures le portent, et le champ subsiste en base.
     if not fournisseur.strip():
         raise AppException(
             ErrorCode.VALIDATION_ERROR, detail="Le fournisseur est obligatoire."
         )
-    pole = pole_crud.get_pole_or_404(db, id_pole)
-    if id_event is None and not (evenement_libre or "").strip():
-        raise AppException(
-            ErrorCode.VALIDATION_ERROR,
-            detail="L'evenement est obligatoire : choisissez-en un ou saisissez son nom.",
-        )
-    event_id, event_label = event_crud.resolve_event(
-        db, event_id=id_event, evenement_libre=evenement_libre
+    rattachement_resolu = rattachement_crud.resoudre(
+        db,
+        id_pole=id_pole,
+        id_event=id_event,
+        evenement_libre=evenement_libre,
+        id_categorie=id_categorie,
+        date_evenement=(
+            _parse_date(date_evenement, field="date_evenement")
+            if date_evenement
+            else None
+        ),
     )
 
     expense = expense_crud.create_expense(
@@ -164,11 +171,13 @@ async def create_expense(
             remboursement_deja_emis, field="remboursement_deja_emis", default=Decimal("0")
         ),
         remise=_parse_decimal(remise, field="remise", default=Decimal("0")),
-        id_pole=pole.id,
-        pole=pole.nom,
-        id_event=event_id,
-        evenement=event_label,
-        date_evenement=_parse_date(date_evenement, field="date_evenement"),
+        id_pole=rattachement_resolu.id_pole,
+        pole=rattachement_resolu.pole,
+        id_event=rattachement_resolu.id_event,
+        evenement=rattachement_resolu.evenement,
+        id_categorie=rattachement_resolu.id_categorie,
+        categorie=rattachement_resolu.categorie,
+        date_evenement=rattachement_resolu.date_evenement,
     )
     if files:
         if len(files) > 5:

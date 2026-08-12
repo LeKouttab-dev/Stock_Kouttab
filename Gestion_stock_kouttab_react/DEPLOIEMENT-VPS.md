@@ -62,7 +62,7 @@ a été retiré du `compose.yml` : il répondait à un besoin qui n'existe pas i
 | Cron comptable | cron cPanel | service `outbox-worker` |
 | Base MySQL | locale au serveur | **distante, accès direct autorisé par IP** |
 | Sauvegarde base | O2Switch | **O2Switch (inchangé)** |
-| Sauvegarde `uploads/` | O2Switch | **à ta charge — §11** |
+| Sauvegarde `uploads/` | O2Switch | **service `backup`, vers O2Switch — §11** |
 
 ---
 
@@ -175,19 +175,36 @@ sudo usermod -aG docker deploy      # se reconnecter pour que le groupe prenne e
 Le projet vit dans `/opt/projets/`, à côté des autres — jamais dans `/opt`
 directement, et **jamais dans `/opt/infra`**, qui appartient au socle.
 
+Seuls `compose.yml`, `deploy/` et le `.env` sont nécessaires ici : le code
+applicatif arrive par les images GHCR.
+
 ```bash
 sudo mkdir -p /opt/projets/kouttab-stock
 sudo chown "$USER:$USER" /opt/projets/kouttab-stock
-cd /opt/projets/kouttab-stock
-
-# Seuls compose.yml, deploy/ et le .env sont nécessaires ici : le code
-# applicatif arrive par les images GHCR.
-git clone --depth 1 <URL_DU_DEPOT> repo
-cp repo/Gestion_stock_kouttab_react/compose.yml .
-cp -r repo/Gestion_stock_kouttab_react/deploy .
-cp repo/Gestion_stock_kouttab_react/.env.deploy.example .env
-chmod 600 .env
 ```
+
+Puis, **depuis le poste de développement**, envoyer les fichiers :
+
+```bash
+cd <racine_du_depot>/Gestion_stock_kouttab_react
+scp compose.yml     <compte>@85.215.168.239:/opt/projets/kouttab-stock/
+scp -r deploy       <compte>@85.215.168.239:/opt/projets/kouttab-stock/
+scp .env.deploy.example <compte>@85.215.168.239:/opt/projets/kouttab-stock/.env
+```
+
+```bash
+chmod 600 /opt/projets/kouttab-stock/.env    # sur le VPS
+```
+
+> **Pas de clone du dépôt sur le VPS.** Un `git clone` y demanderait des
+> identifiants pour un dépôt privé, et donnerait à la machine de production un
+> accès en lecture à tout l'historique du code — pour trois fichiers.
+> `scp` depuis le poste suffit.
+>
+> Conséquence à retenir : **le déploiement ne met à jour que les images.**
+> `compose.yml` et `deploy/` restent figés tant qu'on ne les recopie pas à la
+> main. Un service ajouté au `compose.yml` du dépôt n'existera pas sur le VPS
+> avant cette copie, et rien ne le signalera.
 
 > Le `Caddyfile` du projet n'est **pas** copié : le TLS et le routage sont
 > assurés par le Caddy du socle. Notre seule contribution au routage est le
@@ -241,7 +258,7 @@ change à chaque redémarrage du routeur.
 Isoler le problème avant de soupçonner le code :
 
 ```bash
-cd /opt/kouttab
+cd /opt/projets/kouttab-stock
 set -a; . ./.env; set +a
 docker compose run --rm api python -c "
 import pymysql, os
@@ -278,10 +295,10 @@ cur = c.cursor(); cur.execute(\"SHOW STATUS LIKE 'Ssl_cipher'\"); print(cur.fetc
 - **Vide, ou la connexion échoue** → activer le tunnel SSH :
 
 ```bash
-ssh-keygen -t ed25519 -C "tunnel@kouttab" -f /opt/kouttab/secrets/id_tunnel -N ""
-chmod 600 /opt/kouttab/secrets/id_tunnel
-cat /opt/kouttab/secrets/id_tunnel.pub        # à importer dans cPanel → Accès SSH
-ssh-keyscan -p 22 <hôte_ssh_o2switch> > /opt/kouttab/secrets/known_hosts
+ssh-keygen -t ed25519 -C "tunnel@kouttab" -f /opt/projets/kouttab-stock/secrets/id_tunnel -N ""
+chmod 600 /opt/projets/kouttab-stock/secrets/id_tunnel
+cat /opt/projets/kouttab-stock/secrets/id_tunnel.pub        # à importer dans cPanel → Accès SSH
+ssh-keyscan -p 22 <hôte_ssh_o2switch> > /opt/projets/kouttab-stock/secrets/known_hosts
 
 # puis DB_HOST=db-tunnel et DB_PORT=3306 dans le .env
 docker compose --profile tunnel up -d db-tunnel
@@ -295,8 +312,8 @@ moins.
 ## 6. Renseigner le `.env`
 
 ```bash
-nano /opt/kouttab/.env      # modèle : .env.deploy.example
-chmod 600 /opt/kouttab/.env
+nano /opt/projets/kouttab-stock/.env      # modèle : .env.deploy.example
+chmod 600 /opt/projets/kouttab-stock/.env
 ```
 
 Points de vigilance :
@@ -307,6 +324,51 @@ Points de vigilance :
 - `CORS_ORIGINS` n'accepte que du `https://` en production (même garde-fou).
 - `DB_HOST=db-tunnel` et `DB_PORT=3306` : c'est le tunnel, pas O2Switch en direct.
 - `GHCR_OWNER` : ton compte GitHub, **en minuscules**.
+- `RIB_ENCRYPTION_KEY` : voir juste en dessous. **Même garde-fou** — sans elle,
+  l'application refuse de démarrer en production.
+
+### 6.1 Clé de chiffrement du RIB — à poser AVANT le déploiement
+
+Le RIB est chiffré en base (AES-256-GCM) : les permissions de rôle ne protègent
+rien de ce qui contourne l'application — un export, une sauvegarde égarée, un
+accès MySQL direct suffisaient à repartir avec les coordonnées bancaires de
+tous les bénévoles.
+
+```bash
+python3 -c "import base64, os; print(base64.urlsafe_b64encode(os.urandom(32)).decode())"
+# → coller le résultat dans RIB_ENCRYPTION_KEY du .env
+```
+
+Ordre des opérations, qui n'est pas négociable :
+
+1. La clé est dans le `.env` **avant** le déploiement.
+2. Le déploiement joue `alembic upgrade head` : la migration `a1c8e6f2b307`
+   chiffre les RIB déjà enregistrés. Sans clé, elle s'arrête et ne convertit
+   rien — plutôt qu'une base à moitié chiffrée.
+3. L'API démarre et lit les RIB comme avant, chiffrement compris.
+
+> ⚠️ **Perdre cette clé rend les RIB définitivement illisibles.** Aucune
+> récupération n'est possible : c'est le principe. Elle se sauvegarde avec le
+> reste du `.env`, hors du dépôt. Le `.env` n'étant dans aucune sauvegarde
+> automatique, en garder une copie ailleurs (gestionnaire de mots de passe).
+
+Vérifier après coup que la conversion a bien eu lieu :
+
+```bash
+docker compose exec -T api python - <<'PY'
+from sqlalchemy import text
+from app.db.session import SessionLocal
+
+with SessionLocal() as s:
+    ribs = s.execute(
+        text("SELECT rib FROM Admins WHERE rib IS NOT NULL AND rib <> ''")
+    ).scalars().all()
+    clair = [r for r in ribs if not r.startswith("gcm1:")]
+    print(f"{len(ribs)} RIB en base, {len(clair)} encore en clair")
+PY
+```
+
+`0 encore en clair` est le résultat attendu.
 
 ## 7. Secrets GitHub
 
@@ -394,24 +456,142 @@ Puis, dans le navigateur : connexion, une page de stock, dépôt d'une note de
 frais avec justificatif (vérifie tunnel + upload + PDF + file d'envoi), et
 `docker compose logs outbox-worker` pour confirmer le traitement de la file.
 
-## 11. Sauvegardes — le point à ne pas oublier
+## 11. Sauvegardes des fichiers
 
-La base reste sauvegardée par O2Switch. **Les fichiers, non.** Les volumes
-`uploads` (justificatifs) et `outbox` vivent désormais sur le VPS et
-disparaîtraient avec lui.
+La base reste sauvegardée par O2Switch. **Les fichiers, non** : la table ne
+stocke qu'un chemin (`FichiersNotesDeFrais.chemin_fichier`), et les volumes
+`uploads` (justificatifs) et `outbox` vivent sur le VPS. Perdre la machine,
+c'était perdre toutes les pièces comptables.
+
+Le service `backup` du `compose.yml` s'en charge désormais : une archive par
+jour à 3 h, déposée chez **O2Switch en SFTP**, avec rotation des deux côtés.
+Une copie restée sur le VPS ne protège que des suppressions accidentelles,
+jamais de la perte du serveur — d'où la destination distante.
+
+### 11.1 Installation (une seule fois)
+
+**0. Mettre à jour `compose.yml` sur le VPS.** Le workflow ne déploie que les
+images : `compose.yml` a été copié à la main (§3), et un service ajouté au dépôt
+n'arrive donc pas tout seul. Sans cette étape, les sauvegardes ne démarrent
+jamais et rien ne le signale.
+
+Depuis le poste de développement — sous un nom temporaire, pour comparer avant
+de remplacer un fichier qui fait tourner la production :
 
 ```bash
-# À placer dans un cron quotidien, avec copie hors du VPS.
-docker run --rm -v kouttab-stock_uploads:/data:ro -v /opt/kouttab/backups:/out \
-  alpine tar czf /out/uploads-$(date +%F).tar.gz -C /data .
+cd <racine_du_depot>/Gestion_stock_kouttab_react
+scp compose.yml <compte>@85.215.168.239:/opt/projets/kouttab-stock/compose.yml.nouveau
 ```
+
+Puis sur le VPS :
+
+```bash
+cd /opt/projets/kouttab-stock
+diff compose.yml compose.yml.nouveau     # lire ce qui change
+cp compose.yml compose.yml.avant         # filet de retour arrière
+mv compose.yml.nouveau compose.yml
+docker compose config --quiet            # muet = syntaxe valide
+```
+
+> ⚠️ **L'image de sauvegarde doit exister avant `docker compose up -d`.** Elle
+> est construite par le workflow : recopier le `compose.yml` avant le premier
+> déploiement qui la publie ferait échouer le `pull` du service `backup`.
+> Dans le doute, déployer d'abord, copier ensuite.
+
+**1. Une clé dédiée, sur le VPS.** Pas la clé de déploiement : celle-ci ne doit
+ouvrir que le compte O2Switch, et rien d'autre.
+
+```bash
+cd /opt/projets/kouttab-stock
+mkdir -p secrets backups && chmod 700 secrets
+ssh-keygen -t ed25519 -N '' -C 'sauvegarde kouttab-stock' -f secrets/backup_ssh_key
+chmod 600 secrets/backup_ssh_key
+```
+
+**2. Autoriser cette clé chez O2Switch.** Dans cPanel → « Accès SSH » →
+« Gérer les clés SSH » → importer le contenu de `secrets/backup_ssh_key.pub`,
+puis **autoriser** la clé. (En ligne de commande depuis le VPS, si SSH par mot
+de passe est ouvert : `ssh-copy-id -i secrets/backup_ssh_key.pub UTILISATEUR@sauterelle.o2switch.net`.)
+
+**3. Enregistrer l'empreinte du serveur.** Sans elle, le conteneur refuse de se
+connecter — c'est voulu : livrer les justificatifs de l'association à qui
+répond à cette adresse n'est pas une option.
+
+```bash
+ssh-keyscan -p 22 sauterelle.o2switch.net > secrets/backup_known_hosts
+```
+
+**4. Renseigner le `.env`** (cf. `backend/.env.example`, section Sauvegarde) :
+`BACKUP_SFTP_HOST`, `BACKUP_SFTP_USER`, `BACKUP_SFTP_DIR`.
+
+**5. Vérifier immédiatement, sans attendre 3 h du matin :**
+
+```bash
+docker compose up -d backup
+docker compose run --rm -T backup maintenant </dev/null
+```
+
+La sortie doit se terminer par `vérifié chez O2Switch : …` puis
+`sauvegarde du … terminée`. Ce message n'est émis qu'après relecture de la
+taille du fichier déposé : un `put` qui rend la main sur un disque distant
+plein ne suffit pas à déclarer la sauvegarde réussie.
+
+> `-T` et `</dev/null` : même raison qu'au déploiement (§ workflow) — sans eux,
+> `docker compose run` s'approprie le terminal.
+
+### 11.2 Ce que fait le service
+
+| | |
+|---|---|
+| Contenu | `uploads/` (justificatifs) et `outbox/` (PDF en attente d'envoi) |
+| Nom | `kouttab-fichiers-AAAA-MM-JJ.tar.gz` |
+| Local | `/opt/projets/kouttab-stock/backups`, purgé au-delà de `BACKUP_KEEP_LOCAL_DAYS` (7 j) |
+| Distant | `~/sauvegardes/kouttab-stock` chez O2Switch, purgé au-delà de `BACKUP_KEEP_REMOTE_DAYS` (30 j) |
+| Échec | journalisé, sans arrêter le service : la tentative du lendemain a toutes ses chances |
+
+L'archive est écrite puis déposée sous un nom temporaire, renommée seulement
+une fois complète. Une coupure en cours de transfert laisserait sinon une
+archive tronquée sous un nom parfaitement normal — qu'on croirait valide le
+jour où l'on en a besoin.
+
+La rotation distante ne consulte aucun listing : les noms portent leur date, le
+service calcule ceux à effacer. La clé peut donc être restreinte au seul SFTP.
+
+### 11.3 Restaurer
+
+```bash
+# Sur le VPS, récupérer l'archive voulue depuis O2Switch.
+sftp -i secrets/backup_ssh_key UTILISATEUR@sauterelle.o2switch.net
+> get sauvegardes/kouttab-stock/kouttab-fichiers-2026-08-12.tar.gz
+> bye
+
+# Remettre les fichiers en place, API arrêtée le temps de l'opération.
+docker compose stop api outbox-worker
+docker run --rm -v kouttab-stock_uploads:/data \
+  -v "$PWD:/src:ro" alpine \
+  sh -c 'tar xzf /src/kouttab-fichiers-2026-08-12.tar.gz -C /tmp && cp -a /tmp/uploads/. /data/'
+docker compose start api outbox-worker
+```
+
+`cp -a` plutôt qu'un `tar` qui écrase : la restauration complète les fichiers
+manquants sans supprimer ceux déposés depuis la sauvegarde.
+
+### 11.4 Surveillance
+
+```bash
+docker compose logs --tail=30 backup
+```
+
+Le service annonce à chaque tour l'heure de la prochaine sauvegarde. Un journal
+qui ne montre que « prochaine sauvegarde dans … » depuis plusieurs jours, sans
+« sauvegarde du … terminée », signale un envoi qui échoue en silence.
 
 ## 12. Retour arrière
 
 Chaque déploiement épingle un tag d'image et conserve le `.env` précédent.
 
 ```bash
-cd /opt/kouttab
+cd /opt/projets/kouttab-stock
 cp .env.precedent .env         # restaure l'IMAGE_TAG d'avant
 docker compose up -d
 ```

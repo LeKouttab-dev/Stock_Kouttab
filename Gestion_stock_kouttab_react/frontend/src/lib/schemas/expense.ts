@@ -2,13 +2,19 @@ import { z } from 'zod';
 import { EXPENSE_STATUS } from '../constants';
 
 /**
- * Le rattachement libre a disparu : pôle, événement et date de l'événement le
- * remplacent, et sont désormais obligatoires. Un ticket sans ces trois champs
- * arrivait chez le comptable sous un nom incomplet, impossible à imputer.
+ * Le rattachement libre a disparu : le pôle et ce qu'il commande le remplacent.
+ * Un ticket sans rattachement arrivait chez le comptable sous un nom incomplet,
+ * impossible à imputer.
  *
- * L'événement accepte deux formes, exactement comme sur les factures : un
- * identifiant HelloAsso, ou une saisie libre pour ce qui n'existe pas chez eux
- * (achat courant, dépense d'intendance). L'un des deux suffit, jamais aucun.
+ * Ce que le pôle commande, précisément :
+ * - **pôle événementiel** → un événement (identifiant HelloAsso ou saisie libre
+ *   pour ce qui n'existe pas chez eux) et sa date ;
+ * - **tout autre pôle** → une catégorie (courses, goûter, matériel...) et une
+ *   description de l'achat. Une dépense du local n'a pas d'événement, et en
+ *   exiger un obligeait à en inventer.
+ *
+ * `requiert_evenement` est un champ technique, recopié depuis le pôle
+ * sélectionné : Zod valide un objet et ne connaît pas le référentiel des pôles.
  */
 export const expenseSchema = z
   .object({
@@ -23,13 +29,45 @@ export const expenseSchema = z
       .number({ invalid_type_error: 'Pôle de rattachement obligatoire' })
       .int()
       .positive('Pôle de rattachement obligatoire'),
+    requiert_evenement: z.boolean().default(false),
     id_event: z.number().int().positive().nullable().optional(),
     evenement_libre: z.string().optional().or(z.literal('')),
-    date_evenement: z.string().min(1, "Date de l'événement obligatoire"),
+    date_evenement: z.string().optional().or(z.literal('')),
+    id_categorie: z.number().int().positive().nullable().optional(),
   })
-  .refine((v) => Boolean(v.id_event) || Boolean(v.evenement_libre?.trim()), {
-    message: 'Événement obligatoire : choisissez-en un ou saisissez son nom',
-    path: ['id_event'],
+  .superRefine((v, ctx) => {
+    if (v.requiert_evenement) {
+      if (!v.id_event && !v.evenement_libre?.trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['id_event'],
+          message: 'Événement obligatoire : choisissez-en un ou saisissez son nom',
+        });
+      }
+      if (!v.date_evenement?.trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['date_evenement'],
+          message: "Date de l'événement obligatoire",
+        });
+      }
+      return;
+    }
+
+    if (!v.id_categorie) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['id_categorie'],
+        message: 'Catégorie obligatoire',
+      });
+    }
+    if (!v.commentaires?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['commentaires'],
+        message: "Décrivez l'achat",
+      });
+    }
   });
 
 export type ExpenseFormValues = z.infer<typeof expenseSchema>;

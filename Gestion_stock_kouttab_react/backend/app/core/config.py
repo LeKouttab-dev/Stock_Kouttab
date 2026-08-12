@@ -107,6 +107,11 @@ class Settings(BaseSettings):
         default="", alias="HELLOASSO_WEBHOOK_SECRET"
     )
 
+    # Cle de chiffrement du RIB au repos (AES-256-GCM, base64 de 32 octets).
+    # La perdre rend les RIB deja enregistres definitivement illisibles :
+    # elle se sauvegarde avec le reste du .env, hors du depot.
+    rib_encryption_key: str = Field(default="", alias="RIB_ENCRYPTION_KEY")
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -139,6 +144,14 @@ class Settings(BaseSettings):
             problems.append("APP_DEBUG doit valoir false en production.")
         if any(o.startswith("http://") for o in self.cors_origins):
             problems.append("CORS_ORIGINS contient une origine non chiffree (http://).")
+        # Sans cle, les RIB repartiraient en clair dans la base sans que rien ne
+        # le signale — exactement la situation que le chiffrement corrige.
+        if not self.rib_encryption_key.strip():
+            problems.append(
+                "RIB_ENCRYPTION_KEY est vide : les RIB seraient ecrits en clair. "
+                "Generer une cle avec : python -c "
+                '"import base64, os; print(base64.urlsafe_b64encode(os.urandom(32)).decode())"'
+            )
         if problems:
             raise ValueError(
                 "Configuration de production invalide :\n- " + "\n- ".join(problems)

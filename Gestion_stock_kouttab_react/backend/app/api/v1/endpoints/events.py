@@ -68,7 +68,10 @@ def sync_events(db: Session = Depends(get_db)) -> Any:
 def create_event(payload: EventCreate, db: Session = Depends(get_db)) -> Any:
     return EventOut.model_validate(
         event_crud.create_manual_event(
-            db, nom=payload.nom, date_evenement=payload.date_evenement
+            db,
+            nom=payload.nom,
+            date_evenement=payload.date_evenement,
+            type_ev=payload.type_ev,
         )
     )
 
@@ -87,6 +90,7 @@ def update_event(
             event_id,
             nom=payload.nom,
             date_evenement=payload.date_evenement,
+            type_ev=payload.type_ev,
             is_active=payload.is_active,
         )
     )

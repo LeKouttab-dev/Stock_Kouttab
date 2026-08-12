@@ -55,9 +55,22 @@ def test_default_poles_are_available(client: TestClient, benevole_user, auth_hea
     resp = client.get("/api/v1/poles", headers=auth_headers(benevole_user))
     assert resp.status_code == 200, resp.text
     noms = [p["nom"] for p in resp.json()]
-    assert "Pôle événementiel" in noms
-    assert "Pôle institut" in noms
-    assert "Local" in noms
+    # Referentiel arrete avec le client. Les poles EV se rattachent a un
+    # evenement, les autres a une categorie de depense.
+    assert noms == [
+        "EV(T)",
+        "EV(G)",
+        "EV(J)",
+        "Frais généraux",
+        "Institut",
+        "Halaqa",
+        "Séjour annuel",
+    ]
+    # Les poles du referentiel precedent sont desactives, donc absents de la
+    # liste servie au depot, mais toujours en base pour les pieces qui les
+    # referencent.
+    assert "Pôle événementiel" not in noms
+    assert "Local" not in noms
 
 
 def test_only_super_admin_can_create_a_pole(
@@ -209,7 +222,7 @@ def test_deposit_queues_a_correctly_named_pdf(
     assert len(attachments) == 1
     nom = attachments[0].replace("\\", "/").rsplit("/", 1)[-1]
     # {Pole}_{Evenement}_{Date}.pdf, assaini et sans accent.
-    assert nom == "Pole-evenementiel_Gala-dete-2026_2026-03-14.pdf"
+    assert nom == "EV-T_Gala-dete-2026_2026-03-14.pdf"
 
 
 def test_photo_deposit_is_converted_to_pdf(
@@ -322,7 +335,7 @@ def test_expense_uses_the_same_naming_as_invoices(
     row = outbox.latest_for_entity(db_session, "expense", resp.json()["id"])
     assert row is not None
     nom = json.loads(row.attachments)[0].replace("\\", "/").rsplit("/", 1)[-1]
-    assert nom == "Pole-evenementiel_Gala-dete-2026_2026-03-14.pdf"
+    assert nom == "EV-T_Gala-dete-2026_2026-03-14.pdf"
 
 
 def test_expense_requires_its_accounting_attachment(

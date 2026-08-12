@@ -2,9 +2,13 @@ import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
+import { useRappelConnexion } from '@/hooks/useRappelConnexion';
 
 export function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Rappel de ce qui attend l'utilisateur, une fois par connexion. Place ici
+  // parce que toute page authentifiee passe par cette coquille.
+  useRappelConnexion();
 
   return (
     // `h-dvh` + `overflow-hidden` : la coquille occupe exactement la hauteur de

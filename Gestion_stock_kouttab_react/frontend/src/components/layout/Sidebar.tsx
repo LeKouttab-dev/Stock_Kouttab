@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
+import { usePendingSummary } from '@/api/endpoints/notifications';
 import { ACTIONS } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import { fr } from '@/lib/i18n/fr';
@@ -28,10 +29,15 @@ interface NavItem {
   label: string;
   icon: typeof LayoutDashboard;
   visible: boolean;
+  /** Dossiers en attente sur cette page. 0 ou absent : aucune pastille. */
+  badge?: number;
 }
 
 export function Sidebar({ open, onClose }: SidebarProps) {
   const { can } = useAuth();
+  // Compteurs déjà filtrés par les droits côté serveur : inutile de les
+  // recouper ici, un rôle sans droit reçoit des zéros.
+  const { data: aTraiter } = usePendingSummary();
 
   const items: NavItem[] = [
     {
@@ -53,6 +59,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       label: 'Valider notes de frais',
       icon: CheckSquare,
       visible: can(ACTIONS.EXPENSES_VALIDATE),
+      badge: aTraiter?.notes_a_valider,
     },
     {
       to: '/invoices/upload',
@@ -65,12 +72,14 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       label: fr.nav.invoices,
       icon: FileText,
       visible: can(ACTIONS.INVOICES_SUBMIT),
+      badge: aTraiter?.factures_a_traiter,
     },
     {
       to: '/admin',
       label: fr.nav.admin,
       icon: Shield,
       visible: can(ACTIONS.ADMIN_HUB),
+      badge: (aTraiter?.comptes_a_valider ?? 0) + (aTraiter?.modifications_stock ?? 0),
     },
     {
       to: '/admin/database',
@@ -141,7 +150,19 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                       }
                     >
                       <Icon className="h-4 w-4 flex-shrink-0" />
-                      <span>{item.label}</span>
+                      <span className="flex-1">{item.label}</span>
+                      {/* Pastille de comptage : elle dit combien de dossiers
+                          attendent, sans avoir à ouvrir la page. Masquée à 0
+                          plutôt qu'affichée vide, pour que sa seule présence
+                          signifie « il y a quelque chose à faire ». */}
+                      {Boolean(item.badge) && (
+                        <span
+                          aria-label={`${item.badge} ${fr.notifications.aTraiter}`}
+                          className="ml-auto min-w-[1.25rem] rounded-full bg-terracotta px-1.5 py-0.5 text-center text-[11px] font-semibold leading-none text-cream-50 shadow-sm"
+                        >
+                          {item.badge}
+                        </span>
+                      )}
                     </NavLink>
                   </li>
                 );

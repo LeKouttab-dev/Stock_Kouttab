@@ -12,6 +12,7 @@ import {
   useSyncEvents,
   useUpdateEvent,
 } from '@/api/endpoints/referentials';
+import { FAMILLES_EV } from '@/lib/constants';
 import { useToast } from '@/hooks/useToast';
 import { fr } from '@/lib/i18n/fr';
 
@@ -31,6 +32,7 @@ export function EventsManagementSection() {
 
   const [newName, setNewName] = useState('');
   const [newDate, setNewDate] = useState('');
+  const [newType, setNewType] = useState('');
 
   const handleSync = () => {
     sync.mutate(undefined, {
@@ -45,11 +47,12 @@ export function EventsManagementSection() {
   const handleAdd = () => {
     if (!newName.trim()) return;
     create.mutate(
-      { nom: newName.trim(), date_evenement: newDate || null },
+      { nom: newName.trim(), date_evenement: newDate || null, type_ev: newType || null },
       {
         onSuccess: () => {
           setNewName('');
           setNewDate('');
+          setNewType('');
         },
       },
     );
@@ -85,6 +88,21 @@ export function EventsManagementSection() {
             onChange={(e) => setNewDate(e.target.value)}
             className="sm:w-48"
           />
+          {/* Famille : elle décide sous quel pôle EV l'événement apparaît au
+              dépôt. HelloAsso ne la connaît pas, elle se renseigne ici. */}
+          <select
+            aria-label={fr.events.famille}
+            value={newType}
+            onChange={(e) => setNewType(e.target.value)}
+            className="rounded-md border border-input bg-background px-2 py-1.5 text-sm sm:w-40"
+          >
+            <option value="">{fr.events.familleAucune}</option>
+            {FAMILLES_EV.map((famille) => (
+              <option key={famille} value={famille}>
+                EV({famille})
+              </option>
+            ))}
+          </select>
           <Button onClick={handleAdd} loading={create.isPending}>
             <Plus className="h-4 w-4" />
             {fr.events.ajouter}
@@ -110,6 +128,22 @@ export function EventsManagementSection() {
                   <Badge variant={event.source === 'manuel' ? 'secondary' : 'outline'}>
                     {event.source === 'manuel' ? fr.events.manuel : fr.events.helloasso}
                   </Badge>
+                  {/* Famille modifiable sur place : un événement importé de
+                      HelloAsso arrive non classé, et tant qu'il l'est il
+                      apparaît sous TOUS les pôles EV. */}
+                  <select
+                    aria-label={`${fr.events.famille} — ${event.nom}`}
+                    value={event.type_ev ?? ''}
+                    onChange={(e) => update.mutate({ id: event.id, type_ev: e.target.value || '' })}
+                    className="rounded border border-input bg-background px-1.5 py-0.5 text-xs"
+                  >
+                    <option value="">{fr.events.familleAucune}</option>
+                    {FAMILLES_EV.map((famille) => (
+                      <option key={famille} value={famille}>
+                        EV({famille})
+                      </option>
+                    ))}
+                  </select>
                   {!event.is_active && <Badge variant="outline">{fr.poles.inactif}</Badge>}
                 </span>
                 <div className="flex gap-1">

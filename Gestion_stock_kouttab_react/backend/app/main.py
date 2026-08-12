@@ -19,6 +19,7 @@ from app.core.errors import ERROR_MESSAGES, ErrorCode
 from app.core.exceptions import register_exception_handlers
 from app.core.logger import get_logger
 from app.core.rate_limit import limiter
+from app.crud import expense_category as category_crud
 from app.crud import pole as pole_crud
 from app.db.session import SessionLocal
 
@@ -37,6 +38,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     db = SessionLocal()
     try:
         pole_crud.ensure_default_poles(db)
+        category_crud.ensure_default_categories(db)
     except Exception as exc:  # noqa: BLE001 — ne jamais empecher le demarrage
         logger.warning("Initialisation des poles par defaut ignoree : %s", exc)
     finally:

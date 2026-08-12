@@ -44,6 +44,8 @@ class InvoiceOut(BaseModel):
     pole: str | None = None
     id_event: int | None = None
     evenement: str | None = None
+    id_categorie: int | None = None
+    categorie: str | None = None
     date_evenement: date | None = None
     fournisseur: str | None = None
     montant: Decimal | None = None

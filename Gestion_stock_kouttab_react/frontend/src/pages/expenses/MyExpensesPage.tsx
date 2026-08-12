@@ -13,6 +13,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
 import { FileUploader } from '@/components/forms/FileUploader';
+import { CategorySelect } from '@/components/forms/CategorySelect';
 import { EventSelect } from '@/components/forms/EventSelect';
 import { ProfileForm } from '@/components/forms/ProfileForm';
 import { AttachmentNamesPreview } from '@/components/forms/AttachmentNamesPreview';
@@ -24,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { usePoles } from '@/api/endpoints/referentials';
+import { useExpenseCategories, usePoles } from '@/api/endpoints/referentials';
 import { buildAttachmentFilename, deduplicateFilenames } from '@/lib/naming';
 import { useCreateExpense, useMyExpenses, useUpdateExpense } from '@/api/endpoints/expenses';
 import {
@@ -94,9 +95,11 @@ function SubmitExpenseTab() {
       // explicite ferait échouer la validation sur le type plutôt que d'afficher
       // « Pôle de rattachement obligatoire ».
       id_pole: undefined,
+      requiert_evenement: false,
       id_event: null,
       evenement_libre: '',
       date_evenement: '',
+      id_categorie: null,
     },
   });
 
@@ -105,29 +108,61 @@ function SubmitExpenseTab() {
   const eventLibre = form.watch('evenement_libre');
   const dateEvenement = form.watch('date_evenement');
   const dateDepense = form.watch('date_depense');
+  const categorieId = form.watch('id_categorie');
 
   const selectedPole = poles?.find((p) => p.id === poleId) ?? null;
+  const requiertEvenement = Boolean(selectedPole?.requiert_evenement);
+  const { data: categories } = useExpenseCategories();
+  const selectedCategorie = categories?.find((c) => c.id === categorieId) ?? null;
+
+  /**
+   * Changement de pôle : on repart des champs du rattachement.
+   *
+   * Sans ce nettoyage, un événement saisi puis un basculement vers « Local »
+   * laissait l'événement dans le formulaire — invisible, mais envoyé, et refusé
+   * par l'API avec un message que rien à l'écran n'expliquait.
+   */
+  const changerPole = (id: number) => {
+    const pole = poles?.find((p) => p.id === id) ?? null;
+    form.setValue('id_pole', id, { shouldValidate: true });
+    form.setValue('requiert_evenement', Boolean(pole?.requiert_evenement));
+    form.setValue('id_event', null);
+    form.setValue('evenement_libre', '');
+    form.setValue('date_evenement', '');
+    form.setValue('id_categorie', null);
+  };
 
   /**
    * Aperçu du nom transmis à la comptabilité.
    *
-   * Pôle, événement et date de l'événement étant désormais obligatoires, il n'y
-   * a plus de repli sur le rattachement libre. La date de dépense reste le
-   * dernier recours tant que le formulaire est incomplet, pour que l'aperçu
-   * reste lisible pendant la saisie.
+   * Deuxième composant : l'événement sous un pôle événementiel, la catégorie
+   * sous les autres — exactement ce que le backend compose. La date de dépense
+   * sert de repli tant que le formulaire est incomplet, pour que l'aperçu reste
+   * lisible pendant la saisie.
    */
   const previewNames = useMemo(() => {
     if (files.length === 0) return [];
-    const eventLabel =
-      eventLibre?.trim() || (eventId !== null && eventId !== undefined ? fr.events.selected : null);
+    const rattachement = requiertEvenement
+      ? eventLibre?.trim() ||
+        (eventId !== null && eventId !== undefined ? fr.events.selected : null)
+      : (selectedCategorie?.nom ?? null);
     const base = files.map(() =>
       buildAttachmentFilename(
-        [selectedPole?.nom, eventLabel],
-        dateEvenement || dateDepense || null,
+        [selectedPole?.nom, rattachement],
+        (requiertEvenement ? dateEvenement : '') || dateDepense || null,
       ),
     );
     return deduplicateFilenames(base);
-  }, [files, selectedPole, eventLibre, eventId, dateEvenement, dateDepense]);
+  }, [
+    files,
+    selectedPole,
+    requiertEvenement,
+    selectedCategorie,
+    eventLibre,
+    eventId,
+    dateEvenement,
+    dateDepense,
+  ]);
 
   const onSubmit = (values: ExpenseFormValues) => {
     create.mutate(
@@ -227,16 +262,20 @@ function SubmitExpenseTab() {
             <Input id="nature_charge" {...form.register('nature_charge')} />
           </div>
 
-          {/* Pôle, événement et date de l'événement composent le nom du ticket
-              envoyé au comptable : ils sont obligatoires, comme sur les
-              factures. Ils remplacent l'ancien champ « Rattachement », qui
-              faisait double emploi. */}
+          {/* Le rattachement compose le nom du ticket envoyé au comptable : il
+              est obligatoire, comme sur les factures, et remplace l'ancien champ
+              « Rattachement » qui faisait double emploi.
+
+              Ce qu'il demande dépend du pôle, et le pôle seul en décide :
+              événement et date sous le pôle événementiel, catégorie et
+              description partout ailleurs. Une dépense du local n'a pas
+              d'événement — en exiger un obligeait à en inventer. */}
           <div className="grid gap-4 md:grid-cols-3">
             <div className="space-y-1.5">
               <Label required>{fr.invoices.pole}</Label>
               <Select
                 value={poleId ? String(poleId) : ''}
-                onValueChange={(v) => form.setValue('id_pole', Number(v), { shouldValidate: true })}
+                onValueChange={(v) => changerPole(Number(v))}
               >
                 <SelectTrigger>
                   <SelectValue placeholder={fr.invoices.polePlaceholder} />
@@ -253,41 +292,78 @@ function SubmitExpenseTab() {
                 <p className="text-xs text-destructive">{form.formState.errors.id_pole.message}</p>
               )}
             </div>
-            <div className="space-y-1.5">
-              <Label required>{fr.invoices.evenement}</Label>
-              <EventSelect
-                eventId={eventId ?? null}
-                freeText={eventLibre ?? ''}
-                onEventIdChange={(id) => form.setValue('id_event', id, { shouldValidate: true })}
-                onFreeTextChange={(v) =>
-                  form.setValue('evenement_libre', v, { shouldValidate: true })
-                }
-                onEventDate={(d) => {
-                  if (d && !form.getValues('date_evenement')) {
-                    form.setValue('date_evenement', d, { shouldValidate: true });
-                  }
-                }}
-              />
-              {form.formState.errors.id_event && (
-                <p className="text-xs text-destructive">{form.formState.errors.id_event.message}</p>
-              )}
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="date_evenement" required>
-                {fr.invoices.dateEvenement}
-              </Label>
-              <Input id="date_evenement" type="date" {...form.register('date_evenement')} />
-              {form.formState.errors.date_evenement && (
-                <p className="text-xs text-destructive">
-                  {form.formState.errors.date_evenement.message}
-                </p>
-              )}
-            </div>
+
+            {requiertEvenement ? (
+              <>
+                <div className="space-y-1.5">
+                  <Label required>{fr.invoices.evenement}</Label>
+                  <EventSelect
+                    eventId={eventId ?? null}
+                    freeText={eventLibre ?? ''}
+                    onEventIdChange={(id) =>
+                      form.setValue('id_event', id, { shouldValidate: true })
+                    }
+                    onFreeTextChange={(v) =>
+                      form.setValue('evenement_libre', v, { shouldValidate: true })
+                    }
+                    typeEvenement={selectedPole?.type_evenement}
+                    onEventDate={(d) => {
+                      if (d && !form.getValues('date_evenement')) {
+                        form.setValue('date_evenement', d, { shouldValidate: true });
+                      }
+                    }}
+                  />
+                  {form.formState.errors.id_event && (
+                    <p className="text-xs text-destructive">
+                      {form.formState.errors.id_event.message}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="date_evenement" required>
+                    {fr.invoices.dateEvenement}
+                  </Label>
+                  <Input id="date_evenement" type="date" {...form.register('date_evenement')} />
+                  {form.formState.errors.date_evenement && (
+                    <p className="text-xs text-destructive">
+                      {form.formState.errors.date_evenement.message}
+                    </p>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="space-y-1.5 md:col-span-2">
+                <Label required>{fr.categories.label}</Label>
+                <CategorySelect
+                  categoryId={categorieId ?? null}
+                  onChange={(id) => form.setValue('id_categorie', id, { shouldValidate: true })}
+                />
+                {form.formState.errors.id_categorie && (
+                  <p className="text-xs text-destructive">
+                    {form.formState.errors.id_categorie.message}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
+          {/* Sous un pôle sans événement, la description prend la place que
+              l'événement occupait : c'est elle qui dit ce qui a été acheté. */}
           <div className="space-y-1.5">
-            <Label htmlFor="commentaires">{fr.expenses.commentaires}</Label>
-            <Textarea id="commentaires" rows={3} {...form.register('commentaires')} />
+            <Label htmlFor="commentaires" required={!requiertEvenement}>
+              {requiertEvenement ? fr.expenses.commentaires : fr.categories.description}
+            </Label>
+            <Textarea
+              id="commentaires"
+              rows={3}
+              placeholder={requiertEvenement ? undefined : fr.categories.descriptionPlaceholder}
+              {...form.register('commentaires')}
+            />
+            {form.formState.errors.commentaires && (
+              <p className="text-xs text-destructive">
+                {form.formState.errors.commentaires.message}
+              </p>
+            )}
           </div>
 
           <div className="space-y-1.5">

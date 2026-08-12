@@ -26,6 +26,8 @@ def _serialize(expense: Expense) -> dict[str, Any]:
         "pole": expense.pole,
         "id_event": expense.id_event,
         "evenement": expense.evenement,
+        "id_categorie": expense.id_categorie,
+        "categorie": expense.categorie,
         "date_evenement": expense.date_evenement,
         "fournisseur": expense.fournisseur,
         "nature_charge": expense.nature_charge,
@@ -105,6 +107,8 @@ def create_expense(
     pole: str | None = None,
     id_event: int | None = None,
     evenement: str | None = None,
+    id_categorie: int | None = None,
+    categorie: str | None = None,
     date_evenement: date | None = None,
 ) -> Expense:
     expense = Expense(
@@ -122,6 +126,8 @@ def create_expense(
         pole=pole,
         id_event=id_event,
         evenement=evenement,
+        id_categorie=id_categorie,
+        categorie=categorie,
         date_evenement=date_evenement,
     )
     db.add(expense)

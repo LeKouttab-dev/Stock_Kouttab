@@ -116,3 +116,12 @@ export const STATUS_EMOJIS: Record<string, string> = {
   'En cours de traitement': '🔵',
   Validée: '🟢',
 };
+
+/**
+ * Familles d'événements, en regard des pôles EV(T), EV(G), EV(J).
+ *
+ * Elles ne vivent pas en base : ce sont les pôles qui portent la famille
+ * (`Pole.type_evenement`), et cette liste ne sert qu'à peupler le sélecteur de
+ * l'administration des événements.
+ */
+export const FAMILLES_EV = ['T', 'G', 'J'] as const;

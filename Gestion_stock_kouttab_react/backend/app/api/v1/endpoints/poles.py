@@ -42,7 +42,13 @@ def list_poles(
 )
 def create_pole(payload: PoleCreate, db: Session = Depends(get_db)) -> Any:
     return PoleOut.model_validate(
-        pole_crud.create_pole(db, nom=payload.nom, ordre=payload.ordre)
+        pole_crud.create_pole(
+            db,
+            nom=payload.nom,
+            ordre=payload.ordre,
+            requiert_evenement=payload.requiert_evenement,
+            type_evenement=payload.type_evenement,
+        )
     )
 
 
@@ -61,6 +67,8 @@ def update_pole(
             nom=payload.nom,
             is_active=payload.is_active,
             ordre=payload.ordre,
+            requiert_evenement=payload.requiert_evenement,
+            type_evenement=payload.type_evenement,
         )
     )
 

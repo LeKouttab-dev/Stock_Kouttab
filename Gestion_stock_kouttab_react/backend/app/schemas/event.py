@@ -16,6 +16,9 @@ class EventOut(BaseModel):
     date_fin: date | None = None
     url: str | None = None
     source: str
+    # Famille de l'evenement (« T », « G », « J ») : elle determine sous quel
+    # pole EV il est propose au depot.
+    type_ev: str | None = None
     is_active: bool
     helloasso_state: str | None = None
     last_synced_at: datetime | None = None
@@ -24,11 +27,13 @@ class EventOut(BaseModel):
 class EventCreate(BaseModel):
     nom: str = Field(min_length=1, max_length=255)
     date_evenement: date | None = None
+    type_ev: str | None = Field(default=None, max_length=10)
 
 
 class EventUpdate(BaseModel):
     nom: str | None = Field(default=None, min_length=1, max_length=255)
     date_evenement: date | None = None
+    type_ev: str | None = Field(default=None, max_length=10)
     is_active: bool | None = None
 
 

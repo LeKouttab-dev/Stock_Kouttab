@@ -26,6 +26,7 @@ import { AddItemSection } from './AddItemSection';
 import { ImportCsvSection } from './ImportCsvSection';
 import { CategoriesManagementSection } from './CategoriesManagementSection';
 import { SubCategoriesManagementSection } from './SubCategoriesManagementSection';
+import { ExpenseCategoriesManagementSection } from './ExpenseCategoriesManagementSection';
 import { PolesManagementSection } from './PolesManagementSection';
 import { EventsManagementSection } from './EventsManagementSection';
 import { OutboundEmailsSection } from './OutboundEmailsSection';
@@ -100,6 +101,9 @@ export function AdminPage() {
       {(canManagePoles || canManageEvents) && (
         <div className="grid gap-4 lg:grid-cols-2">
           {canManagePoles && <PolesManagementSection />}
+          {/* Les categories suivent les poles : elles remplacent l'evenement
+              sous les poles qui n'en attendent pas. */}
+          {canManagePoles && <ExpenseCategoriesManagementSection />}
           {canManageEvents && <EventsManagementSection />}
         </div>
       )}

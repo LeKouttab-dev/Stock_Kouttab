@@ -16,7 +16,14 @@
  */
 
 export type BarcodeFormatName =
-  'ean_13' | 'ean_8' | 'upc_a' | 'upc_e' | 'code_128' | 'code_39' | 'itf' | 'qr_code';
+  | 'ean_13'
+  | 'ean_8'
+  | 'upc_a'
+  | 'upc_e'
+  | 'code_128'
+  | 'code_39'
+  | 'itf'
+  | 'qr_code';
 
 /** Formats utiles ici : produits alimentaires du commerce, et QR en appoint. */
 export const FORMATS_PRODUITS: BarcodeFormatName[] = [

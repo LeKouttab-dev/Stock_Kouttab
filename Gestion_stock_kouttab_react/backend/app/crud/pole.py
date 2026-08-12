@@ -15,13 +15,30 @@ from app.db.models import Invoice, Pole
 logger = get_logger("pole")
 
 
-# Valeurs initiales fournies par le client. La liste est appelee a evoluer :
-# elle vit en base, pas dans le code.
-DEFAULT_POLES: tuple[tuple[str, int], ...] = (
-    ("Pôle événementiel", 1),
-    ("Pôle institut", 2),
-    ("Local", 3),
+# Referentiel fourni par le client. Il vit en base et non dans le code : la
+# liste a deja change une fois et changera encore.
+#
+# Colonnes : nom, ordre, se rattache-t-il a un evenement, famille d'evenements.
+# Les poles EV sont declines par famille et ne proposent que les evenements de
+# la leur ; les autres demandent une categorie (courses, gouter, materiel...),
+# car une depense de fonctionnement n'a pas d'evenement.
+DEFAULT_POLES: tuple[tuple[str, int, bool, str | None], ...] = (
+    ("EV(T)", 1, True, "T"),
+    ("EV(G)", 2, True, "G"),
+    ("EV(J)", 3, True, "J"),
+    ("Frais généraux", 4, False, None),
+    ("Institut", 5, False, None),
+    ("Halaqa", 6, False, None),
+    ("Séjour annuel", 7, False, None),
 )
+
+# Poles du referentiel precedent, remplaces par la liste ci-dessus. Ils sont
+# desactives et non supprimes : les factures deja deposees les referencent.
+POLES_RETIRES: tuple[str, ...] = ("Pôle événementiel", "Local")
+
+# Renommages : meme pole, meme identifiant, donc les pieces deja rattachees le
+# restent. Recreer « Institut » a neuf les aurait laissees orphelines.
+POLES_RENOMMES: tuple[tuple[str, str], ...] = (("Pôle institut", "Institut"),)
 
 
 def ensure_default_poles(db: Session) -> int:
@@ -32,15 +49,45 @@ def ensure_default_poles(db: Session) -> int:
     ``Base.metadata.create_all`` et ne jouent jamais les migrations — ils
     auraient sinon une table vide.
     """
+    # Renommages d'abord : sans cela, « Institut » serait cree en double a cote
+    # de « Pôle institut », et les factures deja deposees resteraient sur
+    # l'ancien.
+    for ancien, nouveau in POLES_RENOMMES:
+        pole = db.execute(select(Pole).where(Pole.nom == ancien)).scalar_one_or_none()
+        deja_present = db.execute(
+            select(Pole).where(Pole.nom == nouveau)
+        ).scalar_one_or_none()
+        if pole is not None and deja_present is None:
+            pole.nom = nouveau
+            db.commit()
+
     existing = {
         nom for (nom,) in db.execute(select(Pole.nom)).all()
     }
     created = 0
-    for nom, ordre in DEFAULT_POLES:
+    for nom, ordre, requiert_evenement, type_evenement in DEFAULT_POLES:
         if nom in existing:
             continue
-        db.add(Pole(nom=nom, is_default=True, is_active=True, ordre=ordre))
+        db.add(
+            Pole(
+                nom=nom,
+                is_default=True,
+                is_active=True,
+                ordre=ordre,
+                requiert_evenement=requiert_evenement,
+                type_evenement=type_evenement,
+            )
+        )
         created += 1
+    # Poles du referentiel precedent : desactives, jamais supprimes. Ils
+    # disparaissent du formulaire de depot et restent lisibles sur les pieces
+    # deja transmises au comptable.
+    for nom in POLES_RETIRES:
+        pole = db.execute(select(Pole).where(Pole.nom == nom)).scalar_one_or_none()
+        if pole is not None and pole.is_active:
+            pole.is_active = False
+            created += 1  # force le commit ci-dessous
+
     if created:
         try:
             db.commit()
@@ -48,7 +95,7 @@ def ensure_default_poles(db: Session) -> int:
             # Course entre deux workers au demarrage : sans importance.
             db.rollback()
             return 0
-        logger.info("%d pole(s) par defaut cree(s).", created)
+        logger.info("Referentiel des poles mis a jour (%d changement(s)).", created)
     return created
 
 
@@ -72,11 +119,25 @@ def get_pole_or_404(db: Session, pole_id: int) -> Pole:
     return pole
 
 
-def create_pole(db: Session, *, nom: str, ordre: int = 0) -> Pole:
+def create_pole(
+    db: Session,
+    *,
+    nom: str,
+    ordre: int = 0,
+    requiert_evenement: bool = False,
+    type_evenement: str | None = None,
+) -> Pole:
     nom = (nom or "").strip()
     if not nom:
         raise AppException(ErrorCode.VALIDATION_ERROR, detail="Le nom du pole est requis.")
-    pole = Pole(nom=nom, is_default=False, is_active=True, ordre=ordre)
+    pole = Pole(
+        nom=nom,
+        is_default=False,
+        is_active=True,
+        ordre=ordre,
+        requiert_evenement=requiert_evenement,
+        type_evenement=(type_evenement or None),
+    )
     db.add(pole)
     try:
         db.commit()
@@ -96,8 +157,15 @@ def update_pole(
     nom: str | None = None,
     is_active: bool | None = None,
     ordre: int | None = None,
+    requiert_evenement: bool | None = None,
+    type_evenement: str | None = None,
 ) -> Pole:
     pole = get_pole_or_404(db, pole_id)
+    if requiert_evenement is not None:
+        pole.requiert_evenement = requiert_evenement
+    if type_evenement is not None:
+        # Chaine vide = retirer le filtre, et non « ne rien changer ».
+        pole.type_evenement = type_evenement.strip() or None
     if nom is not None:
         cleaned = nom.strip()
         if not cleaned:

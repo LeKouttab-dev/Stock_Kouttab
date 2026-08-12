@@ -177,6 +177,7 @@ Gestion_stock_kouttab_react/
 | **Factures** | Factures déposées | `id_user → Admins.id` (CASCADE) |
 | **FichiersFactures** | Pièces jointes factures | `id_facture` (CASCADE) |
 | **StockModifications** | Workflow d'approbation modif stock | `id_user`, `id_stock`, `approuve_par → Admins.id` |
+| **CategoriesDepense** | Référentiel administrable des catégories hors événement (`Courses`, `Stock goûter`, `Achat buvette`, `Achat matériel`, `Autre`) : `nom` UNIQUE, `is_default`, `is_active`, `ordre` | — |
 | **BuvetteProducts** | Produits de la buvette synchronisés HelloAsso : `helloasso_tier_id` UNIQUE, `name`, `price_cents`, `quantity`, `seuil_alerte`, `emoji`, `image_url`, `alert_sent`, `last_synced_at`, `is_active` | — |
 | **BuvetteSales** | Log idempotent des ventes HelloAsso : `helloasso_order_id`, `helloasso_payment_id`, `helloasso_item_id`, snapshot `product_name_snapshot`, `quantity_sold`, `amount_cents`, infos client, `raw_event` JSON | `buvette_product_id → BuvetteProducts.id` (SET NULL) ; UNIQUE (`helloasso_payment_id`, `helloasso_item_id`) |
 
@@ -188,6 +189,14 @@ Gestion_stock_kouttab_react/
 - `StockModifications.status` : `En attente` · `Approuvée` · `Refusée`
 
 **Champs sensibles** : `password_hash`, `email`, `telephone`, **`rib`** (TRÈS sensible : accès Super Admin et Compta uniquement), `token_hash`.
+
+**`rib` est chiffré au repos** (AES-256-GCM) par le type de colonne
+`ChampChiffre` (`app/db/types.py`), et non par le CRUD : tout ce qui lit ou
+écrit `Admin.rib` traverse le chiffrement, y compris le code écrit plus tard.
+Ne rien chiffrer ni déchiffrer à la main. La clé vit dans `RIB_ENCRYPTION_KEY`
+et **la perdre rend les RIB définitivement illisibles** ; son absence empêche
+le démarrage en production. Les valeurs en clair héritées restent lisibles
+(préfixe `gcm1:` absent), ce qui rend le déploiement sans coupure.
 
 ---
 
@@ -307,6 +316,42 @@ leurs noms sont prévisibles.
 `frontend/src/lib/naming.ts` duplique `services/naming.py` pour afficher au
 déposant le nom exact qui sera envoyé. **Les deux modules partagent la même
 table de cas de test** : toute divergence casse un test.
+
+### Rattachement d'une pièce : événement ou catégorie
+
+Le pôle décide de ce que le dépôt demande, et lui seul — aucune liste de pôles
+n'est écrite en dur, ni au back ni au front :
+
+| `Poles.requiert_evenement` | Le dépôt exige | Nom du PDF comptable |
+|---|---|---|
+| `true` — EV(T), EV(G), EV(J) | un événement (référentiel ou saisie libre) **et** sa date | `{Pôle}_{Événement}_{date événement}.pdf` |
+| `false` — Frais généraux, Institut, Halaqa, Séjour annuel | une **catégorie** et une description de l'achat | `{Pôle}_{Catégorie}_{date dépense}.pdf` |
+
+Les pôles EV portent une **famille** (`Poles.type_evenement` : `T`, `G`, `J`)
+et ne proposent que les événements de la leur (`Events.type_ev`). Cette famille
+se renseigne à la main — HelloAsso ne la connaît pas — et un événement **non
+classé reste proposé sous tous les pôles EV** : filtrer strictement viderait
+les listes au lendemain de chaque synchronisation.
+
+Une dépense du local — courses, goûter, matériel — n'a pas d'événement : en
+exiger un obligeait le déposant à en inventer, et le comptable recevait des
+pièces rattachées à des événements fictifs.
+
+La règle est résolue **une seule fois**, dans `crud/rattachement.py`, pour les
+factures comme pour les notes de frais : les deux écrans alimentent le même
+circuit comptable, et dupliquer la règle finirait par faire diverger ce que
+l'un accepte et l'autre refuse.
+
+### Notifications
+- `GET /notifications/summary` — dossiers en attente pour l'utilisateur
+  connecté, **déjà filtrés par ses droits** (un compteur à 0 ne distingue pas
+  « rien à traiter » de « pas concerné », et c'est voulu). Alimente les
+  pastilles du menu et le rappel affiché une fois par connexion.
+
+### Catégories de dépense
+- `GET /expense-categories` — liste (tout authentifié) ; `?include_inactive=true`
+- `POST|PATCH|DELETE /expense-categories[/{id}]` — Super Admin. Une catégorie
+  `is_default` ou déjà référencée n'est pas supprimable, seulement désactivable.
 
 ### Pôles & Événements (référentiels comptables)
 - `GET /poles` — liste (tout authentifié) ; `?include_inactive=true`
@@ -441,6 +486,14 @@ EMAIL_FROM=no-reply@lekouttab.fr
 # CORS / URLs
 FRONTEND_URL=https://stock.lekouttab.fr
 BACKEND_URL=https://stock.lekouttab.fr/api
+
+# Chiffrement du RIB au repos — base64 de 32 octets, IRREMPLAÇABLE
+RIB_ENCRYPTION_KEY=
+
+# Sauvegarde des justificatifs vers O2Switch (service `backup` du compose)
+BACKUP_SFTP_HOST=sauterelle.o2switch.net
+BACKUP_SFTP_USER=
+BACKUP_SFTP_DIR=sauvegardes/kouttab-stock
 
 # Uploads
 UPLOAD_DIR=/home/USER/stock.lekouttab.fr/backend/uploads
@@ -660,6 +713,14 @@ objet ici, l'application existe et tourne.
   enchaînent les requêtes et du lazy-loading des relations.
 - **Le schéma DB est partagé avec la version legacy Streamlit.** Toute migration
   se fait sur une base de production réelle : sauvegarde d'abord.
+- **Les justificatifs ne sont pas en base** : la table n'en garde que le chemin,
+  les fichiers vivent dans les volumes Docker du VPS. La sauvegarde O2Switch de
+  MySQL ne les couvre donc pas — c'est le service `backup` du `compose.yml` qui
+  s'en charge (`DEPLOIEMENT-VPS.md` §11).
+- **`compose.yml` ne se déploie pas tout seul.** Le workflow ne pousse que les
+  images ; le fichier a été copié à la main sur le VPS. Y ajouter un service
+  suppose de le recopier là-bas, sans quoi il ne démarrera jamais et rien ne le
+  signalera.
 - Toucher au déploiement ⇒ mettre à jour `DEPLOIEMENT-VPS.md`, pas
   `DEPLOIEMENT.md` (ce dernier documente l'ancienne cible O2Switch/Passenger).
 - **Ne jamais enchaîner les tentatives SSH vers le VPS.** `fail2ban` y bannit

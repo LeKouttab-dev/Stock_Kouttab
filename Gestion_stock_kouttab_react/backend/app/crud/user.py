@@ -192,7 +192,9 @@ def update_profile(
     if telephone is not None:
         user.telephone = telephone
     if rib is not None:
-        user.rib = rib  # TODO v1.2 : chiffrer au repos (AES-256)
+        # Le chiffrement est porte par le type de colonne (`ChampChiffre`) :
+        # rien a faire ici, et rien a oublier ailleurs.
+        user.rib = rib
     db.commit()
     db.refresh(user)
     return user

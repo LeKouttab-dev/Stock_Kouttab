@@ -9,9 +9,11 @@ from app.api.v1.endpoints import (
     auth,
     buvette,
     events,
+    expense_categories,
     expenses,
     invitations,
     invoices,
+    notifications,
     poles,
     scan,
     stock,
@@ -27,6 +29,8 @@ api_router.include_router(stock.router)
 api_router.include_router(expenses.router)
 api_router.include_router(invoices.router)
 api_router.include_router(poles.router)
+api_router.include_router(expense_categories.router)
+api_router.include_router(notifications.router)
 api_router.include_router(events.router)
 api_router.include_router(admin.router)
 api_router.include_router(buvette.router)

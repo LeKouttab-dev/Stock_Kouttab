@@ -1,0 +1,29 @@
+"""Schemas des rappels affiches a l'utilisateur connecte."""
+
+from __future__ import annotations
+
+from pydantic import BaseModel
+
+
+class PendingSummaryOut(BaseModel):
+    """Dossiers en attente, deja filtres par les droits du demandeur.
+
+    Un compteur a 0 signifie « rien a traiter » **ou** « pas concerne » : les
+    deux se presentent pareil, et c'est voulu — l'interface n'a pas a distinguer
+    les deux cas, et le nombre reel n'est jamais envoye a qui n'y a pas droit.
+    """
+
+    notes_a_valider: int = 0
+    factures_a_traiter: int = 0
+    modifications_stock: int = 0
+    comptes_a_valider: int = 0
+    articles_en_alerte: int = 0
+
+    @property
+    def total(self) -> int:
+        return (
+            self.notes_a_valider
+            + self.factures_a_traiter
+            + self.modifications_stock
+            + self.comptes_a_valider
+        )

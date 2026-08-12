@@ -101,8 +101,9 @@ def prepare_invoice_dispatch(
     depositor = invoice.user.full_name if invoice.user else "-"
     attachments = _prepare_attachments(
         files=list(invoice.files),
-        components=[invoice.pole, invoice.evenement],
-        date_value=invoice.date_evenement,
+        components=[invoice.pole, invoice.evenement or invoice.categorie],
+        # Sans evenement, sa date n'existe pas : le depot fait foi.
+        date_value=invoice.date_evenement or invoice.date_depot,
         entity_type="invoice",
         entity_id=invoice.id,
     )
@@ -112,15 +113,17 @@ def prepare_invoice_dispatch(
     for index, batch in enumerate(batches, start=1):
         suffix = f" ({index}/{len(batches)})" if len(batches) > 1 else ""
         subject = (
-            f"[Facture] {invoice.pole or 'NC'} — {invoice.evenement or 'NC'} — "
-            f"{_format_date(invoice.date_evenement)}{suffix}"
+            f"[Facture] {invoice.pole or 'NC'} — "
+            f"{invoice.evenement or invoice.categorie or 'NC'} — "
+            f"{_format_date(invoice.date_evenement or invoice.date_depot)}{suffix}"
         )
         body = (
             "Bonjour,\n\n"
             "Une nouvelle facture a ete deposee dans l'application de gestion.\n\n"
             f"Pole          : {invoice.pole or '-'}\n"
             f"Evenement     : {invoice.evenement or '-'}\n"
-            f"Date          : {_format_date(invoice.date_evenement)}\n"
+            f"Categorie     : {invoice.categorie or '-'}\n"
+            f"Date          : {_format_date(invoice.date_evenement or invoice.date_depot)}\n"
             f"Fournisseur   : {invoice.fournisseur or '-'}\n"
             f"Montant       : {_format_amount(invoice.montant)}\n"
             f"Depose par    : {depositor}\n"
@@ -159,7 +162,10 @@ def prepare_expense_dispatch(
     date_value = expense.date_evenement or expense.date_depense
     attachments = _prepare_attachments(
         files=list(expense.files),
-        components=[expense.pole, expense.evenement or expense.rattachement],
+        components=[
+            expense.pole,
+            expense.evenement or expense.categorie or expense.rattachement,
+        ],
         date_value=date_value,
         entity_type="expense",
         entity_id=expense.id,
@@ -171,7 +177,7 @@ def prepare_expense_dispatch(
         suffix = f" ({index}/{len(batches)})" if len(batches) > 1 else ""
         subject = (
             f"[Note de frais] {expense.pole or 'NC'} — "
-            f"{expense.evenement or expense.rattachement or 'NC'} — "
+            f"{expense.evenement or expense.categorie or expense.rattachement or 'NC'} — "
             f"{_format_date(date_value)}{suffix}"
         )
         body = (
@@ -179,6 +185,7 @@ def prepare_expense_dispatch(
             "Une nouvelle note de frais a ete deposee dans l'application.\n\n"
             f"Pole          : {expense.pole or '-'}\n"
             f"Evenement     : {expense.evenement or '-'}\n"
+            f"Categorie     : {expense.categorie or '-'}\n"
             f"Rattachement  : {expense.rattachement or '-'}\n"
             f"Date          : {_format_date(date_value)}\n"
             f"Fournisseur   : {expense.fournisseur or '-'}\n"
