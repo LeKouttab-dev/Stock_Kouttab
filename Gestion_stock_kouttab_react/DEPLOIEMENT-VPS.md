@@ -602,6 +602,38 @@ C'est la raison pour laquelle cette sauvegarde est obligatoire.
 
 ## 13. Exploitation courante
 
+### Trois pièges, rencontrés le 2026-08-12
+
+**1. `sudo` devant toute commande Docker de ce projet.** Le `.env` appartient à
+`deploy` en `600` — c'est voulu, il contient les secrets. Un autre compte ne
+peut pas le lire, donc `docker compose` non plus, et la commande échoue sur un
+`open ... .env: permission denied` qui ne dit pas d'où vient le problème.
+
+**2. `scp` se lance depuis le POSTE, jamais depuis le VPS.** Lancé dans la
+session SSH, il tente de joindre le serveur depuis lui-même, avec un compte
+sans clé : `Permission denied (publickey)` — et **un échec de plus au compteur
+`fail2ban`** (cf. §0). Déposer d'abord dans `/tmp`, le dossier du projet
+n'étant pas accessible en écriture au compte de connexion :
+
+```bash
+# sur le poste
+scp compose.yml <compte>@85.215.168.239:/tmp/compose.yml.nouveau
+# sur le VPS
+sudo cp /tmp/compose.yml.nouveau compose.yml && sudo chown deploy:deploy compose.yml
+```
+
+**3. Pas de `heredoc` Python collé dans un terminal.** Le copier-coller ajoute
+une indentation que Python refuse (`IndentationError: unexpected indent`), et
+`<<-` ne supprime que les tabulations. Écrire la commande sur une seule ligne,
+entre guillemets **simples**, en n'utilisant que des guillemets doubles à
+l'intérieur :
+
+```bash
+sudo docker compose exec -T api python -c 'from sqlalchemy import text; from app.db.session import SessionLocal; s=SessionLocal(); r=s.execute(text("SELECT rib FROM Admins WHERE rib IS NOT NULL")).scalars().all(); print(len(r), "RIB,", len([x for x in r if x and not x.startswith("gcm1:")]), "en clair")'
+```
+
+### Commandes
+
 ```bash
 docker compose ps                     # état des services
 docker compose logs -f api            # journaux de l'API
