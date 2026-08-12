@@ -190,7 +190,12 @@ function InvoiceDetail({ invoice }: { invoice: Invoice }) {
     <div className="border-t bg-muted/10 px-4 py-4 space-y-3 text-sm">
       <div className="grid gap-1 md:grid-cols-2">
         <p>
-          <strong>{fr.invoices.deposeePar} :</strong> {invoice.prenom} {invoice.nom}
+          {/* `user_full_name`, et non `prenom`/`nom` : l'API ne renvoie pas ces
+              deux champs sur une facture, si bien que la ligne restait vide —
+              impossible de savoir qui avait déposé la pièce. Le repli sur les
+              champs séparés couvre d'anciennes réponses en cache. */}
+          <strong>{fr.invoices.deposeePar} :</strong>{' '}
+          {invoice.user_full_name || [invoice.prenom, invoice.nom].filter(Boolean).join(' ') || '—'}
         </p>
         <p>
           <strong>{fr.invoices.dateDepot} :</strong> {formatDate(invoice.date_depot)}
