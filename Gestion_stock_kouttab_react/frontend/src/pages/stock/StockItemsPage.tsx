@@ -223,6 +223,8 @@ export function StockItemsPage() {
           if (!o) setScannedNew(null);
         }}
         lookup={scannedNew}
+        defaultCategory={category}
+        defaultSubcategory={subcategory}
       />
     </div>
   );

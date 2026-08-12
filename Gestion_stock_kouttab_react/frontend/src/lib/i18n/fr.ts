@@ -393,6 +393,11 @@ export const fr = {
     edge: 'Côté',
     fullFrame: 'Toute la photo',
     chooseCamera: "Choisir l'objectif",
+    starting: 'Démarrage de la caméra…',
+    manualEntry: 'Ou saisissez le code à la main',
+    useCode: 'Utiliser',
+    fallbackEngine:
+      "Ce navigateur n'a pas de lecteur intégré : la détection peut demander un cadrage plus net.",
   },
   common: {
     loading: 'Chargement…',

@@ -171,7 +171,9 @@ async def create_invoice(
     outbound = compta_dispatch.prepare_invoice_dispatch(
         db, inv, triggered_by=current_user.id
     )
-    background.add_task(_notify_new_invoice_safe, current_user.full_name, commentaire)
+    background.add_task(
+        _notify_new_invoice_safe, current_user.full_name, commentaire, current_user.email
+    )
     for row in outbound:
         background.add_task(outbox.try_send_now, row.id)
 
@@ -227,6 +229,7 @@ def update_invoice_status(
     if destinataire:
         background.add_task(
             email_service.send_status_change,
+            auteur_email=current_user.email,
             recipient=destinataire,
             subject=f"Mise a jour de votre facture #{invoice.id}",
             body=(
@@ -310,11 +313,13 @@ def _serialize_invoice(invoice) -> dict[str, Any]:
     return invoice_crud.serialize_invoice(invoice)
 
 
-async def _notify_new_invoice_safe(user_full_name: str, comment: str | None) -> None:
+async def _notify_new_invoice_safe(
+    user_full_name: str, comment: str | None, auteur_email: str | None = None
+) -> None:
     db = SessionLocal()
     try:
         await email_service.send_invoice_notification(
-            db, user_full_name=user_full_name, comment=comment
+            db, user_full_name=user_full_name, comment=comment, auteur_email=auteur_email
         )
     finally:
         db.close()

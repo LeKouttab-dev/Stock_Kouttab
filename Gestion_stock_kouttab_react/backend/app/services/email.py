@@ -164,6 +164,25 @@ async def _send(subject: str, body: str, recipients: Iterable[str], html: bool =
         pass  # deja journalise par _send_raw
 
 
+
+def _destinataires_sauf_auteur(
+    db: Session, roles: list[str], auteur_email: str | None
+) -> list[str]:
+    """Destinataires d'une notification, l'auteur de l'action exclu.
+
+    Sur une petite structure, la meme personne cumule les roles : le seul compte
+    disposant d'une adresse est aussi celui qui depose. Sans cette exclusion,
+    deposer une facture declenche un courriel annoncant a son auteur qu'une
+    facture vient d'etre deposee — du bruit qui finit par masquer les
+    notifications utiles.
+    """
+    destinataires = get_emails_by_roles(db, roles)
+    if not auteur_email:
+        return destinataires
+    reference = auteur_email.strip().lower()
+    return [e for e in destinataires if e.strip().lower() != reference]
+
+
 async def send_stock_alert(
     db: Session,
     *,
@@ -212,8 +231,11 @@ async def send_new_expense_notification(
     user_full_name: str,
     amount: float,
     rattachement: str | None,
+    auteur_email: str | None = None,
 ) -> None:
-    recipients = get_emails_by_roles(db, ["Compta", "Super Admin"])
+    recipients = _destinataires_sauf_auteur(db, ["Compta", "Super Admin"], auteur_email)
+    if not recipients:
+        return
     subject = f"Nouvelle note de frais soumise par {user_full_name}"
     body = (
         "Bonjour,\n\n"
@@ -232,8 +254,11 @@ async def send_invoice_notification(
     *,
     user_full_name: str,
     comment: str | None,
+    auteur_email: str | None = None,
 ) -> None:
-    recipients = get_emails_by_roles(db, ["Compta", "Super Admin"])
+    recipients = _destinataires_sauf_auteur(db, ["Compta", "Super Admin"], auteur_email)
+    if not recipients:
+        return
     subject = f"Nouveau depot de facture par {user_full_name}"
     body = (
         "Bonjour,\n\n"
@@ -291,13 +316,28 @@ async def send_password_reset(
     await _send(subject, body, [email])
 
 
+def doit_notifier_du_statut(recipient: str, auteur_email: str | None) -> bool:
+    """Faux quand le valideur est aussi le destinataire.
+
+    Il vient de faire l'action : lui ecrire pour la lui annoncer n'apprend rien
+    et noie les notifications utiles. Fonction separee de l'envoi pour rester
+    verifiable — la fixture de test remplace `send_status_change` en entier.
+    """
+    if not auteur_email:
+        return True
+    return recipient.strip().lower() != auteur_email.strip().lower()
+
+
 async def send_status_change(
     *,
     recipient: str,
     subject: str,
     body: str,
+    auteur_email: str | None = None,
 ) -> None:
-    """Generic notification used to inform users of status changes."""
+    """Informe le deposant d'un changement de statut."""
+    if not doit_notifier_du_statut(recipient, auteur_email):
+        return
     await _send(subject, body, [recipient])
 
 

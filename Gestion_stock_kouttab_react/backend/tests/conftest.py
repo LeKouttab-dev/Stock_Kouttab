@@ -301,7 +301,7 @@ def captured_emails(monkeypatch: pytest.MonkeyPatch) -> list[_SentEmail]:
             )
         )
 
-    async def _fake_status_change(*, recipient, subject, body):
+    async def _fake_status_change(*, recipient, subject, body, auteur_email=None):
         sent.append(_SentEmail(subject, body, [recipient], kind="status_change"))
 
     monkeypatch.setattr("app.services.email._send", _fake_send)

@@ -190,6 +190,7 @@ async def create_expense(
         current_user.full_name,
         float(expense.montant),
         expense.rattachement,
+        current_user.email,
     )
 
     # Envoi des tickets au comptable, meme chaine que les factures. Synchrone
@@ -274,6 +275,7 @@ def validate_expense(
     if out and out.get("user_email"):
         background.add_task(
             email_service.send_status_change,
+            auteur_email=current_user.email,
             recipient=out["user_email"],
             subject=f"Mise a jour de votre note de frais #{expense.id}",
             body=(
@@ -359,7 +361,12 @@ def download_expense_file(
 # ---- Background tasks ------------------------------------------------------
 
 
-async def _notify_new_expense_safe(user_full_name: str, amount: float, rattachement: str | None) -> None:
+async def _notify_new_expense_safe(
+    user_full_name: str,
+    amount: float,
+    rattachement: str | None,
+    auteur_email: str | None = None,
+) -> None:
     db = SessionLocal()
     try:
         await email_service.send_new_expense_notification(
@@ -367,6 +374,7 @@ async def _notify_new_expense_safe(user_full_name: str, amount: float, rattachem
             user_full_name=user_full_name,
             amount=amount,
             rattachement=rattachement,
+            auteur_email=auteur_email,
         )
     finally:
         db.close()

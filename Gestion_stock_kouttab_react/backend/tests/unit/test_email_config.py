@@ -103,3 +103,58 @@ async def test_mail_is_sent_when_enabled(monkeypatch: pytest.MonkeyPatch) -> Non
     await email_service._send_raw("Sujet", "Corps", ["destinataire@example.com"])
 
     assert len(envoyes) == 1
+
+
+# ---- Ne pas se notifier soi-meme ---------------------------------------------
+
+
+def test_author_is_excluded_from_their_own_notification(db_session, monkeypatch) -> None:
+    """Sur une petite structure, une seule personne cumule les roles.
+
+    Deposer une facture declenchait un courriel annoncant a son auteur qu'une
+    facture venait d'etre deposee. Ce bruit finit par masquer les notifications
+    utiles.
+    """
+    from app.services import email as email_service
+
+    monkeypatch.setattr(
+        email_service,
+        "get_emails_by_roles",
+        lambda db, roles: ["omar@example.com", "compta@example.com"],
+    )
+
+    restants = email_service._destinataires_sauf_auteur(
+        db_session, ["Compta"], "omar@example.com"
+    )
+    assert restants == ["compta@example.com"]
+
+
+def test_author_exclusion_ignores_case(db_session, monkeypatch) -> None:
+    from app.services import email as email_service
+
+    monkeypatch.setattr(
+        email_service, "get_emails_by_roles", lambda db, roles: ["Omar@Example.COM"]
+    )
+    assert email_service._destinataires_sauf_auteur(db_session, ["Compta"], "omar@example.com") == []
+
+
+def test_everyone_is_kept_when_the_author_is_unknown(db_session, monkeypatch) -> None:
+    from app.services import email as email_service
+
+    monkeypatch.setattr(email_service, "get_emails_by_roles", lambda db, roles: ["a@b.fr"])
+    assert email_service._destinataires_sauf_auteur(db_session, ["Compta"], None) == ["a@b.fr"]
+
+
+def test_status_change_skips_self_validation() -> None:
+    """Valider sa propre note ne doit pas declencher de courriel.
+
+    La regle est testee sur la fonction de decision : la fixture `captured_emails`
+    remplace `send_status_change` en entier pour qu'aucun test ne joigne un vrai
+    serveur SMTP, ce qui rend l'envoi lui-meme inobservable ici.
+    """
+    from app.services.email import doit_notifier_du_statut
+
+    assert doit_notifier_du_statut("omar@example.com", "omar@example.com") is False
+    assert doit_notifier_du_statut("Omar@Example.COM", "omar@example.com") is False
+    assert doit_notifier_du_statut("benevole@example.com", "omar@example.com") is True
+    assert doit_notifier_du_statut("benevole@example.com", None) is True

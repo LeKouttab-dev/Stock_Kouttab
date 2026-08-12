@@ -27,6 +27,15 @@ interface AddItemFromBarcodeModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   lookup: BarcodeLookupResponse | null;
+  /**
+   * Rayon depuis lequel le scan a été lancé. Prioritaire sur les catégories
+   * d'Open Food Facts : celles-ci décrivent le produit selon leur propre
+   * nomenclature (« Snacks sucrés », « Biscuits »), sans rapport avec le
+   * référentiel de l'association. Scanner un paquet de BN depuis
+   * « Nourriture › Sucré » doit le ranger là, pas ailleurs.
+   */
+  defaultCategory?: string;
+  defaultSubcategory?: string | null;
 }
 
 function pickFirst(value: string | null | undefined): string {
@@ -37,6 +46,8 @@ export function AddItemFromBarcodeModal({
   open,
   onOpenChange,
   lookup,
+  defaultCategory,
+  defaultSubcategory,
 }: AddItemFromBarcodeModalProps) {
   const create = useCreateStockItem();
   const toast = useToast();
@@ -73,13 +84,17 @@ export function AddItemFromBarcodeModal({
     form.reset({
       barcode: lookup.barcode,
       nom: composedName,
-      categorie: offCategory,
-      sous_categorie: offSubcategory || null,
-      quantite: 0,
+      // Le rayon d'où vient le scan l'emporte ; les catégories Open Food Facts
+      // ne servent que si l'on scanne hors contexte.
+      categorie: defaultCategory || offCategory,
+      sous_categorie: defaultSubcategory ?? (offSubcategory || null),
+      // 1 et non 0 : on scanne un article qu'on a en main. Partir de zéro
+      // obligeait à corriger la quantité à chaque ajout.
+      quantite: 1,
       seuil_alerte: 5,
       emoji: '📦',
     });
-  }, [open, lookup, form]);
+  }, [open, lookup, form, defaultCategory, defaultSubcategory]);
 
   const onSubmit = (values: StockItemFromBarcodeFormValues) => {
     create.mutate(
