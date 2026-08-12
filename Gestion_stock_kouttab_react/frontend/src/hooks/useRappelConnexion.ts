@@ -45,6 +45,9 @@ export function useRappelConnexion(): void {
     }
 
     const rappels: Array<[number, string]> = [
+      // En tête : c'est ce qu'on attend de MOI, avant ce que je dois traiter
+      // pour les autres.
+      [resume.justificatifs_demandes, fr.notifications.justificatifsDemandes],
       [resume.notes_a_valider, fr.notifications.notesAValider],
       [resume.factures_a_traiter, fr.notifications.facturesATraiter],
       [resume.modifications_stock, fr.notifications.modificationsStock],

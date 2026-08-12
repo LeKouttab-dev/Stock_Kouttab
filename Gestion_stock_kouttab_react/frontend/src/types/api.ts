@@ -486,6 +486,10 @@ export interface PendingSummary {
   modifications_stock: number;
   comptes_a_valider: number;
   articles_en_alerte: number;
+  /** Justificatifs que la comptabilité me demande (tout utilisateur). */
+  justificatifs_demandes: number;
+  /** Tickets ouverts toutes personnes confondues (comptabilité). */
+  tickets_ouverts: number;
 }
 
 /** Bénévole et ce qu'on lui doit, dans l'écran comptable. */
@@ -535,4 +539,23 @@ export interface ReimbursementOptions {
   moyen_defaut: string;
   etablissement_defaut: string;
   approbateur_defaut: string;
+}
+
+/** Demande de justificatif adressée à un bénévole par la comptabilité. */
+export interface JustificatifTicket {
+  id: number;
+  id_user: number;
+  libelle: string;
+  description?: string | null;
+  montant_attendu?: string | number | null;
+  date_achat?: string | null;
+  fournisseur?: string | null;
+  statut: 'ouvert' | 'clos' | 'annule';
+  /** Pièce qui solde la demande, rattachée à la main par la comptabilité. */
+  id_facture?: number | null;
+  rappels_envoyes: number;
+  dernier_rappel_at?: string | null;
+  created_at?: string | null;
+  closed_at?: string | null;
+  user_full_name?: string | null;
 }

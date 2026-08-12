@@ -18,6 +18,10 @@ class PendingSummaryOut(BaseModel):
     modifications_stock: int = 0
     comptes_a_valider: int = 0
     articles_en_alerte: int = 0
+    # Tickets que la comptabilite m'adresse (tout utilisateur).
+    justificatifs_demandes: int = 0
+    # Tickets ouverts, toutes personnes confondues (comptabilite).
+    tickets_ouverts: int = 0
 
     @property
     def total(self) -> int:
@@ -26,4 +30,5 @@ class PendingSummaryOut(BaseModel):
             + self.factures_a_traiter
             + self.modifications_stock
             + self.comptes_a_valider
+            + self.justificatifs_demandes
         )

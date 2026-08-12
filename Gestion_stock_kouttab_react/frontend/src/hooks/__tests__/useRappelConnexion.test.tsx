@@ -16,6 +16,8 @@ const resume = {
   modifications_stock: 0,
   comptes_a_valider: 0,
   articles_en_alerte: 0,
+  justificatifs_demandes: 0,
+  tickets_ouverts: 0,
 };
 let utilisateur: { id: number; username: string; prenom?: string } | null = {
   id: 7,
@@ -49,6 +51,8 @@ describe('hooks/useRappelConnexion', () => {
       modifications_stock: 0,
       comptes_a_valider: 0,
       articles_en_alerte: 0,
+      justificatifs_demandes: 0,
+      tickets_ouverts: 0,
     });
     utilisateur = { id: 7, username: 'omar', prenom: 'Omar' };
   });
@@ -91,6 +95,18 @@ describe('hooks/useRappelConnexion', () => {
     utilisateur = { id: 9, username: 'autre' };
     renderHook(() => useRappelConnexion());
     await waitFor(() => expect(toastInfo).toHaveBeenCalledTimes(2));
+  });
+
+  it('met en tête ce que la comptabilité me réclame', async () => {
+    // Ce qu'on attend de moi passe avant ce que je dois traiter pour autrui.
+    resume.justificatifs_demandes = 2;
+    resume.notes_a_valider = 1;
+
+    renderHook(() => useRappelConnexion());
+
+    await waitFor(() => expect(toastInfo).toHaveBeenCalledTimes(1));
+    const detail = toastInfo.mock.calls[0][1] as string;
+    expect(detail.indexOf('justificatif')).toBeLessThan(detail.indexOf('note(s) de frais'));
   });
 
   it('signale aussi le stock sous le seuil', async () => {

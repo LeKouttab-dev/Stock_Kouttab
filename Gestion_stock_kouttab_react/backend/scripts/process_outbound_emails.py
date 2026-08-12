@@ -1,4 +1,4 @@
-"""Traite la file des envois comptables. A lancer par le cron cPanel.
+"""File d'envoi comptable et relances programmees. A lancer par le cron.
 
 Exemple de configuration (cPanel > Cron Jobs, toutes les 10 minutes) :
 
@@ -28,6 +28,8 @@ from app.core.config import settings  # noqa: E402
 from app.core.logger import get_logger  # noqa: E402
 from app.db.models import OutboundEmail  # noqa: E402
 from app.db.session import SessionLocal  # noqa: E402
+from app.crud import ticket as ticket_crud  # noqa: E402
+from app.services import email as email_service  # noqa: E402
 from app.services import outbox  # noqa: E402
 
 
@@ -65,6 +67,54 @@ def cleanup(days: int) -> int:
     return removed
 
 
+async def relancer_les_tickets() -> int:
+    """Relance les justificatifs manquants dont le delai est ecoule.
+
+    Greffe sur ce script plutot que sur un service dedie : un conteneur de plus
+    aurait impose de recopier `compose.yml` a la main sur le VPS — etape hors du
+    deploiement automatique, et deja source d'incidents (cf. DEPLOIEMENT-VPS.md
+    §13). Le worker passe toutes les dix minutes, largement assez pour une
+    cadence de trois jours.
+    """
+    envoyes = 0
+    db = SessionLocal()
+    try:
+        for ticket in ticket_crud.tickets_a_relancer(db):
+            destinataire = ticket.user.email if ticket.user else None
+            if not destinataire:
+                # Sans adresse, la relance ne partira jamais : on ne consomme
+                # pas le quota, la comptabilite verra le ticket stagner.
+                logger.warning(
+                    "Ticket #%d : le benevole n'a pas d'adresse, relance impossible.",
+                    ticket.id,
+                )
+                continue
+            await email_service.send_justificatif_reminder(
+                recipient=destinataire,
+                prenom=ticket.user.prenom if ticket.user else None,
+                libelle=ticket.libelle,
+                description=ticket.description,
+                montant=(
+                    f"{ticket.montant_attendu:.2f} EUR"
+                    if ticket.montant_attendu is not None
+                    else None
+                ),
+                date_achat=(
+                    ticket.date_achat.strftime("%d/%m/%Y") if ticket.date_achat else None
+                ),
+                fournisseur=ticket.fournisseur,
+                rappel_numero=ticket.rappels_envoyes + 1,
+                rappels_max=ticket_crud.RAPPELS_MAX,
+            )
+            ticket_crud.marquer_relance(db, ticket)
+            envoyes += 1
+    finally:
+        db.close()
+    if envoyes:
+        logger.info("Relances de justificatifs : %d courriel(s) envoye(s).", envoyes)
+    return envoyes
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -88,6 +138,9 @@ def main() -> int:
         )
         if args.cleanup_days > 0:
             cleanup(args.cleanup_days)
+        # Les relances suivent la file : un echec de l'une ne doit pas empecher
+        # l'autre, d'ou deux `asyncio.run` distincts sous le meme garde-fou.
+        asyncio.run(relancer_les_tickets())
     except Exception as exc:  # noqa: BLE001
         logger.exception("Traitement de la file comptable interrompu : %s", exc)
     return 0

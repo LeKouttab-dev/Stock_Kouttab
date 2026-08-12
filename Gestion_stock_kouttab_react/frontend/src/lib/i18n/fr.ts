@@ -261,6 +261,37 @@ export const fr = {
     aucun: 'Aucun événement enregistré.',
   },
 
+  tickets: {
+    titre: 'Justificatifs demandés',
+    sousTitre:
+      "Réclamer une facture manquante à un bénévole. Un rappel part à l'ouverture, puis tous les 3 jours (5 au maximum).",
+    demander: 'Demander un justificatif',
+    benevole: 'Bénévole',
+    choisirBenevole: 'Choisir un bénévole',
+    libelle: 'Ce qui est demandé',
+    libellePlaceholder: 'Ex. : facture Metro du 3 août',
+    montant: 'Montant (facultatif)',
+    dateAchat: "Date d'achat (facultatif)",
+    fournisseur: 'Fournisseur (facultatif)',
+    precision: 'Précision (facultatif)',
+    envoyerDemande: 'Ouvrir la demande',
+    ouvert: 'Demande envoyée.',
+    ouvertAide: 'Le bénévole reçoit un courriel, puis un rappel tous les 3 jours.',
+    aucun: 'Aucune demande de justificatif.',
+    rappels: 'rappel(s)',
+    relancer: 'Relancer maintenant',
+    relance: 'Rappel envoyé.',
+    clore: 'Clore la demande',
+    cloture: 'Demande clôturée.',
+    annuler: 'Annuler la demande',
+    confirmAnnulation: 'Annuler cette demande de justificatif ?',
+    clos: 'Clos',
+    annule: 'Annulée',
+    mesDemandes: 'Justificatifs attendus',
+    mesDemandesAide:
+      'La comptabilité attend ces pièces. Déposez-les ci-dessous ; elle clôturera la demande après vérification.',
+  },
+
   reimbursements: {
     titre: 'Remboursements',
     titreModale: 'Enregistrer un remboursement',
@@ -290,6 +321,7 @@ export const fr = {
   notifications: {
     bonjour: 'Bonjour',
     aTraiter: 'à traiter',
+    justificatifsDemandes: 'justificatif(s) à déposer',
     notesAValider: 'note(s) de frais à valider',
     facturesATraiter: 'facture(s) à traiter',
     modificationsStock: 'demande(s) de modification de stock',

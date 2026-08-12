@@ -29,6 +29,7 @@ import { useDownloadAttachment } from '@/hooks/useDownloadAttachment';
 import { useToast } from '@/hooks/useToast';
 import { formatDate } from '@/lib/format';
 import { fr } from '@/lib/i18n/fr';
+import { TicketsManagementSection } from './TicketsManagementSection';
 
 export function InvoiceListPage() {
   const [statusFilter, setStatusFilter] = useState<string>('Toutes');
@@ -61,6 +62,10 @@ export function InvoiceListPage() {
         </h1>
         <p className="text-sm text-muted-foreground">Filtrez et consultez les factures déposées.</p>
       </div>
+
+      {/* Les demandes de justificatif vivent ici : c'est en parcourant les
+          pièces reçues que la comptabilité constate ce qui manque. */}
+      <TicketsManagementSection />
 
       <Card>
         <CardContent className="grid gap-3 p-4 md:grid-cols-3">

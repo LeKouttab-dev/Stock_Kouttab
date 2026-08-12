@@ -177,6 +177,7 @@ Gestion_stock_kouttab_react/
 | **Factures** | Factures déposées | `id_user → Admins.id` (CASCADE) |
 | **FichiersFactures** | Pièces jointes factures | `id_facture` (CASCADE) |
 | **StockModifications** | Workflow d'approbation modif stock | `id_user`, `id_stock`, `approuve_par → Admins.id` |
+| **TicketsJustificatif** | Demande de pièce manquante : `libelle` (seul obligatoire), `montant_attendu`, `date_achat`, `fournisseur`, `statut` (`ouvert`·`clos`·`annule`), `rappels_envoyes`, `dernier_rappel_at` | `id_user`, `cree_par`, `closed_by`, `id_facture → Factures.id` |
 | **Remboursements** | Un versement à un bénévole soldant N notes : `date_remboursement`, `moyen`, `etablissement`, `approuve_par`, `montant_total` (**instantané**), `chemin_pdf`, `chemin_xlsx` | `id_user`, `cree_par → Admins.id` |
 | **CategoriesDepense** | Référentiel administrable des catégories hors événement (`Courses`, `Stock goûter`, `Achat buvette`, `Achat matériel`, `Autre`) : `nom` UNIQUE, `is_default`, `is_active`, `ordre` | — |
 | **BuvetteProducts** | Produits de la buvette synchronisés HelloAsso : `helloasso_tier_id` UNIQUE, `name`, `price_cents`, `quantity`, `seuil_alerte`, `emoji`, `image_url`, `alert_sent`, `last_synced_at`, `is_active` | — |
@@ -216,6 +217,8 @@ le démarrage en production. Les valeurs en clair héritées restent lisibles
 | Notes de frais — valider/refuser/rembourser | — | — | ✅ | ✅ |
 | Notes de frais — remboursement groupé + justificatif | — | — | ✅ | ✅ |
 | Remboursements — consulter les siens | ✅ | ✅ | ✅ | ✅ |
+| Justificatifs — demander, relancer, clore | — | — | ✅ | ✅ |
+| Justificatifs — voir ce qu'on me demande | ✅ | ✅ | ✅ | ✅ |
 | Notes de frais — voir RIB utilisateur | — | — | ✅ | ✅ |
 | Factures — déposer | ✅ | ✅ | ✅ | ✅ |
 | Factures — changer statut | — | — | ✅ | ✅ |
@@ -372,6 +375,32 @@ Règles portées par `crud/reimbursement.py` :
 raison que `naming.py`/`naming.ts` : le front affiche le montant, le back le
 grave dans le justificatif. Corriger l'un sans l'autre produit un document qui
 contredit l'écran l'ayant déclenché.
+
+### Tickets de justificatif
+
+La comptabilité constate un achat sans facture. Elle ouvrait sa relance de
+mémoire, par messages privés, sans trace de qui avait déjà été relancé.
+
+- `GET|POST /tickets` — liste et ouverture (Compta+)
+- `PATCH /tickets/{id}` · `POST /tickets/{id}/close` · `POST /tickets/{id}/remind`
+- `GET /tickets/me` — ses propres demandes, **tout utilisateur** : contrepartie
+  des relances par courriel, pour que le bénévole retrouve la demande dans
+  l'application
+
+**Cadence : tous les 3 jours, 5 fois au maximum** (`crud/ticket.py`). Un ticket
+jamais relancé l'est immédiatement — le premier rappel part à l'ouverture, mais
+peut échouer, et sans ce rattrapage une demande ouverte un vendredi soir
+resterait muette tout le week-end. Passé le quota, le ticket reste ouvert mais
+se tait : un rappel reçu dix fois finit en filtre, et emporte les suivants.
+
+La **clôture est manuelle**, le rattachement de la facture aussi. Deviner qu'une
+pièce déposée correspond à un ticket le fermerait dès que le bénévole dépose
+autre chose, et les relances cesseraient alors que la pièce attendue manque.
+
+Les relances sont portées par `scripts/process_outbound_emails.py`, devenu
+« file d'envoi et relances programmées ». Un service dédié aurait imposé de
+recopier `compose.yml` à la main sur le VPS — étape hors du déploiement
+automatique (cf. `DEPLOIEMENT-VPS.md` §13).
 
 ### Notifications
 - `GET /notifications/summary` — dossiers en attente pour l'utilisateur

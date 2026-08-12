@@ -66,13 +66,16 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       label: 'Déposer une facture',
       icon: FileText,
       visible: can(ACTIONS.INVOICES_SUBMIT),
+      // Ce que la comptabilité me réclame : la pastille est sur la page qui
+      // sert justement à le lui donner.
+      badge: aTraiter?.justificatifs_demandes,
     },
     {
       to: '/invoices',
       label: fr.nav.invoices,
       icon: FileText,
       visible: can(ACTIONS.INVOICES_SUBMIT),
-      badge: aTraiter?.factures_a_traiter,
+      badge: (aTraiter?.factures_a_traiter ?? 0) + (aTraiter?.tickets_ouverts ?? 0),
     },
     {
       to: '/admin',

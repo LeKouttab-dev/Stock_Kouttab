@@ -78,6 +78,10 @@ def test_un_benevole_n_a_rien_a_traiter(
         "modifications_stock": 0,
         "comptes_a_valider": 0,
         "articles_en_alerte": 0,
+        # Aucun justificatif ne lui est demande, et il ne voit pas ceux des
+        # autres : le compteur global de la comptabilite reste a zero.
+        "justificatifs_demandes": 0,
+        "tickets_ouverts": 0,
     }
 
 

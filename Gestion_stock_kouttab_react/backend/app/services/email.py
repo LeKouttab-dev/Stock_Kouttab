@@ -341,6 +341,59 @@ async def send_status_change(
     await _send(subject, body, [recipient])
 
 
+async def send_justificatif_reminder(
+    *,
+    recipient: str,
+    prenom: str | None,
+    libelle: str,
+    description: str | None = None,
+    montant: str | None = None,
+    date_achat: str | None = None,
+    fournisseur: str | None = None,
+    rappel_numero: int,
+    rappels_max: int,
+) -> None:
+    """Relance un benevole pour un justificatif manquant.
+
+    Le message ne mentionne que ce que la comptabilite a renseigne : un ticket
+    ouvert avec le seul libelle produit un rappel court plutot qu'un formulaire
+    a trous, qui donnerait l'impression d'un envoi automatique mal configure.
+
+    Passe par :func:`_send` (best-effort) et non `_send_raw` : un rappel perdu
+    se rattrape au tour suivant, il n'a pas la criticite d'une piece comptable.
+    """
+    salutation = f"Bonjour {prenom}," if prenom else "Bonjour,"
+    details = [f"Objet         : {libelle}"]
+    if montant:
+        details.append(f"Montant       : {montant}")
+    if date_achat:
+        details.append(f"Date d'achat  : {date_achat}")
+    if fournisseur:
+        details.append(f"Fournisseur   : {fournisseur}")
+    if description:
+        details.append(f"Precision     : {description}")
+
+    # Le dernier rappel le dit : sans cela, le silence qui suit passerait pour
+    # un oubli de l'application plutot que pour la fin des relances.
+    cloture = (
+        "\n\nC'est le dernier rappel automatique pour cette demande ; "
+        "la comptabilite reprendra contact si besoin."
+        if rappel_numero >= rappels_max
+        else ""
+    )
+
+    body = (
+        f"{salutation}\n\n"
+        "Un justificatif d'achat manque a la comptabilite de l'association.\n\n"
+        + "\n".join(details)
+        + "\n\nMerci de le deposer dans l'application, rubrique « Depot de "
+        "factures ». Si vous l'avez deja transmis, ignorez ce message."
+        + cloture
+        + "\n\nCordialement,\nLe Kouttab — gestion des stocks."
+    )
+    await _send(f"[Justificatif attendu] {libelle}", body, [recipient])
+
+
 async def send_new_account_request(
     db: Session,
     *,

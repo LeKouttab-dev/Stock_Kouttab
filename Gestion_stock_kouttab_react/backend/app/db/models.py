@@ -403,6 +403,72 @@ class OutboundEmail(Base):
     )
 
 
+# ---- Tickets de justificatif ------------------------------------------------
+
+
+class JustificatifTicket(Base):
+    """Demande de justificatif adressee a un benevole.
+
+    La comptabilite sait qu'un achat a eu lieu — elle voit le debit, ou on le lui
+    a dit — mais n'a pas la facture. Elle relancait de memoire, par messages
+    prives, sans trace : impossible de savoir qui avait deja ete relance, ni
+    combien de pieces manquaient encore a la cloture.
+
+    Un ticket porte cette demande, ses relances, et sa fin. Seul ``libelle`` est
+    obligatoire : ouvrir un ticket doit rester possible avec ce qu'on a sous la
+    main, quitte a completer plus tard.
+
+    La cloture est **manuelle**. Fermer sur le premier depot du benevole aurait
+    ferme le ticket a tort des qu'il depose une facture sans rapport, et les
+    relances se seraient tues alors que la piece attendue manquait toujours.
+    """
+
+    __tablename__ = "TicketsJustificatif"
+    __table_args__ = (
+        Index("idx_ticket_user", "id_user"),
+        Index("idx_ticket_statut", "statut"),
+    )
+
+    STATUT_OUVERT = "ouvert"
+    STATUT_CLOS = "clos"
+    STATUT_ANNULE = "annule"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    # Le benevole a qui la piece est demandee.
+    id_user: Mapped[int] = mapped_column(
+        Integer, ForeignKey("Admins.id", ondelete="CASCADE"), nullable=False
+    )
+    cree_par: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("Admins.id", ondelete="SET NULL"), nullable=True
+    )
+
+    libelle: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Tout ce qui suit est facultatif : la comptabilite ouvre un ticket avec ce
+    # qu'elle sait, et le courriel de relance ne mentionne que ce qui est rempli.
+    montant_attendu: Mapped[Decimal | None] = mapped_column(DECIMAL(10, 2), nullable=True)
+    date_achat: Mapped[date | None] = mapped_column(Date, nullable=True)
+    fournisseur: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    statut: Mapped[str] = mapped_column(String(20), default=STATUT_OUVERT, nullable=False)
+    # Piece qui solde le ticket, rattachee a la main par la comptabilite.
+    id_facture: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("Factures.id", ondelete="SET NULL"), nullable=True
+    )
+
+    rappels_envoyes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    dernier_rappel_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    closed_by: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("Admins.id", ondelete="SET NULL"), nullable=True
+    )
+
+    user: Mapped["Admin"] = relationship("Admin", foreign_keys=[id_user])
+    facture: Mapped["Invoice | None"] = relationship("Invoice", foreign_keys=[id_facture])
+
+
 # ---- Remboursements ---------------------------------------------------------
 
 

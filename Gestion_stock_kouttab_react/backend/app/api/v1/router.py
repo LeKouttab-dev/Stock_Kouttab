@@ -18,6 +18,7 @@ from app.api.v1.endpoints import (
     reimbursements,
     scan,
     stock,
+    tickets,
     users,
 )
 
@@ -33,6 +34,7 @@ api_router.include_router(poles.router)
 api_router.include_router(expense_categories.router)
 api_router.include_router(notifications.router)
 api_router.include_router(reimbursements.router)
+api_router.include_router(tickets.router)
 api_router.include_router(events.router)
 api_router.include_router(admin.router)
 api_router.include_router(buvette.router)

@@ -20,7 +20,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
-from app.db.models import Admin, Expense, Invoice, Stock, StockModification
+from app.db.models import Admin, Expense, Invoice, JustificatifTicket, Stock, StockModification
 from app.db.session import get_db
 from app.schemas.notification import PendingSummaryOut
 
@@ -74,6 +74,23 @@ def pending_summary(
         articles_en_alerte=(
             _compter(db, Stock, Stock.quantite < Stock.seuil_alerte)
             if est_admin_stock
+            else 0
+        ),
+        # Ce que la comptabilite me demande : visible de TOUS, chacun pour soi.
+        # C'est la contrepartie a l'ecran des relances par courriel.
+        justificatifs_demandes=_compter(
+            db,
+            JustificatifTicket,
+            (JustificatifTicket.id_user == current_user.id)
+            & (JustificatifTicket.statut == JustificatifTicket.STATUT_OUVERT),
+        ),
+        tickets_ouverts=(
+            _compter(
+                db,
+                JustificatifTicket,
+                JustificatifTicket.statut == JustificatifTicket.STATUT_OUVERT,
+            )
+            if est_comptable
             else 0
         ),
     )

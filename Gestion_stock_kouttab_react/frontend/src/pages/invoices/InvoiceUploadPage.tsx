@@ -20,6 +20,7 @@ import { CategorySelect } from '@/components/forms/CategorySelect';
 import { EventSelect } from '@/components/forms/EventSelect';
 import { AttachmentNamesPreview } from '@/components/forms/AttachmentNamesPreview';
 import { DocumentScanner } from '@/components/scanner/DocumentScanner';
+import { MesJustificatifsDemandes } from '@/components/tickets/MesJustificatifsDemandes';
 import { useCreateInvoice } from '@/api/endpoints/invoices';
 import { useExpenseCategories, usePoles } from '@/api/endpoints/referentials';
 import { invoiceUploadSchema, type InvoiceUploadFormValues } from '@/lib/schemas/invoice';
@@ -155,6 +156,10 @@ export function InvoiceUploadPage() {
         <AlertTitle>{fr.invoices.important}</AlertTitle>
         <AlertDescription>{fr.invoices.importantText}</AlertDescription>
       </Alert>
+
+      {/* Ce que la comptabilité attend, juste au-dessus du formulaire qui sert
+          à le lui donner. */}
+      <MesJustificatifsDemandes />
 
       <Card>
         <CardHeader>
