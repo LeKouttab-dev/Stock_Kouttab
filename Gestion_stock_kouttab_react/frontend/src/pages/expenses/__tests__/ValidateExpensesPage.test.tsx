@@ -100,12 +100,56 @@ async function toutAfficher(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('pages/expenses/ValidateExpensesPage', () => {
-  it('ouvre sur le travail du jour, et non sur tout l’historique', () => {
+  it('ouvre sur ce qui demande une action : à valider ET à payer', () => {
     renderWithProviders(<ValidateExpensesPage />);
 
-    // Une seule note « En attente » : le mois écoulé ne doit pas la noyer.
-    expect(screen.getByText('1 note(s)')).toBeInTheDocument();
+    // 2 approuvées + 1 en attente pour Omar. Les notes approuvées font partie
+    // du travail du jour : sans elles, le bouton « Rembourser » n'apparaissait
+    // nulle part sur l'écran d'accueil.
+    expect(screen.getByText('3 note(s)')).toBeInTheDocument();
+    // La note déjà remboursée d'un autre bénévole reste hors du champ.
     expect(screen.queryByText('Autre Bénévole')).not.toBeInTheDocument();
+  });
+
+  it('propose le remboursement sans changer de filtre', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ValidateExpensesPage />);
+
+    await user.click(screen.getByText('Omar Benfdila'));
+    const cases = await screen.findAllByRole('checkbox');
+    await user.click(cases[1]);
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /Rembourser/ })).toBeInTheDocument(),
+    );
+  });
+
+  it('annonce ce qui est dû quel que soit le filtre consulté', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ValidateExpensesPage />);
+
+    // La somme due à quelqu'un ne dépend pas de l'écran qu'on regarde : elle
+    // tombait à zéro dès qu'on changeait d'onglet.
+    await user.click(screen.getByRole('tab', { name: /Toutes/ }));
+    expect(screen.getByText(/45,00/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: /Approuvées/ }));
+    expect(screen.getByText(/45,00/)).toBeInTheDocument();
+  });
+
+  it('ouvre le formulaire sur la valeur qu’il va réellement envoyer', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ValidateExpensesPage />);
+    await user.click(screen.getByRole('tab', { name: /Remboursées/ }));
+    await user.click(screen.getByText('Autre Bénévole'));
+    await user.click(screen.getByText(/01\/08\/2026/));
+
+    // L'écran affichait « Approuvée » en gardant « Remboursée » dans le
+    // formulaire : « Mettre à jour » renvoyait le statut inchangé, le serveur
+    // l'acceptait comme un non-changement, et le message de succès s'affichait
+    // alors que rien n'avait bougé.
+    const liste = await screen.findByRole('combobox');
+    expect(liste).toHaveTextContent('Approuvée');
   });
 
   it('donne accès à l’historique par les filtres', async () => {

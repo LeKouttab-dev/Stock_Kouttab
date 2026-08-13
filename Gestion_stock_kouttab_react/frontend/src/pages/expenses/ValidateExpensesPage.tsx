@@ -40,7 +40,7 @@ import {
 } from '@/api/endpoints/reimbursements';
 import { expenseValidateSchema, type ExpenseValidateFormValues } from '@/lib/schemas/expense';
 import { EXPENSE_STATUS } from '@/lib/constants';
-import type { Expense } from '@/types/api';
+import type { Expense, Reimbursement } from '@/types/api';
 import { cn, copyToClipboard } from '@/lib/utils';
 import { buildAttachmentFilename, deduplicateFilenames } from '@/lib/naming';
 import { useDownloadAttachment } from '@/hooks/useDownloadAttachment';
@@ -57,7 +57,15 @@ import { expenseTotal } from '@/lib/money';
  * précédents, et rien ne permettait de consulter l'historique en tant que tel.
  */
 const VUES = {
-  traiter: { libelle: fr.expenses.filtreATraiter, garde: (n: Expense) => n.status === 'En attente' },
+  // « À traiter » = ce qui demande une action de la comptabilité : valider, ou
+  // payer. Cette vue ne montrait que les notes « En attente », si bien que le
+  // bouton « Rembourser » — qui n'apparaît qu'en présence de notes approuvées —
+  // était invisible sur l'écran d'accueil. Il fallait deviner qu'il fallait
+  // changer de filtre pour pouvoir payer.
+  traiter: {
+    libelle: fr.expenses.filtreATraiter,
+    garde: (n: Expense) => n.status === 'En attente' || n.status === 'Approuvée',
+  },
   approuvees: {
     libelle: fr.expenses.filtreApprouvees,
     garde: (n: Expense) => n.status === 'Approuvée',
@@ -105,10 +113,7 @@ export function ValidateExpensesPage({ embarquee = false }: { embarquee?: boolea
   // Regroupement local : `useAllExpenses` rapporte déjà toutes les notes avec
   // le nom du déposant. Un second appel au serveur pour les mêmes données
   // coûterait un aller-retour vers une base distante sans rien apprendre.
-  const fiches = useMemo(
-    () => groupeParBenevole(expenses.filter((n) => visible(n, vue))),
-    [expenses, vue],
-  );
+  const fiches = useMemo(() => groupeParBenevole(expenses, vue), [expenses, vue]);
 
   if (isLoading) return <LoadingSpinner fullPage />;
 
@@ -181,26 +186,40 @@ interface FicheBenevoleData {
   totalDu: number;
 }
 
-function groupeParBenevole(expenses: Expense[]): FicheBenevoleData[] {
+/**
+ * Regroupe par bénévole, en séparant deux choses qu'on avait confondues.
+ *
+ * Ce qui est **affiché** dépend du filtre choisi ; ce qui est **dû** n'en dépend
+ * pas. Calculer le total sur les seules notes visibles faisait tomber « Reste à
+ * rembourser » à zéro dès qu'on regardait un autre onglet, et retirait les cases
+ * à cocher avec lui — la somme due à quelqu'un ne change pas selon l'écran qu'on
+ * consulte.
+ */
+function groupeParBenevole(toutes: Expense[], vue: Vue): FicheBenevoleData[] {
   const parUser = new Map<number, Expense[]>();
-  for (const note of expenses) {
+  for (const note of toutes) {
     const liste = parUser.get(note.id_user) ?? [];
     liste.push(note);
     parUser.set(note.id_user, liste);
   }
 
-  const fiches = [...parUser.entries()].map(([idUser, notes]) => {
-    // Une note archivée est sortie du circuit : la proposer au paiement
-    // ferait payer deux fois ce que la comptabilité avait rangé.
-    const aRembourser = notes.filter((n) => n.status === 'Approuvée' && !n.archived_at);
-    return {
-      idUser,
-      nom: notes[0]?.user_full_name ?? '—',
-      notes,
-      aRembourser,
-      totalDu: aRembourser.reduce((somme, n) => somme + expenseTotal(n), 0),
-    };
-  });
+  const fiches = [...parUser.entries()]
+    .map(([idUser, notesDuBenevole]) => {
+      // Une note archivée est sortie du circuit : la proposer au paiement
+      // ferait payer deux fois ce que la comptabilité avait rangé.
+      const aRembourser = notesDuBenevole.filter(
+        (n) => n.status === 'Approuvée' && !n.archived_at,
+      );
+      return {
+        idUser,
+        nom: notesDuBenevole[0]?.user_full_name ?? '—',
+        notes: notesDuBenevole.filter((n) => visible(n, vue)),
+        aRembourser,
+        totalDu: aRembourser.reduce((somme, n) => somme + expenseTotal(n), 0),
+      };
+    })
+    // Un bénévole dont aucune note n'entre dans le filtre n'a rien à y faire.
+    .filter((fiche) => fiche.notes.length > 0);
 
   // Ceux qui attendent un versement d'abord : c'est le travail du jour.
   fiches.sort((a, b) => b.aRembourser.length - a.aRembourser.length || a.nom.localeCompare(b.nom));
@@ -220,8 +239,12 @@ function FicheBenevole({
   const [selection, setSelection] = useState<number[]>([]);
   const [modaleOuverte, setModaleOuverte] = useState(false);
 
-  const selectionnables = fiche.aRembourser.map((n) => n.id);
-  const totalSelection = fiche.aRembourser
+  // On ne coche que ce qui est à l'écran : `aRembourser` porte tout ce qui est
+  // dû — c'est ce que la pastille annonce — mais sélectionner une note que le
+  // filtre courant masque reviendrait à payer à l'aveugle.
+  const payables = fiche.notes.filter((n) => n.status === 'Approuvée' && !n.archived_at);
+  const selectionnables = payables.map((n) => n.id);
+  const totalSelection = payables
     .filter((n) => selection.includes(n.id))
     .reduce((somme, n) => somme + expenseTotal(n), 0);
 
@@ -358,10 +381,26 @@ function ValidateExpenseDetail({ expense, total }: DetailProps) {
     );
   }, [expense]);
 
+  const versement = useRemboursementParNote().get(expense.id);
+  // Une note soldée par un versement est verrouillée : son justificatif porte
+  // le montant et la date, y revenir le contredirait. Seul le commentaire reste
+  // modifiable.
+  const verrouillee = expense.status === 'Remboursée' && Boolean(versement);
+
   const form = useForm<ExpenseValidateFormValues>({
     resolver: zodResolver(expenseValidateSchema),
     defaultValues: {
-      status: expense.status,
+      // Pour une note marquée « Remboursée » sans versement, le formulaire
+      // s'ouvre sur « Approuvée » — la valeur qu'il va réellement envoyer.
+      //
+      // L'écran affichait auparavant « Approuvée » tout en gardant « Remboursée »
+      // dans le formulaire : cliquer sur « Mettre à jour » sans toucher à la
+      // liste renvoyait le statut inchangé, le serveur l'acceptait comme un
+      // non-changement, et le message « Statut mis à jour » s'affichait alors
+      // que rien n'avait bougé. Un affichage ne doit jamais contredire ce qui
+      // sera soumis.
+      status:
+        expense.status === 'Remboursée' && !versement ? 'Approuvée' : expense.status,
       commentaires_compta: expense.commentaires_compta ?? '',
     },
   });
@@ -493,7 +532,7 @@ function ValidateExpenseDetail({ expense, total }: DetailProps) {
 
       {/* Une note soldée ne se pilote plus par la liste des statuts : elle
           porte son versement, ou signale qu'il manque. */}
-      {expense.status === 'Remboursée' && <BlocVersement expense={expense} />}
+      {expense.status === 'Remboursée' && <BlocVersement versement={versement} />}
 
       <form
         onSubmit={form.handleSubmit(onValidate)}
@@ -504,15 +543,10 @@ function ValidateExpenseDetail({ expense, total }: DetailProps) {
           <Textarea rows={2} {...form.register('commentaires_compta')} />
         </div>
         <div className="flex flex-wrap items-end gap-2">
-          <div className="flex-1 min-w-[200px]">
+          <div className={cn('flex-1 min-w-[200px]', verrouillee && 'hidden')}>
             <Label>{fr.expenses.changerStatut}</Label>
             <Select
-              value={
-                // Une note soldée n'a plus de valeur dans la liste : on propose
-                // le retour en arrière, que le serveur n'accepte que si aucun
-                // versement n'est rattaché.
-                form.watch('status') === 'Remboursée' ? 'Approuvée' : form.watch('status')
-              }
+              value={form.watch('status')}
               onValueChange={(v) => form.setValue('status', v as (typeof EXPENSE_STATUS)[number])}
             >
               <SelectTrigger>
@@ -580,8 +614,7 @@ function ValidateExpenseDetail({ expense, total }: DetailProps) {
  * ni ligne dans l'onglet « Remboursements ». Le dire est plus utile que de
  * laisser chercher un PDF qui n'a jamais existé.
  */
-function BlocVersement({ expense }: { expense: Expense }) {
-  const versement = useRemboursementParNote().get(expense.id);
+function BlocVersement({ versement }: { versement?: Reimbursement }) {
   const { download, downloadingId } = useDownloadAttachment();
 
   if (!versement) {
