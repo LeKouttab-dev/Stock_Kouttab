@@ -184,6 +184,22 @@ export const fr = {
     archiver: 'Archiver cette note',
     noteArchivee: 'Note archivée.',
     restaurer: 'Restaurer',
+    zoneSuppression: 'Suppression définitive',
+    supprimerDefinitivement: 'Supprimer définitivement',
+    suppressionTitre: 'Supprimer définitivement cette note ?',
+    suppressionAvertissement:
+      'Attention : la suppression est irrévocable. La note, ses justificatifs et ' +
+      'leur contenu seront effacés, sans aucun moyen de les retrouver.',
+    suppressionUsage:
+      'Ne supprimez jamais une note de frais réelle. Ce geste existe uniquement pour ' +
+      'les notes de test et les erreurs avérées. Pour tout le reste, archivez.',
+    suppressionMotif: 'Motif de la suppression',
+    suppressionMotifAide:
+      'Obligatoire. La note ne laissera rien derrière elle : ce motif est la seule ' +
+      'trace qui subsistera dans le journal du serveur.',
+    suppressionMotifPlaceholder: 'Ex. : note de test créée pendant la recette',
+    suppressionConfirmer: 'Je comprends, supprimer définitivement',
+    noteSupprimee: 'Note supprimée définitivement.',
     noteRestauree: 'Note restaurée.',
     archiveePar: 'Archivée le {date} par {qui}',
     filtreATraiter: 'À traiter',

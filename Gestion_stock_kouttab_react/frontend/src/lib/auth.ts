@@ -30,6 +30,7 @@ export const ACTIONS = {
   EVENTS_MANAGE: 'events:manage',
   COMPTA_RESEND_EMAIL: 'compta:resend_email',
   CONVERSATIONS_HANDLE: 'conversations:handle',
+  EXPENSES_DELETE: 'expenses:delete',
 } as const;
 
 export type Action = (typeof ACTIONS)[keyof typeof ACTIONS];
@@ -68,6 +69,9 @@ const PERMISSIONS: Record<Action, Role[]> = {
   // Doit refléter `PORTEE` dans `crud/conversation.py` : la comptabilité
   // traite les fils qui lui sont adressés, le Super Admin les deux boîtes.
   [ACTIONS.CONVERSATIONS_HANDLE]: ['Super Admin', 'Compta'],
+  // Irréversible : le plus petit cercle possible. La comptabilité archive.
+  // Doit refléter le contrôle de `crud/expense.supprimer_definitivement`.
+  [ACTIONS.EXPENSES_DELETE]: ['Super Admin'],
 };
 
 export function canAccess(role: Role | null | undefined, action: Action): boolean {

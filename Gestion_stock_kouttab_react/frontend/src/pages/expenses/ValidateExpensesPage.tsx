@@ -9,6 +9,7 @@ import {
   Copy,
   Download,
   Archive,
+  Trash2,
   Undo2,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -34,6 +35,7 @@ import {
   useValidateExpense,
 } from '@/api/endpoints/expenses';
 import { ReimbursementModal } from './modals/ReimbursementModal';
+import { SuppressionDefinitiveModal } from './modals/SuppressionDefinitiveModal';
 import {
   reimbursementDocumentPath,
   useRemboursementParNote,
@@ -44,6 +46,8 @@ import type { Expense, Reimbursement } from '@/types/api';
 import { cn, copyToClipboard } from '@/lib/utils';
 import { buildAttachmentFilename, deduplicateFilenames } from '@/lib/naming';
 import { useDownloadAttachment } from '@/hooks/useDownloadAttachment';
+import { useAuth } from '@/hooks/useAuth';
+import { ACTIONS } from '@/lib/auth';
 import { useToast } from '@/hooks/useToast';
 import { formatCurrency, formatDate } from '@/lib/format';
 import { fr } from '@/lib/i18n/fr';
@@ -381,6 +385,9 @@ function ValidateExpenseDetail({ expense, total }: DetailProps) {
     );
   }, [expense]);
 
+  const { can } = useAuth();
+  const peutSupprimer = can(ACTIONS.EXPENSES_DELETE);
+  const [suppressionOuverte, setSuppressionOuverte] = useState(false);
   const versement = useRemboursementParNote().get(expense.id);
   const statutCanonique = normaliserStatut(expense.status, EXPENSE_STATUS) ?? 'En attente';
   const statutInitial =
@@ -578,6 +585,29 @@ function ValidateExpenseDetail({ expense, total }: DetailProps) {
           </Button>
         </div>
       </form>
+
+      {/* Le ménage : notes de test, saisies fautives. Réservé au Super Admin,
+          côté écran comme côté serveur — la comptabilité archive, elle ne
+          détruit pas. Placé sous l'archivage pour que le geste réversible reste
+          celui qu'on rencontre en premier. */}
+      {peutSupprimer && (
+        <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 space-y-2">
+          <p className="flex items-center gap-2 text-sm font-semibold">
+            <Trash2 className="h-4 w-4" aria-hidden />
+            {fr.expenses.zoneSuppression}
+          </p>
+          <p className="text-xs text-muted-foreground">{fr.expenses.suppressionUsage}</p>
+          <Button variant="destructive" size="sm" onClick={() => setSuppressionOuverte(true)}>
+            <Trash2 className="h-4 w-4" />
+            {fr.expenses.supprimerDefinitivement}
+          </Button>
+          <SuppressionDefinitiveModal
+            expense={expense}
+            open={suppressionOuverte}
+            onOpenChange={setSuppressionOuverte}
+          />
+        </div>
+      )}
 
       {/* Rangement, et non destruction : plus aucune confirmation alarmante,
           puisque le geste se défait. */}

@@ -224,6 +224,7 @@ le démarrage en production. Les valeurs en clair héritées restent lisibles
 | Notes de frais — éditer ses propres notes "En attente" | ✅ | ✅ | ✅ | ✅ |
 | Notes de frais — valider/refuser/rembourser | — | — | ✅ | ✅ |
 | Notes de frais — archiver / restaurer | — | — | ✅ | ✅ |
+| Notes de frais — supprimer définitivement | — | — | — | ✅ |
 | Notes de frais — remboursement groupé + justificatif | — | — | ✅ | ✅ |
 | Remboursements — consulter les siens | ✅ | ✅ | ✅ | ✅ |
 | Justificatifs — demander, relancer, clore | — | — | ✅ | ✅ |
@@ -305,6 +306,11 @@ Préfixe : `/api/v1`. Auth : header `Authorization: Bearer <jwt>` (sauf `/auth/*
 - `POST /expenses` — créer (multipart : tickets en pièces jointes)
 - `PATCH /expenses/{id}` — éditer (si "En attente" et propriétaire)
 - `DELETE /expenses/{id}` — **archiver**, non supprimer (Compta+, note "Remboursée")
+- `DELETE /expenses/{id}/definitif` — **effacer pour de bon** (Super Admin seul,
+  motif obligatoire, journalisé). Pour le ménage — notes de test, saisies
+  fautives — jamais pour une pièce comptable réelle. Emporte les justificatifs
+  et, si le versement qui la soldait se retrouve sans aucune note, ce versement
+  aussi : un remboursement sans contrepartie ne documente plus rien.
 - `POST /expenses/{id}/restore` — défaire l'archivage (Compta+)
 - `GET /expenses` — toutes (Compta+) ; `?include_archived=true` pour l'historique
 - `PATCH /expenses/{id}/validate` — changer statut + commentaire compta (Compta+)

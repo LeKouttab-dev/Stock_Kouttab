@@ -6,13 +6,17 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.errors import ErrorCode
 from app.core.exceptions import AppException
 from app.core.workflow import check_expense_transition
+from app.core.logger import get_logger
 from app.db.models import Expense, ExpenseFile
+
+
+logger = get_logger("expense")
 
 
 def _serialize(expense: Expense) -> dict[str, Any]:
@@ -314,6 +318,65 @@ def archive_expense(db: Session, expense_id: int, *, user: Any) -> Expense:
         db.commit()
         db.refresh(expense)
     return expense
+
+
+def supprimer_definitivement(db: Session, expense_id: int, *, user: Any, motif: str) -> None:
+    """Efface la note, ses justificatifs, et le versement qu'elle laisserait vide.
+
+    **A n'utiliser que pour du ménage** : notes de test, saisies fautives. Une
+    piece comptable reelle s'archive (`archive_expense`), elle ne se detruit pas
+    — l'association doit pouvoir la produire plusieurs annees apres.
+
+    Reserve au Super Admin. La comptabilite archive ; detruire n'entre pas dans
+    son travail, et un geste irreversible se confie au plus petit cercle
+    possible.
+
+    Le motif est journalise AVANT l'effacement : c'est la seule trace qui
+    restera de l'existence de la note.
+    """
+    if user.role != "Super Admin":
+        raise AppException(
+            ErrorCode.FORBIDDEN,
+            detail="Suppression definitive reservee au Super Admin.",
+        )
+    if not motif.strip():
+        raise AppException(
+            ErrorCode.VALIDATION_ERROR, detail="Un motif de suppression est obligatoire."
+        )
+
+    expense = get_expense(db, expense_id)
+    if not expense:
+        raise AppException(ErrorCode.EXPENSE_NOT_FOUND)
+
+    versement = expense.reimbursement
+    logger.warning(
+        "SUPPRESSION DEFINITIVE note #%s (%s, %s EUR, deposant #%s) par %s — motif : %s",
+        expense.id,
+        expense.fournisseur or "sans fournisseur",
+        expense.montant,
+        expense.id_user,
+        user.username,
+        motif.strip(),
+    )
+
+    db.delete(expense)
+    db.flush()
+
+    # Un versement dont toutes les notes ont disparu ne documente plus rien : le
+    # laisser encombrerait l'ecran d'un remboursement sans contrepartie.
+    if versement is not None:
+        restantes = db.execute(
+            select(func.count())
+            .select_from(Expense)
+            .where(Expense.id_remboursement == versement.id)
+        ).scalar_one()
+        if not restantes:
+            logger.warning(
+                "Remboursement #%s supprime avec sa derniere note.", versement.id
+            )
+            db.delete(versement)
+
+    db.commit()
 
 
 def restore_expense(db: Session, expense_id: int, *, role: str) -> Expense:

@@ -79,3 +79,13 @@ class ExpenseOut(ExpenseBase):
     files: list[ExpenseFileOut] = []
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class SuppressionDefinitiveIn(BaseModel):
+    """Motif d'une suppression definitive.
+
+    Obligatoire : la note effacee ne laisse rien derriere elle, ce motif est la
+    seule trace qui subsistera dans les journaux.
+    """
+
+    motif: str = Field(min_length=1, max_length=255)

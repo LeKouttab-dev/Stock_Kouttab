@@ -25,7 +25,12 @@ from app.crud import rattachement as rattachement_crud
 from app.db.models import Admin
 from app.db.session import SessionLocal, get_db
 from app.schemas.auth import MessageOut
-from app.schemas.expense import ExpenseOut, ExpenseUpdate, ExpenseValidate
+from app.schemas.expense import (
+    ExpenseOut,
+    ExpenseUpdate,
+    ExpenseValidate,
+    SuppressionDefinitiveIn,
+)
 from app.services import compta_dispatch, email_layout, outbox
 from app.services import email as email_service
 from app.services.files import contenu_du_fichier, save_upload_file
@@ -353,6 +358,25 @@ def archive_expense(
 ) -> Any:
     expense_crud.archive_expense(db, expense_id, user=current_user)
     return MessageOut(message="Note archivee.")
+
+
+@router.delete("/{expense_id}/definitif", response_model=MessageOut)
+def supprimer_definitivement(
+    expense_id: int,
+    payload: SuppressionDefinitiveIn,
+    db: Session = Depends(get_db),
+    current_user: Admin = Depends(get_current_user),
+) -> Any:
+    """Efface la note pour de bon. **Super Admin uniquement.**
+
+    Existe pour le menage — notes de test, saisies fautives —, pas pour le
+    travail courant : une piece comptable reelle s'archive. Le CRUD porte les
+    garde-fous (role, motif obligatoire, journalisation).
+    """
+    expense_crud.supprimer_definitivement(
+        db, expense_id, user=current_user, motif=payload.motif
+    )
+    return MessageOut(message="Note supprimee definitivement.")
 
 
 @router.post("/{expense_id}/restore", response_model=MessageOut)

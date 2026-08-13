@@ -65,6 +65,17 @@ async function archiveExpense(id: number): Promise<void> {
   await api.delete(`/expenses/${id}`);
 }
 
+/**
+ * Efface la note pour de bon. Réservé au Super Admin côté serveur.
+ *
+ * L'archivage reste le geste normal ; celui-ci n'existe que pour le ménage —
+ * notes de test, saisies fautives. Le motif est obligatoire : c'est la seule
+ * trace qui restera de l'existence de la note.
+ */
+async function supprimerDefinitivement(params: { id: number; motif: string }): Promise<void> {
+  await api.delete(`/expenses/${params.id}/definitif`, { data: { motif: params.motif } });
+}
+
 async function restoreExpense(id: number): Promise<void> {
   await api.post(`/expenses/${id}/restore`);
 }
@@ -111,6 +122,14 @@ export function useArchiveExpense() {
   const qc = useQueryClient();
   return useApiMutation({
     mutationFn: archiveExpense,
+    onSuccess: () => qc.invalidateQueries({ queryKey: expenseQueryKeys.all }),
+  });
+}
+
+export function useSupprimerDefinitivement() {
+  const qc = useQueryClient();
+  return useApiMutation({
+    mutationFn: supprimerDefinitivement,
     onSuccess: () => qc.invalidateQueries({ queryKey: expenseQueryKeys.all }),
   });
 }

@@ -10,6 +10,13 @@ import type { Expense } from '@/types/api';
  * pour le comptable : ce qu'il voit, et ce qu'il peut sélectionner.
  */
 
+const supprimer = vi.fn();
+let estSuperAdmin = true;
+
+vi.mock('@/hooks/useAuth', () => ({
+  useAuth: () => ({ can: () => estSuperAdmin }),
+}));
+
 const notes: Expense[] = [
   {
     id: 1,
@@ -81,6 +88,7 @@ vi.mock('@/api/endpoints/expenses', () => ({
   useAllExpenses: () => ({ data: notes, isLoading: false }),
   useValidateExpense: () => ({ mutate: vi.fn(), isPending: false }),
   useArchiveExpense: () => ({ mutate: vi.fn(), isPending: false }),
+  useSupprimerDefinitivement: () => ({ mutate: supprimer, isPending: false }),
   useRestoreExpense: () => ({ mutate: vi.fn(), isPending: false }),
   expenseQueryKeys: { all: ['expenses'] },
 }));
@@ -272,6 +280,45 @@ describe('pages/expenses/ValidateExpensesPage', () => {
     // anciennes notes étaient donc impossibles à corriger.
     const liste = await screen.findByRole('combobox');
     expect(liste).toHaveTextContent('Refusée');
+  });
+
+  it('exige un motif avant de supprimer définitivement', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ValidateExpensesPage />);
+    await user.click(screen.getByText('Omar Benfdila'));
+    await user.click(screen.getByText(/03\/08\/2026/));
+
+    await user.click(await screen.findByRole('button', { name: /Supprimer définitivement/ }));
+
+    // Le geste est irréversible : le bouton reste inerte tant que rien n'est
+    // écrit. Quelqu'un qui doit dire pourquoi il supprime relit ce qu'il
+    // supprime.
+    const confirmer = await screen.findByRole('button', { name: /Je comprends/ });
+    expect(confirmer).toBeDisabled();
+    expect(screen.getByText(/irrévocable/)).toBeInTheDocument();
+    // Dit deux fois, volontairement : sous le bouton avant le clic, et dans
+    // la fenêtre au moment de confirmer.
+    expect(screen.getAllByText(/jamais une note de frais réelle/)).toHaveLength(2);
+
+    await user.type(screen.getByLabelText(/Motif/), 'Note de recette');
+    await waitFor(() => expect(confirmer).toBeEnabled());
+    await user.click(confirmer);
+
+    await waitFor(() => expect(supprimer).toHaveBeenCalled());
+    expect(supprimer.mock.calls[0][0]).toMatchObject({ motif: 'Note de recette' });
+  });
+
+  it('cache la suppression à qui n’est pas Super Admin', async () => {
+    const user = userEvent.setup();
+    estSuperAdmin = false;
+    renderWithProviders(<ValidateExpensesPage />);
+    await user.click(screen.getByText('Omar Benfdila'));
+    await user.click(screen.getByText(/03\/08\/2026/));
+
+    expect(
+      screen.queryByRole('button', { name: /Supprimer définitivement/ }),
+    ).not.toBeInTheDocument();
+    estSuperAdmin = true;
   });
 
   it('un bénévole sans note approuvée ne propose aucune sélection', async () => {
