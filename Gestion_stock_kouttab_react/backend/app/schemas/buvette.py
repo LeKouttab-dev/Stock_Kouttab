@@ -132,6 +132,14 @@ class WebhookStatusOut(BaseModel):
     configured: bool | None = None
     verifiable: bool = False
     url: str | None = None
+    # L'adresse a enregistrer chez HelloAsso, jeton compris. Servie meme
+    # quand l'enregistrement automatique est impossible : c'est alors la
+    # seule chose dont l'utilisateur a besoin, et la recopier de memoire
+    # — avec un jeton de 43 caracteres — n'est pas envisageable.
+    url_a_enregistrer: str | None = None
+    # Vrai quand le compte n'est pas partenaire HelloAsso : l'API refuse
+    # alors l'enregistrement (403), et il faut passer par leur interface.
+    enregistrement_manuel_requis: bool = False
     last_sale_at: datetime | None = None
     sales_count: int = 0
     raw: dict[str, Any] | None = None

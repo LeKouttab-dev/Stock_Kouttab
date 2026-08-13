@@ -445,6 +445,8 @@ export interface SyncResult {
 }
 
 export interface WebhookStatus {
+  /** L'adresse à enregistrer chez HelloAsso, jeton compris. */
+  url_a_enregistrer?: string | null;
   url: string | null;
   /**
    * `null` quand l'état est indéterminable : HelloAsso ne permet pas de relire

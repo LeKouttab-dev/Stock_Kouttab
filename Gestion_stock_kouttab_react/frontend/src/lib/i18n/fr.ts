@@ -516,6 +516,16 @@ export const fr = {
     webhookDeactivate: 'Désactiver le webhook',
     webhookExplanation:
       'Quand activé, chaque vente HelloAsso décrémentera automatiquement le stock.',
+    webhookManuelTitre: 'À enregistrer chez HelloAsso',
+    webhookManuel:
+      'HelloAsso réserve l’enregistrement automatique à ses comptes partenaires. ' +
+      'Depuis HelloAsso, allez dans « Mon Compte › Intégrations et API » et collez ' +
+      'l’adresse ci-dessous.',
+    webhookCopierUrl: 'Copier l’adresse',
+    webhookUrlCopiee: 'Adresse copiée.',
+    webhookJetonAvertissement:
+      'Le jeton fait partie de l’adresse : collez-la entière. Sans lui, les ventes ' +
+      'seront refusées, et HelloAsso n’y verra rien.',
     webhookTitle: 'Configuration du webhook HelloAsso',
     salesTitle: 'Ventes HelloAsso',
     salesEmpty: 'Aucune vente enregistrée pour le moment.',

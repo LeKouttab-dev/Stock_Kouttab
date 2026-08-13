@@ -1,3 +1,4 @@
+import { Copy } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -11,6 +12,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { useConfigureWebhook, useDeleteWebhook, useWebhookStatus } from '@/api/endpoints/buvette';
 import { useToast } from '@/hooks/useToast';
+import { copyToClipboard } from '@/lib/utils';
 import { formatDateTime } from '@/lib/format';
 import { fr } from '@/lib/i18n/fr';
 
@@ -74,6 +76,37 @@ export function WebhookConfigModal({ open, onOpenChange }: WebhookConfigModalPro
             <Alert variant="info">
               <AlertTitle>{fr.buvette.webhookUnverifiableTitle}</AlertTitle>
               <AlertDescription>{fr.buvette.webhookUnverifiable}</AlertDescription>
+            </Alert>
+          )}
+
+          {/* L'adresse à recopier, toujours affichée.
+              HelloAsso réserve l'enregistrement automatique à ses comptes
+              partenaires et refuse le nôtre par un 403 au corps vide. Le bouton
+              d'activation ne peut donc pas aboutir : reste à coller l'adresse
+              dans leur interface — et un jeton de 43 caractères ne se recopie
+              pas de mémoire. */}
+          {status.data?.url_a_enregistrer && (
+            <Alert variant="warning">
+              <AlertTitle>{fr.buvette.webhookManuelTitre}</AlertTitle>
+              <AlertDescription className="space-y-2">
+                <p>{fr.buvette.webhookManuel}</p>
+                <code className="block break-all rounded bg-background px-2 py-1 text-xs">
+                  {status.data.url_a_enregistrer}
+                </code>
+                <p className="text-xs">{fr.buvette.webhookJetonAvertissement}</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    await copyToClipboard(status.data!.url_a_enregistrer as string);
+                    toast.success(fr.buvette.webhookUrlCopiee);
+                  }}
+                >
+                  <Copy className="mr-1 h-3.5 w-3.5" />
+                  {fr.buvette.webhookCopierUrl}
+                </Button>
+              </AlertDescription>
             </Alert>
           )}
 

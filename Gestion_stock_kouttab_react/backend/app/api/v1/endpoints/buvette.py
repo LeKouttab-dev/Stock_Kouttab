@@ -364,9 +364,38 @@ def _default_webhook_url() -> str:
     dependencies=[Depends(require_roles(*_SUPER_ADMIN))],
 )
 def configure_webhook(payload: WebhookConfigureIn) -> Any:
+    """Enregistre l'URL de notification chez HelloAsso.
+
+    **Ne fonctionne que pour un compte partenaire.** L'endpoint
+    `/v5/partners/me/api-notifications` leur est reserve ; une association
+    ordinaire recoit un 403 au corps vide, sans la moindre explication. Sa
+    documentation le dit : elle passe par « Mon Compte > Integrations et API ».
+
+    On traduit donc ce 403 en consigne exploitable, avec l'adresse a recopier —
+    un jeton de 43 caracteres ne se retient pas.
+    """
     url = (payload.url or _default_webhook_url()).strip()
     client = get_helloasso_client(settings)
-    client.register_webhook(settings.helloasso_org_slug, url)
+    try:
+        client.register_webhook(settings.helloasso_org_slug, url)
+    except AppException as exc:
+        if exc.extras.get("upstream_status") != 403:
+            raise
+        logger.info(
+            "Compte HelloAsso non partenaire : enregistrement automatique refuse. "
+            "URL a saisir manuellement : %s",
+            url,
+        )
+        raise AppException(
+            ErrorCode.HELLOASSO_API_ERROR,
+            detail=(
+                "HelloAsso reserve l'enregistrement automatique a ses comptes "
+                "partenaires, et refuse le votre (403). Enregistrez l'adresse a "
+                "la main depuis HelloAsso : Mon Compte > Integrations et API. "
+                "L'adresse a coller, jeton compris, est affichee ci-dessous."
+            ),
+            extras={"upstream_status": 403, "url_a_enregistrer": url},
+        ) from exc
     return MessageOut(message=f"Webhook HelloAsso configure sur {url}.")
 
 
@@ -384,11 +413,14 @@ def webhook_status(db: Session = Depends(get_db)) -> Any:
     # HelloAsso refuse de relire sa propre configuration.
     last_sale_at, sales_count = buvette_crud.get_sales_activity(db)
 
+    a_coller = _default_webhook_url()
+
     if not raw:
         return WebhookStatusOut(
             configured=True if sales_count else None,
             verifiable=False,
             url=None,
+            url_a_enregistrer=a_coller,
             last_sale_at=last_sale_at,
             sales_count=sales_count,
             raw=None,
@@ -398,6 +430,7 @@ def webhook_status(db: Session = Depends(get_db)) -> Any:
         configured=bool(url),
         verifiable=True,
         url=url,
+        url_a_enregistrer=a_coller,
         last_sale_at=last_sale_at,
         sales_count=sales_count,
         raw=raw,
