@@ -84,6 +84,11 @@ vi.mock('@/api/endpoints/reimbursements', () => ({
     },
   }),
   useCreateReimbursement: () => ({ mutate: vi.fn(), isPending: false }),
+  // Aucun versement enregistré : c'est le cas des notes marquées
+  // « Remboursée » par l'ancienne liste déroulante.
+  useRemboursementParNote: () => new Map(),
+  reimbursementDocumentPath: (id: number, format: string) =>
+    `/reimbursements/${id}/document?format=${format}`,
   reimbursementQueryKeys: { all: ['reimbursements'] },
 }));
 
@@ -172,6 +177,32 @@ describe('pages/expenses/ValidateExpensesPage', () => {
     await waitFor(() =>
       expect(screen.getByRole('button', { name: /Rembourser/ })).toBeInTheDocument(),
     );
+  });
+
+  it('ne propose plus de déclarer une note « Remboursée »', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ValidateExpensesPage />);
+    await toutAfficher(user);
+    await user.click(screen.getByText('Omar Benfdila'));
+    await user.click(screen.getByText(/03\/08\/2026/));
+
+    // Le choix produisait une note payée sans justificatif, dans un état
+    // terminal impossible à corriger. Le bouton « Rembourser » fait les deux.
+    const liste = await screen.findByRole('combobox');
+    await user.click(liste);
+    expect(screen.queryByRole('option', { name: 'Remboursée' })).not.toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Approuvée' })).toBeInTheDocument();
+  });
+
+  it('signale une note remboursée sans versement enregistré', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ValidateExpensesPage />);
+    await user.click(screen.getByRole('tab', { name: /Remboursées/ }));
+    await user.click(screen.getByText('Autre Bénévole'));
+    await user.click(screen.getByText(/01\/08\/2026/));
+
+    // Chercher un PDF qui n'a jamais existé est pire que de le dire.
+    expect(await screen.findByText(/sans versement enregistré/)).toBeInTheDocument();
   });
 
   it('un bénévole sans note approuvée ne propose aucune sélection', async () => {

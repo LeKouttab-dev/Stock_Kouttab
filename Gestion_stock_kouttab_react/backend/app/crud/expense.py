@@ -241,6 +241,42 @@ def validate_expense(
     expense = get_expense(db, expense_id)
     if not expense:
         raise AppException(ErrorCode.EXPENSE_NOT_FOUND)
+
+    # Le versement fait foi. Repasser une note « Approuvee » alors qu'un
+    # remboursement lui est rattache contredirait un justificatif deja emis et
+    # envoye — le document porte le montant, la date et l'approbation.
+    #
+    # Le retour reste ouvert pour une note marquee « Remboursee » SANS
+    # versement : c'est le cas des notes passees par l'ancienne liste
+    # deroulante, qui seraient sinon bloquees a jamais dans un etat terminal
+    # sans document.
+    if (
+        expense.status == "Remboursée"
+        and new_status != "Remboursée"
+        and expense.id_remboursement is not None
+    ):
+        raise AppException(
+            ErrorCode.CONFLICT,
+            detail=(
+                "Cette note est soldee par un remboursement enregistre : son "
+                "justificatif a deja ete emis. Corriger le versement plutot que "
+                "le statut de la note."
+            ),
+        )
+
+    # Message explicite plutot que le refus generique du graphe de transitions :
+    # « Transition interdite : Approuvee -> Remboursee » se lit comme un bug
+    # quand on vient de cliquer sur un choix que l'ecran proposait.
+    if new_status == "Remboursée" and expense.status != "Remboursée":
+        raise AppException(
+            ErrorCode.VALIDATION_ERROR,
+            detail=(
+                "Une note ne se declare pas remboursee : enregistrez le versement "
+                "avec le bouton « Rembourser ». Il produit le justificatif (PDF et "
+                "tableur), l'envoie, et passe la note a « Remboursee »."
+            ),
+        )
+
     check_expense_transition(expense.status, new_status)
     if new_status != expense.status:
         expense.validated_by = validated_by

@@ -314,10 +314,6 @@ def _mettre_en_file(
     pieces = [Path(reimbursement.chemin_pdf), Path(reimbursement.chemin_xlsx)]
 
     def _deposer(destinataires: list[str], corps: str) -> None:
-        if not destinataires:
-            # Ne pas mettre en file un envoi sans destinataire : il resterait
-            # « en attente » indefiniment, a encombrer l'ecran de diagnostic.
-            return
         outbox.enqueue(
             db,
             kind=KIND_REIMBURSEMENT,
@@ -330,6 +326,12 @@ def _mettre_en_file(
             triggered_by=triggered_by,
         )
 
+    # L'envoi a la comptabilite est depose SANS CONDITION, meme si
+    # `COMPTA_EMAIL` est vide. `outbox.enqueue` cree alors la ligne en attente
+    # avec le motif, et le cron la delivrera des que l'adresse sera renseignee —
+    # c'est la promesse ecrite dans son docstring, et le justificatif d'un
+    # virement deja emis ne doit pas se volatiliser parce qu'une variable
+    # manquait ce jour-la.
     _deposer(
         list(settings.compta_emails),
         composer(
@@ -339,21 +341,25 @@ def _mettre_en_file(
         ),
     )
 
-    _deposer(
-        [benevole.email] if benevole.email else [],
-        composer(
-            prenom=benevole.prenom,
-            introduction=(
-                "Vos notes de frais viennent d'etre remboursees. "
-                "Le justificatif est joint a ce message, en PDF et en tableur."
+    # Le benevole, lui, n'est notifie que s'il a une adresse : un compte sans
+    # courriel n'est pas une configuration a corriger plus tard, et la ligne
+    # resterait en attente pour toujours.
+    if benevole.email:
+        _deposer(
+            [benevole.email],
+            composer(
+                prenom=benevole.prenom,
+                introduction=(
+                    "Vos notes de frais viennent d'etre remboursees. "
+                    "Le justificatif est joint a ce message, en PDF et en tableur."
+                ),
+                blocs=details,
+                conclusion=(
+                    "Vous retrouvez ce justificatif a tout moment dans l'application, "
+                    "onglet « Remboursements » de vos notes de frais."
+                ),
             ),
-            blocs=details,
-            conclusion=(
-                "Vous retrouvez ce justificatif a tout moment dans l'application, "
-                "onglet « Remboursements » de vos notes de frais."
-            ),
-        ),
-    )
+        )
 
 
 def contenu_document(reimbursement: Reimbursement, *, format: str) -> tuple[bytes, str]:

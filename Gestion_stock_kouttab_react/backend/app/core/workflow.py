@@ -24,10 +24,20 @@ INVOICE_TRANSITIONS: dict[str, set[str]] = {
 }
 
 # Notes de frais : En attente -> Approuvee -> Remboursee.
+#
+# « Remboursee » ne figure dans AUCUNE cible : ce statut ne se declare pas, il
+# se constate. On l'atteint par `POST /reimbursements`, qui enregistre le
+# versement — date, moyen, etablissement, approbation — et produit le
+# justificatif. La liste deroulante de l'ecran comptable y menait aussi, sans
+# rien produire : des notes se retrouvaient marquees payees, sans document, et
+# le statut etant terminal, sans aucun moyen de corriger.
 EXPENSE_TRANSITIONS: dict[str, set[str]] = {
     "En attente": {"Approuvée", "Refusée"},
-    "Approuvée": {"Remboursée", "Refusée", "En attente"},
-    "Remboursée": set(),  # terminal : le virement est parti
+    "Approuvée": {"Refusée", "En attente"},
+    # Porte de sortie pour les notes marquees a tort, avant que ce chemin ne
+    # soit ferme. `crud.expense.validate_expense` la refuse des qu'un versement
+    # est rattache : revenir en arriere contredirait un justificatif emis.
+    "Remboursée": {"Approuvée"},
     "Refusée": {"En attente"},
 }
 

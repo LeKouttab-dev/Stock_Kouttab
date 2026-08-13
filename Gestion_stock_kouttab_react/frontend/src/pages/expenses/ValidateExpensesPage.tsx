@@ -34,6 +34,10 @@ import {
   useValidateExpense,
 } from '@/api/endpoints/expenses';
 import { ReimbursementModal } from './modals/ReimbursementModal';
+import {
+  reimbursementDocumentPath,
+  useRemboursementParNote,
+} from '@/api/endpoints/reimbursements';
 import { expenseValidateSchema, type ExpenseValidateFormValues } from '@/lib/schemas/expense';
 import { EXPENSE_STATUS } from '@/lib/constants';
 import type { Expense } from '@/types/api';
@@ -487,6 +491,10 @@ function ValidateExpenseDetail({ expense, total }: DetailProps) {
         </Alert>
       )}
 
+      {/* Une note soldée ne se pilote plus par la liste des statuts : elle
+          porte son versement, ou signale qu'il manque. */}
+      {expense.status === 'Remboursée' && <BlocVersement expense={expense} />}
+
       <form
         onSubmit={form.handleSubmit(onValidate)}
         className="space-y-3 rounded-md border bg-background p-3"
@@ -499,14 +507,25 @@ function ValidateExpenseDetail({ expense, total }: DetailProps) {
           <div className="flex-1 min-w-[200px]">
             <Label>{fr.expenses.changerStatut}</Label>
             <Select
-              value={form.watch('status')}
+              value={
+                // Une note soldée n'a plus de valeur dans la liste : on propose
+                // le retour en arrière, que le serveur n'accepte que si aucun
+                // versement n'est rattaché.
+                form.watch('status') === 'Remboursée' ? 'Approuvée' : form.watch('status')
+              }
               onValueChange={(v) => form.setValue('status', v as (typeof EXPENSE_STATUS)[number])}
             >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {EXPENSE_STATUS.map((s) => (
+                {/* « Remboursée » ne figure pas dans la liste : elle se constate,
+                    elle ne se déclare pas. La proposer ici laissait marquer une
+                    note payée sans enregistrer le versement — donc sans
+                    justificatif, sans rien dans l'onglet « Remboursements », et
+                    dans un état terminal impossible à corriger. Le bouton
+                    « Rembourser », lui, fait les deux. */}
+                {EXPENSE_STATUS.filter((s) => s !== 'Remboursée').map((s) => (
                   <SelectItem key={s} value={s}>
                     {s}
                   </SelectItem>
@@ -549,6 +568,71 @@ function ValidateExpenseDetail({ expense, total }: DetailProps) {
           </div>
         )
       )}
+    </div>
+  );
+}
+
+/**
+ * Le versement qui a soldé une note, ou son absence.
+ *
+ * Une note peut avoir été marquée « Remboursée » par l'ancienne liste
+ * déroulante, sans qu'aucun versement n'ait été enregistré : ni justificatif,
+ * ni ligne dans l'onglet « Remboursements ». Le dire est plus utile que de
+ * laisser chercher un PDF qui n'a jamais existé.
+ */
+function BlocVersement({ expense }: { expense: Expense }) {
+  const versement = useRemboursementParNote().get(expense.id);
+  const { download, downloadingId } = useDownloadAttachment();
+
+  if (!versement) {
+    return (
+      <Alert variant="warning">
+        <AlertDescription>{fr.expenses.remboursementSansVersement}</AlertDescription>
+      </Alert>
+    );
+  }
+
+  return (
+    <div className="rounded-md border bg-background p-3 text-sm">
+      <p className="text-muted-foreground">
+        {fr.reimbursements.emisLe} {formatDate(versement.date_remboursement)} ·{' '}
+        {formatCurrency(Number(versement.montant_total))} {fr.reimbursements.verse} ·{' '}
+        {versement.moyen} ({versement.etablissement})
+      </p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {versement.a_pdf && (
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={downloadingId === versement.id}
+            onClick={() =>
+              download(
+                reimbursementDocumentPath(versement.id, 'pdf'),
+                `NDF-${versement.id}.pdf`,
+                versement.id,
+              )
+            }
+          >
+            <Download className="h-4 w-4" />
+            {fr.reimbursements.justificatifPdf}
+          </Button>
+        )}
+        {versement.a_xlsx && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              download(
+                reimbursementDocumentPath(versement.id, 'xlsx'),
+                `NDF-${versement.id}.xlsx`,
+              )
+            }
+          >
+            <Download className="h-4 w-4" />
+            {fr.reimbursements.justificatifXlsx}
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

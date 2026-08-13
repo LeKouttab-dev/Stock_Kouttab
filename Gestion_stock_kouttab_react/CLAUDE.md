@@ -189,6 +189,12 @@ Gestion_stock_kouttab_react/
 - `Admins.role` : `Super Admin` · `AdminBenevoles` · `Compta` · `Benevole`
 - `Admins.validation_status` : `pending` · `active` · `rejected`
 - `NotesDeFrais.status` : `En attente` · `Approuvée` · `Refusée` · `Remboursée`
+  — **`Remboursée` ne se déclare pas** : elle est posée par `POST /reimbursements`,
+  qui enregistre le versement et produit le justificatif. La liste déroulante y
+  menait aussi, sans rien produire : des notes se retrouvaient marquées payées,
+  sans document, et le statut étant terminal, sans moyen de corriger. Le retour
+  `Remboursée → Approuvée` reste ouvert **tant qu'aucun versement n'est
+  rattaché** — c'est la porte de sortie de ces notes-là.
 - `Factures.status` : `En attente` · `En cours de traitement` · `Validée` · `Refusée`
 - `StockModifications.status` : `En attente` · `Approuvée` · `Refusée`
 

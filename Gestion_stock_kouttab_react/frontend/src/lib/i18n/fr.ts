@@ -149,6 +149,10 @@ export const fr = {
     benevole: 'Bénévole',
     notesSoldeesTitre: 'Notes soldées par ce versement',
     voirJustificatif: 'Voir le justificatif de remboursement',
+    remboursementSansVersement:
+      'Cette note est marquée remboursée sans versement enregistré : aucun justificatif ' +
+      'n’existe. Repassez-la en « Approuvée » ci-dessous, puis utilisez le bouton ' +
+      '« Rembourser » pour produire le document.',
     iban: 'IBAN (RIB)',
     ribDocument: 'Votre RIB en document',
     ribDocumentAide:

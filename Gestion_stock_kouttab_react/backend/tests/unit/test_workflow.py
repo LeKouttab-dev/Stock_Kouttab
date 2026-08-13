@@ -61,9 +61,12 @@ def test_unknown_current_status_is_tolerated() -> None:
     [
         ("En attente", "Approuvée"),
         ("En attente", "Refusée"),
-        ("Approuvée", "Remboursée"),
         ("Approuvée", "En attente"),
         ("Refusée", "En attente"),
+        # Porte de sortie pour les notes marquees « Remboursee » a tort,
+        # avant que ce chemin ne soit ferme. Le CRUD la refuse des qu'un
+        # versement est rattache (cf. crud/expense.validate_expense).
+        ("Remboursée", "Approuvée"),
     ],
 )
 def test_expense_allowed_transitions(current: str, new: str) -> None:
@@ -73,12 +76,14 @@ def test_expense_allowed_transitions(current: str, new: str) -> None:
 @pytest.mark.parametrize(
     ("current", "new"),
     [
-        # Le virement est parti : on ne revient pas en arriere.
+        # Le virement est parti : on ne repart pas de zero.
         ("Remboursée", "En attente"),
-        ("Remboursée", "Approuvée"),
         ("Remboursée", "Refusée"),
-        # On ne rembourse pas une note jamais approuvee.
+        # « Remboursee » ne se declare jamais, quel que soit le point de
+        # depart : elle se constate en enregistrant le versement, qui seul
+        # produit le justificatif.
         ("En attente", "Remboursée"),
+        ("Approuvée", "Remboursée"),
         ("Refusée", "Remboursée"),
     ],
 )
