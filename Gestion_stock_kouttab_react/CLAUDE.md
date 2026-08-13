@@ -326,6 +326,11 @@ Au dépôt d'une facture ou d'une note de frais accompagnée de justificatifs :
    `-2`, `-3` en cas de collision.
 3. L'envoi est inscrit dans `OutboundEmails` **dans la transaction du dépôt**,
    puis tenté immédiatement en tâche de fond.
+3 bis. **`EMAIL_ENABLED=false` fait ÉCHOUER l'envoi.** `_send_raw` retournait
+   auparavant en silence, et `outbox` marquait la ligne « Envoyée ». La
+   production a tourné ainsi jusqu'au 2026-08-13 : écran tout en vert, boîtes
+   vides. Ne rien envoyer reste légitime en développement ; le dire « envoyé »
+   ne l'est jamais.
 4. En cas d'échec : backoff 5/10/20/40/80 min, puis `abandoned`. Le cron
    `scripts/process_outbound_emails.py` reprend la file toutes les 10 minutes.
 
@@ -390,7 +395,9 @@ le modèle « NDF - Nom Prénom » du client.
 
 - `GET /reimbursements` — tous pour la compta, les siens pour un bénévole
 - `POST /reimbursements` — solde N notes d'un même bénévole (Compta+)
-- `GET /reimbursements/{id}/document?format=pdf|xlsx` — justificatif
+- `GET /reimbursements/{id}/document?format=pdf|xlsx` — justificatif, servi
+  **depuis la base** (repli disque pour les versements antérieurs). Accessible
+  au bénévole concerné : c'est la preuve de son remboursement.
 - `GET /reimbursements/by-volunteer` — fiches et totaux dus (Compta+)
 - `GET /reimbursements/options` — moyens et établissements, listes **figées**
   (`core/reimbursement_options.py`), servies plutôt que recopiées côté front
@@ -403,7 +410,17 @@ Règles portées par `crud/reimbursement.py` :
 2. `montant_total` est un **instantané** : le recalculer ferait bouger un chiffre
    déjà justifié si une note était corrigée ensuite.
 3. Documents produits dans `OUTBOX_DIR`, **hors de `uploads/`** (noms
-   prévisibles), puis mis en file vers la comptabilité via `outbox.enqueue`.
+   prévisibles), **et stockés en base** (`contenu_pdf` / `contenu_xlsx`,
+   migration `d0f7b2c5e8a9`) : ils étaient la dernière famille de documents
+   restée sur le seul disque, donc perdue avec le volume. Le disque n'est plus
+   qu'un cache, utile à la file qui joint des fichiers.
+4. Mis en file vers la comptabilité **et vers le bénévole**. Il ne recevait
+   rien : il apprenait son remboursement sur son compte bancaire et n'avait
+   aucune pièce à produire, alors que le document porte son nom. Deux envois
+   distincts — le comptable archive une opération, le bénévole reçoit une
+   preuve, et les deux ne se disent pas de la même façon.
+5. L'écran **Notes de frais → Remboursements** les liste et les télécharge ;
+   une note « Remboursée » y renvoie directement.
 
 `app/core/money.py` est le **jumeau de `frontend/src/lib/money.ts`** — même
 raison que `naming.py`/`naming.ts` : le front affiche le montant, le back le
@@ -499,6 +516,10 @@ se traite dans la journée, pas à la seconde.
 - `POST /admin/database/export` — export ZIP
 - `POST /admin/database/import` — import CSVs (Super Admin)
 - `GET /admin/outbound-emails` — file des envois comptables (Compta+)
+- `GET /admin/outbound-emails/etat` — santé du circuit d'envoi : `EMAIL_ENABLED`,
+  SMTP configuré, destinataires, compteurs. Une file vide et un serveur coupé
+  se ressemblent — sans ce signal, il faut déposer une pièce pour découvrir
+  que rien ne part.
 - `POST /admin/outbound-emails/{id}/retry` — relancer un envoi (Compta+)
 
 ### Buvette (HelloAsso)

@@ -44,6 +44,21 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     finally:
         db.close()
 
+    # Un courriel coupe ne se voit nulle part tant que personne ne depose de
+    # piece : la production a tourne trois semaines ainsi. Le dire au demarrage
+    # ne suffit pas — l'ecran des envois le montre aussi — mais c'est la
+    # premiere ligne que lit celui qui diagnostique.
+    if not settings.email_enabled:
+        logger.warning(
+            "EMAIL_ENABLED=false — AUCUN courriel ne partira : ni les pieces au "
+            "comptable, ni les changements de statut, ni les relances. "
+            "Corriger le .env puis redemarrer si ce n'est pas voulu."
+        )
+    elif not (settings.smtp_host and settings.smtp_user):
+        logger.warning(
+            "SMTP_HOST ou SMTP_USER manquant — les envois echoueront tous."
+        )
+
     logger.info("Kouttab Stock API demarre (env=%s)", settings.app_env)
     yield
     logger.info("Kouttab Stock API arrete.")

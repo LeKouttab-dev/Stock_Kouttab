@@ -5,6 +5,7 @@
  * d'être recopiées ici : l'API les valide, et deux copies finiraient par
  * diverger au premier ajout.
  */
+import { useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useApiMutation } from '@/hooks/useApiMutation';
 import { api } from '../client';
@@ -81,4 +82,22 @@ export function useCreateReimbursement() {
 /** Chemin de téléchargement d'un justificatif, à passer à `useDownloadAttachment`. */
 export function reimbursementDocumentPath(id: number, format: 'pdf' | 'xlsx'): string {
   return `/reimbursements/${id}/document?format=${format}`;
+}
+
+/**
+ * Relie une note à son versement, sans toucher au schéma.
+ *
+ * `GET /reimbursements` porte déjà le détail des notes soldées : demander à
+ * l'API d'indiquer sur chaque note quel remboursement l'a payée serait une
+ * colonne de plus pour une information déjà en main.
+ */
+export function useRemboursementParNote(): Map<number, Reimbursement> {
+  const { data: remboursements = [] } = useReimbursements();
+  return useMemo(() => {
+    const index = new Map<number, Reimbursement>();
+    for (const remboursement of remboursements) {
+      for (const note of remboursement.expenses) index.set(note.id, remboursement);
+    }
+    return index;
+  }, [remboursements]);
 }

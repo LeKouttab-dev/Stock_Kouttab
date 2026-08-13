@@ -14,6 +14,7 @@ from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_roles
+from app.core.config import settings
 from app.core.errors import ErrorCode
 from app.core.exceptions import AppException, ValidationError
 from app.core.logger import get_logger
@@ -32,7 +33,7 @@ from app.db.models import (
 )
 from app.db.session import get_db
 from app.schemas.auth import MessageOut
-from app.schemas.outbox import OutboundEmailOut
+from app.schemas.outbox import EtatEnvoisOut, OutboundEmailOut
 from app.services import outbox
 
 
@@ -217,6 +218,27 @@ def list_outbound_emails(
         OutboundEmailOut.model_validate(row)
         for row in outbox.list_emails(db, status=status, limit=limit)
     ]
+
+
+@router.get(
+    "/outbound-emails/etat",
+    response_model=EtatEnvoisOut,
+    dependencies=[Depends(require_roles(*_ACCOUNTING_ROLES))],
+)
+def etat_des_envois(db: Session = Depends(get_db)) -> Any:
+    """Dit si les courriels peuvent partir, sans attendre qu'un envoi echoue.
+
+    Declare AVANT `/outbound-emails/{email_id}/retry` n'est pas necessaire —
+    les chemins ne se recouvrent pas — mais le reste du module range les GET
+    ensemble.
+    """
+    return EtatEnvoisOut(
+        email_enabled=settings.email_enabled,
+        smtp_configure=bool(settings.smtp_host and settings.smtp_user),
+        destinataires_compta=list(settings.compta_emails),
+        en_attente=outbox.compter(db, outbox.STATUS_PENDING),
+        en_echec=outbox.compter(db, outbox.STATUS_FAILED),
+    )
 
 
 @router.post(

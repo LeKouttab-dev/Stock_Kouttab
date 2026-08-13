@@ -71,7 +71,13 @@ async def test_no_mail_leaves_the_process_when_sending_is_disabled(
     Le `.env` de developpement porte les identifiants de la messagerie reelle de
     l'association : sans ce coupe-circuit, une seance de tests sur les notes de
     frais ecrit a de vrais destinataires.
+
+    Le coupe-circuit **leve** desormais, au lieu de rendre la main en silence.
+    Il retournait auparavant comme si l'envoi avait reussi, et `outbox` marquait
+    la ligne « Envoyee » : la production a tourne trois semaines muette, avec un
+    ecran d'envois tout en vert. Cf. `tests/integration/test_envoi_desactive.py`.
     """
+    from app.core.exceptions import AppException
     from app.services import email as email_service
 
     envoyes: list[object] = []
@@ -83,7 +89,8 @@ async def test_no_mail_leaves_the_process_when_sending_is_disabled(
     monkeypatch.setattr(email_service, "_mailer", _MailerEspion())
     monkeypatch.setattr(email_service.settings, "email_enabled", False)
 
-    await send_raw_reel("Sujet", "Corps", ["vrai.destinataire@example.com"])
+    with pytest.raises(AppException):
+        await send_raw_reel("Sujet", "Corps", ["vrai.destinataire@example.com"])
 
     assert envoyes == [], "aucun message ne doit atteindre le serveur SMTP"
 

@@ -34,6 +34,7 @@ from app.core.reimbursement_options import (
 )
 from app.db.models import Admin, Expense, Reimbursement
 from app.services import naming, outbox, reimbursement_doc
+from app.services.email_layout import composer
 
 
 logger = get_logger("reimbursement")
@@ -261,6 +262,10 @@ def create_reimbursement(
     chemin_pdf, chemin_xlsx = _ecrire_documents(reimbursement, benevole, notes)
     reimbursement.chemin_pdf = str(chemin_pdf)
     reimbursement.chemin_xlsx = str(chemin_xlsx)
+    # Le contenu en base fait autorite ; le disque n'est plus qu'un cache, utile
+    # a la file d'envoi qui joint des fichiers.
+    reimbursement.contenu_pdf = chemin_pdf.read_bytes()
+    reimbursement.contenu_xlsx = chemin_xlsx.read_bytes()
 
     db.commit()
     db.refresh(reimbursement)
@@ -277,10 +282,20 @@ def _mettre_en_file(
     *,
     triggered_by: int | None,
 ) -> None:
-    """Depose le justificatif dans la file d'envoi vers la comptabilite.
+    """Depose le justificatif dans la file, pour la comptabilite ET le benevole.
 
     Apres le commit : la file gere elle-meme ses tentatives, et un SMTP
     indisponible ne doit pas annuler un remboursement deja enregistre.
+
+    **Le benevole ne recevait rien.** Seul `COMPTA_EMAIL` etait destinataire : il
+    apprenait son remboursement en consultant son compte bancaire, et n'avait
+    aucune piece a produire — alors que le document porte son nom, le montant et
+    l'approbation.
+
+    Deux envois plutot qu'un seul a deux destinataires : le comptable archive une
+    operation, le benevole recoit une preuve. Les deux ne se disent pas de la
+    meme facon, et mettre le benevole en copie d'un message ecrit pour la
+    comptabilite se voit tout de suite.
     """
     identite = benevole.full_name or benevole.username
     sujet = (
@@ -288,46 +303,92 @@ def _mettre_en_file(
         f"{reimbursement.montant_total:.2f} EUR — "
         f"{reimbursement.date_remboursement.strftime('%d/%m/%Y')}"
     )
-    corps = (
-        "Bonjour,\n\n"
-        "Un remboursement vient d'etre enregistre dans l'application.\n\n"
-        f"Benevole      : {identite}\n"
-        f"Montant       : {reimbursement.montant_total:.2f} EUR\n"
-        f"Notes soldees : {len(notes)}\n"
-        f"Emis le       : {reimbursement.date_remboursement.strftime('%d/%m/%Y')}\n"
-        f"Moyen         : {reimbursement.moyen}\n"
-        f"Etablissement : {reimbursement.etablissement}\n"
-        f"Approuve par  : {reimbursement.approuve_par}\n\n"
-        "Le detail figure dans le justificatif joint (PDF et tableur).\n\n"
-        "Cordialement,\nLe Kouttab — gestion des stocks."
+    details = [
+        ("Montant", reimbursement.montant_total),
+        ("Notes soldees", len(notes)),
+        ("Emis le", reimbursement.date_remboursement),
+        ("Moyen", reimbursement.moyen),
+        ("Etablissement", reimbursement.etablissement),
+        ("Approuve par", reimbursement.approuve_par),
+    ]
+    pieces = [Path(reimbursement.chemin_pdf), Path(reimbursement.chemin_xlsx)]
+
+    def _deposer(destinataires: list[str], corps: str) -> None:
+        if not destinataires:
+            # Ne pas mettre en file un envoi sans destinataire : il resterait
+            # « en attente » indefiniment, a encombrer l'ecran de diagnostic.
+            return
+        outbox.enqueue(
+            db,
+            kind=KIND_REIMBURSEMENT,
+            entity_type="reimbursement",
+            entity_id=reimbursement.id,
+            recipients=destinataires,
+            subject=sujet,
+            body=corps,
+            attachments=pieces,
+            triggered_by=triggered_by,
+        )
+
+    _deposer(
+        list(settings.compta_emails),
+        composer(
+            introduction="Un remboursement vient d'etre enregistre dans l'application.",
+            blocs=[("Benevole", identite), *details],
+            conclusion="Le detail figure dans le justificatif joint (PDF et tableur).",
+        ),
     )
-    outbox.enqueue(
-        db,
-        kind=KIND_REIMBURSEMENT,
-        entity_type="reimbursement",
-        entity_id=reimbursement.id,
-        recipients=settings.compta_emails,
-        subject=sujet,
-        body=corps,
-        attachments=[Path(reimbursement.chemin_pdf), Path(reimbursement.chemin_xlsx)],
-        triggered_by=triggered_by,
+
+    _deposer(
+        [benevole.email] if benevole.email else [],
+        composer(
+            prenom=benevole.prenom,
+            introduction=(
+                "Vos notes de frais viennent d'etre remboursees. "
+                "Le justificatif est joint a ce message, en PDF et en tableur."
+            ),
+            blocs=details,
+            conclusion=(
+                "Vous retrouvez ce justificatif a tout moment dans l'application, "
+                "onglet « Remboursements » de vos notes de frais."
+            ),
+        ),
     )
 
 
-def document_path(reimbursement: Reimbursement, *, format: str) -> Path:
-    """Chemin du justificatif demande, verifie sur le disque."""
+def contenu_document(reimbursement: Reimbursement, *, format: str) -> tuple[bytes, str]:
+    """Rend le justificatif et son nom de fichier.
+
+    La base fait autorite : c'est la seule copie sauvegardee. Le repli sur le
+    disque couvre les remboursements emis avant la migration `d0f7b2c5e8a9`, sur
+    une machine ou le volume est encore en place.
+    """
+    en_base = reimbursement.contenu_pdf if format == "pdf" else reimbursement.contenu_xlsx
     chemin = reimbursement.chemin_pdf if format == "pdf" else reimbursement.chemin_xlsx
-    if not chemin:
-        raise AppException(
-            ErrorCode.NOT_FOUND, detail="Aucun justificatif pour ce remboursement."
-        )
-    fichier = Path(chemin)
-    if not fichier.exists():
-        raise AppException(
-            ErrorCode.NOT_FOUND,
-            detail="Le justificatif n'est plus sur le serveur.",
-        )
-    return fichier
+    nom = Path(chemin).name if chemin else f"justificatif.{format}"
+
+    if en_base:
+        return en_base, nom
+
+    fichier = Path(chemin) if chemin else None
+    if fichier is not None and fichier.is_file():
+        return fichier.read_bytes(), nom
+
+    raise AppException(
+        ErrorCode.NOT_FOUND, detail="Aucun justificatif pour ce remboursement."
+    )
+
+
+def a_un_document(reimbursement: Reimbursement, *, format: str) -> bool:
+    """Presence reelle, et non presence du chemin.
+
+    `bool(chemin_pdf)` renvoyait vrai pour un fichier disparu : l'ecran promettait
+    un telechargement qui rendait un 404.
+    """
+    if (reimbursement.contenu_pdf if format == "pdf" else reimbursement.contenu_xlsx):
+        return True
+    chemin = reimbursement.chemin_pdf if format == "pdf" else reimbursement.chemin_xlsx
+    return bool(chemin) and Path(chemin).is_file()
 
 
 def total_rembourse(db: Session, user_id: int) -> Decimal:

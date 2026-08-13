@@ -45,3 +45,18 @@ class OutboundEmailOut(BaseModel):
         except ValueError:
             return []
         return [p.replace("\\", "/").rsplit("/", 1)[-1] for p in paths]
+
+
+class EtatEnvoisOut(BaseModel):
+    """Sante du circuit d'envoi, avant meme qu'un courriel ne soit tente.
+
+    Une file vide et un serveur d'envoi coupe se ressemblent : sans ce signal,
+    il faut deposer une piece pour decouvrir que rien ne part. C'est exactement
+    ce qui a laisse la production muette pendant trois semaines.
+    """
+
+    email_enabled: bool
+    smtp_configure: bool
+    destinataires_compta: list[str]
+    en_attente: int
+    en_echec: int

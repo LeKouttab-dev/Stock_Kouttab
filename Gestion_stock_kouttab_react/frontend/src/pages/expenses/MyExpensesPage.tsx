@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Pencil, ReceiptText, ScanLine } from 'lucide-react';
+import { Download, Pencil, ReceiptText, ScanLine } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -29,6 +29,11 @@ import { useExpenseCategories, usePoles } from '@/api/endpoints/referentials';
 import { buildAttachmentFilename, deduplicateFilenames } from '@/lib/naming';
 import { useCreateExpense, useMyExpenses, useUpdateExpense } from '@/api/endpoints/expenses';
 import {
+  reimbursementDocumentPath,
+  useRemboursementParNote,
+} from '@/api/endpoints/reimbursements';
+import { useDownloadAttachment } from '@/hooks/useDownloadAttachment';
+import {
   expenseEditSchema,
   expenseSchema,
   type ExpenseEditFormValues,
@@ -39,6 +44,7 @@ import { usePendingSummary } from '@/api/endpoints/notifications';
 import { ACTIONS } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import { ValidateExpensesPage } from './ValidateExpensesPage';
+import { ReimbursementsList } from './ReimbursementsList';
 import { useToast } from '@/hooks/useToast';
 import { fr } from '@/lib/i18n/fr';
 import { expenseTotal } from '@/lib/money';
@@ -79,11 +85,12 @@ export function MyExpensesPage() {
         <TabsList
           className={cn(
             'grid w-full grid-cols-1',
-            peutValider ? 'sm:grid-cols-4' : 'sm:grid-cols-3',
+            peutValider ? 'sm:grid-cols-5' : 'sm:grid-cols-4',
           )}
         >
           <TabsTrigger value="submit">{fr.expenses.submitTab}</TabsTrigger>
           <TabsTrigger value="mine">{fr.expenses.myDemandsTab}</TabsTrigger>
+          <TabsTrigger value="remboursements">{fr.expenses.remboursementsTab}</TabsTrigger>
           {peutValider && (
             <TabsTrigger value="valider" className="gap-1.5">
               {fr.expenses.validateTab}
@@ -104,6 +111,9 @@ export function MyExpensesPage() {
         </TabsContent>
         <TabsContent value="mine">
           <MyExpensesList />
+        </TabsContent>
+        <TabsContent value="remboursements">
+          <ReimbursementsList />
         </TabsContent>
         {peutValider && (
           <TabsContent value="valider">
@@ -448,6 +458,10 @@ function MyExpensesList() {
   const update = useUpdateExpense();
   const toast = useToast();
   const [editing, setEditing] = useState<number | null>(null);
+  // Une note « Remboursée » n'affichait qu'une pastille verte : ni date de
+  // versement, ni montant, ni preuve. Le justificatif existait pourtant.
+  const remboursementParNote = useRemboursementParNote();
+  const { download, downloadingId } = useDownloadAttachment();
 
   const editForm = useForm<ExpenseEditFormValues>({
     resolver: zodResolver(expenseEditSchema),
@@ -517,6 +531,40 @@ function MyExpensesList() {
                   </AlertDescription>
                 </Alert>
               )}
+
+              {/* Le versement qui a soldé cette note : date, montant, et le
+                  justificatif à télécharger. Sans lui, le bénévole ne pouvait
+                  ni dater ni prouver son remboursement depuis l'application. */}
+              {(() => {
+                const versement = remboursementParNote.get(exp.id);
+                if (!versement) return null;
+                return (
+                  <div className="rounded-md border bg-background px-3 py-2 text-sm">
+                    <p className="text-muted-foreground">
+                      {fr.reimbursements.emisLe} {formatDate(versement.date_remboursement)} ·{' '}
+                      {formatCurrency(Number(versement.montant_total))} {fr.reimbursements.verse} ·{' '}
+                      {versement.moyen}
+                    </p>
+                    {versement.a_pdf && (
+                      <button
+                        type="button"
+                        disabled={downloadingId === versement.id}
+                        onClick={() =>
+                          download(
+                            reimbursementDocumentPath(versement.id, 'pdf'),
+                            `NDF-${versement.id}.pdf`,
+                            versement.id,
+                          )
+                        }
+                        className="mt-1 inline-flex items-center gap-1 text-primary hover:underline disabled:opacity-60"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                        {fr.expenses.voirJustificatif}
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
 
               {exp.status === 'En attente' && !isEditing && (
                 <Button size="sm" variant="outline" onClick={() => startEdit(exp)}>

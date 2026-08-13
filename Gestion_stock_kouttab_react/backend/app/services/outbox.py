@@ -19,7 +19,7 @@ import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -176,6 +176,15 @@ def reset_stale_locks(db: Session) -> int:
     if count:
         logger.info("%d envoi(s) bloque(s) remis en file.", count)
     return count
+
+
+def compter(db: Session, statut: str) -> int:
+    """Nombre d'envois dans un statut donne, sans rapatrier les corps."""
+    return int(
+        db.execute(
+            select(func.count()).select_from(OutboundEmail).where(OutboundEmail.status == statut)
+        ).scalar_one()
+    )
 
 
 # ---- Envoi ------------------------------------------------------------------

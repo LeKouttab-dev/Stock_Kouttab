@@ -4,8 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_roles
@@ -36,8 +35,8 @@ _MIME = {
 def _to_out(row: Any) -> ReimbursementOut:
     out = ReimbursementOut.model_validate(row)
     out.user_full_name = row.user.full_name if row.user else None
-    out.a_pdf = bool(row.chemin_pdf)
-    out.a_xlsx = bool(row.chemin_xlsx)
+    out.a_pdf = reimbursement_crud.a_un_document(row, format="pdf")
+    out.a_xlsx = reimbursement_crud.a_un_document(row, format="xlsx")
     return out
 
 
@@ -130,5 +129,11 @@ def download_document(
 
         raise AppException(ErrorCode.FORBIDDEN)
 
-    chemin = reimbursement_crud.document_path(row, format=format)
-    return FileResponse(chemin, media_type=_MIME[format], filename=chemin.name)
+    contenu, nom = reimbursement_crud.contenu_document(row, format=format)
+    # `Response` et non `FileResponse` : le document vient de la base, il n'y a
+    # pas toujours de fichier a pointer.
+    return Response(
+        content=contenu,
+        media_type=_MIME[format],
+        headers={"Content-Disposition": f'attachment; filename="{nom}"'},
+    )

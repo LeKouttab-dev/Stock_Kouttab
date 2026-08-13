@@ -84,11 +84,55 @@ def test_le_justificatif_part_vers_la_comptabilite(
     _rembourser(client, compta_user, auth_headers, [note.id])
 
     envois = db_session.query(OutboundEmail).filter_by(entity_type="reimbursement").all()
+    # Deux envois : la comptabilite archive, le benevole recoit sa preuve.
+    assert len(envois) == 2
+    for envoi in envois:
+        assert "Remboursement" in envoi.subject
+        # Les deux formats sont joints : le PDF pour archiver, le tableur pour
+        # retravailler les chiffres.
+        assert ".pdf" in envoi.attachments and ".xlsx" in envoi.attachments
+
+
+def test_le_benevole_recoit_son_justificatif(
+    client: TestClient, compta_user, benevole_user, auth_headers, db_session,
+    local_pole, first_category,
+):
+    """Il ne recevait rien du tout.
+
+    `_mettre_en_file` n'ecrivait qu'a `COMPTA_EMAIL` : le benevole apprenait son
+    remboursement en consultant son compte bancaire, et n'avait aucune piece a
+    produire. C'est pourtant lui que le document nomme.
+    """
+    note = _note(db_session, benevole_user, local_pole, first_category)
+    _rembourser(client, compta_user, auth_headers, [note.id])
+
+    envois = db_session.query(OutboundEmail).filter_by(entity_type="reimbursement").all()
+    pour_benevole = [e for e in envois if benevole_user.email in e.recipients]
+    assert len(pour_benevole) == 1
+
+    corps = pour_benevole[0].body
+    # Salutation de l'institut, et non « Bonjour » : ces courriels s'adressent
+    # aux benevoles (cf. services/email_layout.py).
+    assert "Assalamu alaykum" in corps
+    assert "42.50" in corps or "42,50" in corps
+
+
+def test_le_benevole_sans_adresse_ne_bloque_pas_le_remboursement(
+    client: TestClient, compta_user, benevole_user, auth_headers, db_session,
+    local_pole, first_category,
+):
+    """Un compte sans courriel ne doit pas empecher un virement d'etre enregistre."""
+    benevole_user.email = None
+    db_session.commit()
+
+    note = _note(db_session, benevole_user, local_pole, first_category)
+    reponse = _rembourser(client, compta_user, auth_headers, [note.id])
+    assert reponse.status_code == 201
+
+    envois = db_session.query(OutboundEmail).filter_by(entity_type="reimbursement").all()
+    # Seul celui de la comptabilite : on ne met pas en file un envoi sans
+    # destinataire, il resterait « en attente » pour toujours.
     assert len(envois) == 1
-    assert "Remboursement" in envois[0].subject
-    # Les deux formats sont joints : le PDF pour archiver, le tableur pour
-    # retravailler les chiffres.
-    assert ".pdf" in envois[0].attachments and ".xlsx" in envois[0].attachments
 
 
 def test_les_deux_documents_se_telechargent(

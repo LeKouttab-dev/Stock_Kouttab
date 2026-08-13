@@ -145,6 +145,10 @@ export const fr = {
     aucuneDemande: "Vous n'avez encore soumis aucune note de frais.",
     editer: 'Éditer la note de frais',
     informationsRemboursement: 'Mes informations de remboursement',
+    remboursementsTab: 'Remboursements',
+    benevole: 'Bénévole',
+    notesSoldeesTitre: 'Notes soldées par ce versement',
+    voirJustificatif: 'Voir le justificatif de remboursement',
     iban: 'IBAN (RIB)',
     ribDocument: 'Votre RIB en document',
     ribDocumentAide:

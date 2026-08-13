@@ -525,8 +525,24 @@ class Reimbursement(Base):
     montant_total: Mapped[Decimal] = mapped_column(DECIMAL(10, 2), nullable=False)
     commentaire: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # Documents produits au moment du remboursement. Ils vivent dans OUTBOX_DIR,
-    # hors de `uploads/` : leurs noms sont previsibles.
+    # Documents produits au moment du remboursement.
+    #
+    # EN BASE, comme les justificatifs de notes et de factures (migration
+    # `f6b3d1e8a295`) et pour la meme raison : la base est sauvegardee par
+    # l'hebergeur, le volume Docker ne l'est pas. Ils etaient la derniere
+    # famille de documents restee sur le seul disque — un `down -v` laissait des
+    # remboursements enregistres sans leur preuve.
+    #
+    # `deferred` : lister les remboursements ne doit pas rapatrier les documents
+    # de tout le monde depuis une base distante.
+    contenu_pdf: Mapped[bytes | None] = mapped_column(
+        LargeBinary().with_variant(LONGBLOB(), "mysql"), nullable=True, deferred=True
+    )
+    contenu_xlsx: Mapped[bytes | None] = mapped_column(
+        LargeBinary().with_variant(LONGBLOB(), "mysql"), nullable=True, deferred=True
+    )
+    # Les chemins restent : cache local, et surtout source des pieces jointes
+    # de la file d'envoi, qui travaille sur des fichiers.
     chemin_pdf: Mapped[str | None] = mapped_column(String(500), nullable=True)
     chemin_xlsx: Mapped[str | None] = mapped_column(String(500), nullable=True)
 

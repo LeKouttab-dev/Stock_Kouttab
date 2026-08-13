@@ -103,16 +103,31 @@ async def _send_raw(
     # Coupe-circuit unique, place avant tout acces au SMTP : le `.env` de
     # developpement pointe sur le serveur de messagerie reel de l'association,
     # et une seance de tests suffit a arroser des destinataires veritables.
-    # L'envoi est considere comme reussi, pour que le circuit comptable se
-    # deroule jusqu'au bout et reste observable sans quitter le poste.
+    #
+    # Il LEVE, et ne rend plus la main en silence. Il retournait auparavant sans
+    # rien faire, « pour que le circuit comptable se deroule jusqu'au bout » —
+    # avec pour effet que `outbox._deliver` marquait la ligne « Envoyee ». La
+    # production a tourne avec le drapeau baisse : l'ecran des envois affichait
+    # tout en vert, et rien ne partait. Trois semaines sans qu'aucun signal
+    # n'existe.
+    #
+    # Ne rien envoyer reste legitime en developpement ; le dire « envoye » ne
+    # l'est jamais. La ligne apparait desormais en echec, avec le motif.
     if not settings.email_enabled:
         logger.warning(
-            "EMAIL_ENABLED=false — envoi supprime (sujet=%r, %d destinataire(s) : %s)",
+            "EMAIL_ENABLED=false — envoi refuse (sujet=%r, %d destinataire(s) : %s)",
             subject,
             len(rec_list),
             ", ".join(rec_list),
         )
-        return
+        raise AppException(
+            ErrorCode.EMAIL_SEND_FAILED,
+            detail=(
+                "Envoi desactive : EMAIL_ENABLED=false. Aucun courriel ne part. "
+                "Corriger la variable dans le .env du serveur, puis redemarrer "
+                "les conteneurs — la configuration est lue au demarrage."
+            ),
+        )
     if _mailer is None:
         raise AppException(
             ErrorCode.EMAIL_SEND_FAILED,

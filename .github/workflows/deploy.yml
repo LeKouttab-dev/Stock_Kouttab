@@ -148,8 +148,18 @@ jobs:
           # et le workflow se terminait en succès alors que la version livrée
           # n'avait pas bougé. Le contrôle porte donc sur le résultat, pas sur
           # le code de retour de la commande.
-          for service in api web; do
-            nom="kouttab-stock-${service}"
+          #
+          # `outbox-worker` figure dans la liste depuis le 2026-08-13 : il en
+          # était absent, si bien qu'il pouvait disparaître ou rester sur une
+          # vieille image sans que rien ne le signale. Or c'est lui qui reprend
+          # les envois échoués et déclenche les relances de justificatifs : mort,
+          # il ne se voit qu'à l'absence de courriels, des semaines plus tard.
+          #
+          # Le nom du service et celui du conteneur diffèrent pour lui
+          # (`outbox-worker` / `kouttab-stock-outbox`), d'où le couple.
+          for couple in api:api web:web outbox-worker:outbox; do
+            service="${couple%%:*}"
+            nom="kouttab-stock-${couple##*:}"
             en_place=$(docker inspect --format '{{.Config.Image}}' "$nom" 2>/dev/null || echo absent)
             case "$en_place" in
               *"${IMAGE_TAG}") echo "OK  $nom -> ${IMAGE_TAG}" ;;
