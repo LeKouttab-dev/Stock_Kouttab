@@ -169,7 +169,7 @@ async def create_invoice(
     for upload in files:
         if not upload or not upload.filename:
             continue
-        meta = await save_upload_file(upload, "invoices")
+        meta = await save_upload_file(upload, "invoices", convertir_en_pdf=True)
         invoice_crud.attach_file(
             db,
             invoice_id=invoice.id,

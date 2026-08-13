@@ -14,20 +14,29 @@ from app.core.config import settings
 from app.core.errors import ErrorCode
 from app.core.exceptions import AppException
 from app.core.logger import get_logger
+from app.services import pdf
 
 
 logger = get_logger("files")
 
 
 # (mime, extension) whitelist.
-# NB : ``image/webp`` a ete retire — il etait accepte ici alors que l'extension
-# ``webp`` n'a jamais figure dans EXTENSIONS_ALLOWED. Un fichier WEBP renomme en
-# .jpg passait donc la validation de type puis etait stocke en .webp, hors du
-# jeu d'extensions autorisees.
+#
+# WEBP et HEIC ont rejoint la liste, MIME **et** extension cette fois. WEBP en
+# avait ete retire faute d'extension correspondante : un fichier renomme en .jpg
+# passait la validation puis etait stocke en .webp, hors du jeu autorise.
+#
+# HEIC est le format par defaut des photos iPhone des qu'on passe par
+# « Fichiers » plutot que par la photothèque. Il etait refuse avec
+# « Extension 'heic' non autorisee » — de la prose de developpeur servie a un
+# benevole, pour le geste le plus courant de l'application.
 IMAGE_MIMES: dict[str, str] = {
     "image/png": "png",
     "image/jpeg": "jpg",
     "image/jpg": "jpg",
+    "image/webp": "webp",
+    "image/heic": "heic",
+    "image/heif": "heic",
 }
 INVOICE_MIMES: dict[str, str] = {**IMAGE_MIMES, "application/pdf": "pdf"}
 
@@ -35,25 +44,43 @@ EXTENSIONS_ALLOWED: dict[str, set[str]] = {
     # Le PDF est accepte sur les tickets de caisse depuis que le scanner rend
     # un PDF pret a partir chez le comptable. Le refuser obligeait a deposer une
     # photo brute que la chaine reconvertissait ensuite.
-    "expenses": {"png", "jpg", "jpeg", "pdf"},
-    "invoices": {"png", "jpg", "jpeg", "pdf"},
+    "expenses": {"png", "jpg", "jpeg", "pdf", "webp", "heic", "heif"},
+    "invoices": {"png", "jpg", "jpeg", "pdf", "webp", "heic", "heif"},
     # Releve d'identite bancaire depose par le benevole : le document de sa
     # banque, en PDF le plus souvent, parfois photographie.
-    "rib": {"png", "jpg", "jpeg", "pdf"},
+    "rib": {"png", "jpg", "jpeg", "pdf", "webp", "heic", "heif"},
 }
 
-# Magic byte signatures (read first bytes from file).
+# Signatures en TETE de fichier.
 _MAGIC: list[tuple[bytes, str]] = [
     (b"\x89PNG\r\n\x1a\n", "image/png"),
     (b"\xff\xd8\xff", "image/jpeg"),
     (b"%PDF", "application/pdf"),
 ]
 
+# Marques ISO-BMFF des variantes HEIF, aux octets 8 a 12 (juste apres « ftyp »).
+_MARQUES_HEIF = (b"heic", b"heix", b"heim", b"heis", b"hevc", b"mif1", b"msf1")
+
 
 def _detect_mime(prefix: bytes) -> str | None:
+    """Type reel, deduit du contenu — jamais de l'extension ni de l'en-tete client.
+
+    Deux formats ne se reconnaissent pas au premier octet, et une entree de plus
+    dans `_MAGIC` ne les aurait pas attrapes :
+
+    - **HEIC** est une boite ISO-BMFF : « ftyp » en 4-8, la marque en 8-12 ;
+    - **WEBP** porte « RIFF » en 0-4 **et** « WEBP » en 8-12 — tester « RIFF »
+      seul accepterait un WAV ou un AVI.
+    """
     for sig, mime in _MAGIC:
         if prefix.startswith(sig):
             return mime
+
+    if len(prefix) >= 12:
+        if prefix[4:8] == b"ftyp" and prefix[8:12] in _MARQUES_HEIF:
+            return "image/heic"
+        if prefix[0:4] == b"RIFF" and prefix[8:12] == b"WEBP":
+            return "image/webp"
     return None
 
 
@@ -97,7 +124,12 @@ def validate_file_type(
             mime_from_client,
         )
         raise AppException(
-            ErrorCode.INVALID_FILE_TYPE, detail="Type de fichier non reconnu."
+            ErrorCode.INVALID_FILE_TYPE,
+            detail=(
+                "Ce fichier n'est pas reconnu comme une photo ou un PDF. "
+                "Deposez une photo (JPEG, PNG, HEIC, WEBP) ou un PDF, ou utilisez "
+                "le bouton « Scanner » de l'application."
+            ),
         )
     if allowed_subdir == "expenses" and detected not in INVOICE_MIMES:
         raise AppException(
@@ -129,8 +161,24 @@ def _build_target_dir(subdir: str) -> Path:
     return target
 
 
-async def save_upload_file(upload: UploadFile, subdir: str) -> dict[str, object]:
-    """Persist a single upload to disk after validation. Returns metadata."""
+async def save_upload_file(
+    upload: UploadFile, subdir: str, *, convertir_en_pdf: bool = False
+) -> dict[str, object]:
+    """Persiste un depot sur disque apres validation. Retourne ses metadonnees.
+
+    ``convertir_en_pdf`` : le contenu enregistre devient un PDF. Le PDF n'existait
+    jusqu'ici que dans `OUTBOX_DIR`, pour la piece jointe du courriel, et le cron
+    le purgeait a 30 jours ; ce qui restait en base et se retelechargeait depuis
+    l'application etait l'image d'origine. D'ou l'ecart visible entre le scanner,
+    qui rend deja un PDF, et un fichier choisi depuis le disque.
+
+    Un parametre plutot qu'une fonction dediee facon `lire_en_memoire` : le cycle
+    de vie est identique a celui d'un justificatif normal, seul le format change.
+    Recopier la validation, l'ecriture par morceaux et le garde-fou de taille les
+    ferait diverger.
+
+    La conversion ne degrade rien : `img2pdf` embarque le flux JPEG tel quel.
+    """
     if subdir not in EXTENSIONS_ALLOWED:
         raise AppException(
             ErrorCode.VALIDATION_ERROR, detail="Sous-dossier d'upload inconnu."
@@ -170,22 +218,41 @@ async def save_upload_file(upload: UploadFile, subdir: str) -> dict[str, object]
                 )
             out.write(chunk)
 
-    logger.info("Fichier sauvegarde : %s (%d octets)", target_path, total)
+    # Contenu relu depuis le disque pour etre stocke EN BASE : c'est la seule
+    # copie reellement sauvegardee (O2Switch sauvegarde la base, pas le disque
+    # du VPS). L'ecriture disque est conservee comme cache local.
+    #
+    # Relecture plutot qu'accumulation en memoire pendant le transfert :
+    # l'ecriture par morceaux ci-dessus protege des fichiers enormes, et la
+    # taille est de toute facon bornee par MAX_UPLOAD_MB.
+    contenu = target_path.read_bytes()
+    nom_affiche = upload.filename or new_name
+
+    if convertir_en_pdf:
+        contenu, converti = pdf.octets_en_pdf(contenu)
+        if converti:
+            # Le fichier disque suit le contenu : sinon `contenu_du_fichier`
+            # rendrait une image pour une ligne dont `type_fichier` annonce un
+            # PDF, et `materialiser` donnerait cette image a `ensure_pdf`, qui
+            # la reconvertirait.
+            ancien = target_path
+            target_path = target_dir / f"{Path(new_name).stem}.pdf"
+            target_path.write_bytes(contenu)
+            if ancien != target_path:
+                ancien.unlink(missing_ok=True)
+
+            mime = "application/pdf"
+            total = len(contenu)
+            nom_affiche = f"{Path(nom_affiche).stem}.pdf"
+            logger.info("Justificatif converti en PDF : %s", target_path.name)
+
     return {
-        "filename": upload.filename or new_name,
-        "stored_name": new_name,
+        "filename": nom_affiche,
+        "stored_name": target_path.name,
         "path": str(target_path),
         "size": total,
         "mime": mime,
-        # Contenu relu depuis le disque pour etre stocke EN BASE : c'est la
-        # seule copie reellement sauvegardee (O2Switch sauvegarde la base, pas
-        # le disque du VPS). L'ecriture disque est conservee comme cache local
-        # et comme filet le temps de la transition.
-        #
-        # Relecture plutot qu'accumulation en memoire pendant le transfert :
-        # l'ecriture par morceaux ci-dessus protege des fichiers enormes, et la
-        # taille est de toute facon bornee par MAX_UPLOAD_MB.
-        "contenu": target_path.read_bytes(),
+        "contenu": contenu,
     }
 
 

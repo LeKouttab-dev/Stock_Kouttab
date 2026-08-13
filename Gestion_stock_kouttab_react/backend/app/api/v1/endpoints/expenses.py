@@ -220,7 +220,7 @@ async def create_expense(
         for upload in files:
             if not upload or not upload.filename:
                 continue
-            meta = await save_upload_file(upload, "expenses")
+            meta = await save_upload_file(upload, "expenses", convertir_en_pdf=True)
             expense_crud.attach_file(
                 db,
                 expense_id=expense.id,

@@ -16,6 +16,14 @@ fastapi-mail>=1.4
 # couleur qu'img2pdf refuse. Pur Python : compatible O2Switch mutualise.
 img2pdf>=0.5
 Pillow>=10.0
+# Photos iPhone : des qu'on depose depuis « Fichiers » plutot que depuis la
+# photothèque, iOS envoie du HEIC, que Pillow ne sait pas ouvrir seul. C'etait
+# le geste le plus courant de l'application, et il echouait.
+#
+# La roue manylinux embarque libheif : aucun paquet systeme a ajouter au
+# Dockerfile. La note « pur Python » en tete de services/pdf.py ne tient plus
+# depuis opencv-python-headless, de toute facon.
+pillow-heif>=0.16
 # Detection des bords et correction de perspective sur les justificatifs
 # photographies (app/services/document_scan.py). Variante "headless" : sans les
 # dependances GTK/X11 d'opencv-python, inutiles dans un conteneur sans ecran.

@@ -6,6 +6,12 @@ et il s'agit de documents a conserver plusieurs annees.
 
 Le test decisif est `test_le_justificatif_survit_a_la_perte_du_disque` : il
 efface le fichier local et verifie que le telechargement fonctionne toujours.
+
+Depuis la conversion a l'enregistrement, ce qui est stocke est le **PDF**, plus
+l'image d'origine. Les assertions ne portent donc plus sur une egalite octet
+pour octet, mais sur deux choses plus utiles : le contenu est bien un PDF, et il
+embarque le flux JPEG d'origine **sans re-encodage** — c'est toute la raison du
+choix d'`img2pdf`, et ce qui garantit qu'un montant reste lisible.
 """
 
 from __future__ import annotations
@@ -27,6 +33,15 @@ def _image() -> bytes:
     tampon = io.BytesIO()
     Image.new("RGB", (60, 40), (12, 90, 200)).save(tampon, format="JPEG")
     return tampon.getvalue()
+
+
+def _porte_le_flux(pdf_octets: bytes, image: bytes) -> bool:
+    """Le JPEG d'origine est-il embarque tel quel dans le PDF ?
+
+    On cherche une tranche du milieu de l'image : les premiers octets portent
+    l'en-tete JFIF, que le conteneur peut reecrire.
+    """
+    return image[20:200] in pdf_octets
 
 
 def _deposer(client, user, auth_headers, local_pole, first_category, octets=None):
@@ -53,9 +68,13 @@ def test_le_depot_ecrit_le_contenu_en_base(
     )
 
     ligne = db_session.query(InvoiceFile).filter_by(id_facture=facture["id"]).one()
-    assert ligne.contenu == octets, "le justificatif doit etre stocke en base"
+    assert ligne.contenu, "le justificatif doit etre stocke en base"
+    assert ligne.contenu.startswith(b"%PDF"), "le contenu enregistre est un PDF"
+    assert _porte_le_flux(ligne.contenu, octets), "le JPEG doit etre embarque tel quel"
+    assert ligne.type_fichier == "application/pdf"
     # Le chemin reste renseigne : cache local et trace de l'origine.
     assert ligne.chemin_fichier
+    assert ligne.chemin_fichier.endswith(".pdf"), "le disque suit le contenu"
 
 
 def test_le_justificatif_survit_a_la_perte_du_disque(
@@ -75,10 +94,11 @@ def test_le_justificatif_survit_a_la_perte_du_disque(
         headers=auth_headers(benevole_user),
     )
     assert reponse.status_code == 200, reponse.text
-    assert reponse.content == octets
+    assert reponse.content.startswith(b"%PDF")
+    assert _porte_le_flux(reponse.content, octets)
 
 
-def test_le_telechargement_rend_les_octets_exacts(
+def test_le_telechargement_rend_un_pdf(
     client: TestClient, benevole_user, auth_headers, db_session, local_pole, first_category
 ):
     facture, octets = _deposer(
@@ -91,9 +111,12 @@ def test_le_telechargement_rend_les_octets_exacts(
         headers=auth_headers(benevole_user),
     )
 
-    assert reponse.content == octets
-    assert reponse.headers["content-type"].startswith("image/jpeg")
-    assert "ticket.jpg" in reponse.headers.get("content-disposition", "")
+    assert reponse.content.startswith(b"%PDF")
+    assert _porte_le_flux(reponse.content, octets)
+    assert reponse.headers["content-type"].startswith("application/pdf")
+    # Le nom suit le format : servir « ticket.jpg » pour un PDF ferait echouer
+    # l'ouverture sur la plupart des postes.
+    assert "ticket.pdf" in reponse.headers.get("content-disposition", "")
 
 
 def test_une_piece_ancienne_sans_contenu_reste_lisible(
@@ -113,7 +136,84 @@ def test_une_piece_ancienne_sans_contenu_reste_lisible(
         headers=auth_headers(benevole_user),
     )
     assert reponse.status_code == 200
-    assert reponse.content == octets
+    assert _porte_le_flux(reponse.content, octets)
+
+
+def test_un_pdf_depose_reste_identique(
+    client: TestClient, benevole_user, auth_headers, db_session, local_pole, first_category
+):
+    """Aucune re-encapsulation : c'est le seul cas ou l'egalite stricte tient."""
+    pdf_source = (
+        b"%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n"
+    )
+    reponse = client.post(
+        "/api/v1/invoices",
+        data={
+            "id_pole": str(local_pole.id),
+            "id_categorie": str(first_category.id),
+            "fournisseur": "Metro",
+        },
+        files={"files": ("facture.pdf", io.BytesIO(pdf_source), "application/pdf")},
+        headers=auth_headers(benevole_user),
+    )
+    assert reponse.status_code == 201, reponse.text
+
+    ligne = (
+        db_session.query(InvoiceFile).filter_by(id_facture=reponse.json()["id"]).one()
+    )
+    assert ligne.contenu == pdf_source
+
+
+def test_une_photo_iphone_est_acceptee(
+    client: TestClient, benevole_user, auth_headers, db_session, local_pole, first_category
+):
+    """HEIC : format par defaut d'iOS des qu'on passe par « Fichiers ».
+
+    Il etait refuse avec « Extension 'heic' non autorisee » — le geste le plus
+    courant de l'application echouait sur un message ecrit pour un developpeur.
+    """
+    pillow_heif = pytest.importorskip("pillow_heif")
+    pillow_heif.register_heif_opener()
+
+    tampon = io.BytesIO()
+    Image.new("RGB", (60, 40), (200, 90, 12)).save(tampon, format="HEIF")
+    heic = tampon.getvalue()
+
+    reponse = client.post(
+        "/api/v1/invoices",
+        data={
+            "id_pole": str(local_pole.id),
+            "id_categorie": str(first_category.id),
+            "fournisseur": "Metro",
+        },
+        files={"files": ("IMG_4021.HEIC", io.BytesIO(heic), "image/heic")},
+        headers=auth_headers(benevole_user),
+    )
+    assert reponse.status_code == 201, reponse.text
+
+    ligne = (
+        db_session.query(InvoiceFile).filter_by(id_facture=reponse.json()["id"]).one()
+    )
+    assert ligne.contenu.startswith(b"%PDF")
+
+
+def test_un_format_inconnu_explique_quoi_faire(
+    client: TestClient, benevole_user, auth_headers, local_pole, first_category
+):
+    reponse = client.post(
+        "/api/v1/invoices",
+        data={
+            "id_pole": str(local_pole.id),
+            "id_categorie": str(first_category.id),
+            "fournisseur": "Metro",
+        },
+        files={"files": ("notes.png", io.BytesIO(b"pas une image du tout"), "image/png")},
+        headers=auth_headers(benevole_user),
+    )
+    assert reponse.status_code == 415
+    message = reponse.json()["message"]
+    # Le message doit dire quoi faire, pas enumerer des extensions.
+    assert "Scanner" in message or "photo" in message
 
 
 def test_une_piece_perdue_des_deux_cotes_est_signalee(

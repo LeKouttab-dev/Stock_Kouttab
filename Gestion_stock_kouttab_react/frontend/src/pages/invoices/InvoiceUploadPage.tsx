@@ -274,7 +274,7 @@ export function InvoiceUploadPage() {
                 </Button>
               </div>
               <FileUploader
-                accept=".pdf,.png,.jpg,.jpeg"
+                accept=".png,.jpg,.jpeg,.pdf,.heic,.heif,.webp,image/*,application/pdf"
                 files={files}
                 onChange={setFiles}
                 helperText={fr.invoices.uploadHelper}

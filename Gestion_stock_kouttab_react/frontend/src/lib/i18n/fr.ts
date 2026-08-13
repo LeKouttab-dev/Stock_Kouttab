@@ -147,6 +147,9 @@ export const fr = {
     informationsRemboursement: 'Mes informations de remboursement',
     remboursementsTab: 'Remboursements',
     duNouveau: 'Du nouveau sur cette pièce',
+    formatsAcceptes:
+      'Photo (JPEG, PNG, HEIC, WEBP) ou PDF, 10 Mo par fichier. ' +
+      'Tout justificatif est converti en PDF à l’enregistrement.',
     motDeLaCompta: 'Message de la comptabilité',
     benevole: 'Bénévole',
     notesSoldeesTitre: 'Notes soldées par ce versement',
@@ -225,7 +228,9 @@ export const fr = {
     dateEvenement: "Date de l'événement",
     fournisseur: 'Fournisseur (nom du magasin, du restaurant…) — facultatif',
     montant: 'Montant TTC (facultatif)',
-    uploadHelper: 'PDF, PNG, JPG. 10 Mo max par fichier.',
+    uploadHelper:
+      'Photo (JPEG, PNG, HEIC, WEBP) ou PDF, 10 Mo par fichier. ' +
+      'Tout justificatif est converti en PDF à l’enregistrement.',
     apercuNomFichier: 'Nom du/des fichier(s) qui sera envoyé au service comptabilité :',
     mailComptaEnvoye: 'Envoyé à la comptabilité',
     mailComptaAttente: "En attente d'envoi",

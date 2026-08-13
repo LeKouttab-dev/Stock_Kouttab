@@ -82,12 +82,40 @@ def test_extension_mismatch_still_uses_the_real_signature() -> None:
     assert (mime, ext) == ("application/pdf", "pdf")
 
 
-def test_webp_is_no_longer_accepted() -> None:
-    """WEBP etait accepte cote MIME mais jamais cote extension."""
+def test_webp_est_accepte_avec_son_extension() -> None:
+    """WEBP etait accepte cote MIME mais absent des extensions autorisees.
+
+    Un fichier renomme en .jpg passait donc la validation puis etait stocke en
+    .webp, hors du jeu autorise. Il avait ete retire pour cela ; il revient avec
+    son extension, les deux tables etant desormais coherentes.
+    """
     riff_webp = b"RIFF\x00\x00\x00\x00WEBPVP8 " + b"\x00" * 16
+    mime, ext = files_service.validate_file_type(
+        "photo.jpg", "image/webp", riff_webp, allowed_subdir="invoices"
+    )
+    assert (mime, ext) == ("image/webp", "webp")
+
+
+def test_heic_est_reconnu_par_sa_boite_iso() -> None:
+    """La signature HEIC n'est pas en tete de fichier.
+
+    « ftyp » occupe les octets 4 a 8, la marque les octets 8 a 12 : une entree de
+    plus dans la table des signatures ne l'aurait pas attrape, et les photos
+    iPhone deposees depuis « Fichiers » restaient refusees.
+    """
+    heic = b"\x00\x00\x00\x1cftypheic" + b"\x00" * 32
+    mime, ext = files_service.validate_file_type(
+        "IMG_4021.HEIC", "image/heic", heic, allowed_subdir="invoices"
+    )
+    assert (mime, ext) == ("image/heic", "heic")
+
+
+def test_un_riff_qui_n_est_pas_du_webp_reste_refuse() -> None:
+    """Tester « RIFF » seul accepterait un WAV ou un AVI."""
+    wav = b"RIFF\x00\x00\x00\x00WAVEfmt " + b"\x00" * 16
     with pytest.raises(AppException):
         files_service.validate_file_type(
-            "photo.jpg", "image/webp", riff_webp, allowed_subdir="invoices"
+            "son.jpg", "audio/wav", wav, allowed_subdir="invoices"
         )
 
 

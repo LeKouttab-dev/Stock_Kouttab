@@ -429,10 +429,10 @@ function SubmitExpenseTab() {
               </Button>
             </div>
             <FileUploader
-              accept=".png,.jpg,.jpeg,.pdf"
+              accept=".png,.jpg,.jpeg,.pdf,.heic,.heif,.webp,image/*,application/pdf"
               files={files}
               onChange={setFiles}
-              helperText="PDF, PNG, JPG. 10 Mo max par fichier, 5 fichiers max."
+              helperText={fr.expenses.formatsAcceptes}
             />
           </div>
 

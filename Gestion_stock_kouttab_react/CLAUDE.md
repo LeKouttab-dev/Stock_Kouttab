@@ -597,7 +597,20 @@ Ils ne mentent plus non plus : un commentaire seul ne s'annonce plus
 ### Uploads
 - MIME validé via lecture des magic bytes + extension whitelist.
 - Tailles max : 10 Mo / fichier ; 50 Mo / requête.
-- Tickets de frais : `png|jpg|jpeg`. Factures : `pdf|png|jpg|jpeg`.
+- Justificatifs : `pdf|png|jpg|jpeg|heic|heif|webp`. **HEIC** est le format
+  par défaut d'iOS dès qu'on dépose depuis « Fichiers » plutôt que depuis la
+  photothèque : il était refusé, sur le geste le plus courant de l'application.
+  Sa signature est une boîte ISO-BMFF (`ftyp` en 4-8, la marque en 8-12), pas
+  une entrée de plus dans la table des signatures — idem WEBP (`RIFF` **et**
+  `WEBP`, sinon un WAV passerait).
+- **Tout justificatif est converti en PDF à l'enregistrement**
+  (`save_upload_file(..., convertir_en_pdf=True)`). Le PDF n'existait
+  auparavant que dans `OUTBOX_DIR` pour la pièce jointe, purgé à 30 jours :
+  ce qui restait en base et se retéléchargeait était l'image d'origine, d'où
+  l'écart visible avec le scanner. La conversion ne dégrade rien — `img2pdf`
+  embarque le flux JPEG tel quel. Un PDF déposé reste identique octet pour
+  octet. **Rien de rétroactif** : les pièces déjà en base restent des images
+  et restent lisibles.
 - Stockage : `backend/uploads/{expenses|invoices}/{year}/{month}/{uuid}.ext` (jamais le nom original direct).
 
 ### CORS

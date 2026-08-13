@@ -6,8 +6,10 @@ est deja compresse ; le repasser dans Pillow le recompresserait une seconde fois
 et degraderait la lisibilite des montants — exactement ce qu'un comptable a
 besoin de lire.
 
-Pur Python, sans binaire systeme : compatible avec l'hebergement mutualise
-O2Switch.
+``pillow-heif`` s'y ajoute pour les photos iPhone : depuis « Fichiers », iOS
+envoie du HEIC, que Pillow ne lit pas seul. Sa roue manylinux embarque libheif,
+il n'y a donc aucun paquet systeme a installer — la note « pur Python » qui
+figurait ici ne tenait de toute facon plus depuis `opencv-python-headless`.
 """
 
 from __future__ import annotations
@@ -18,6 +20,16 @@ from pathlib import Path
 
 import img2pdf
 from PIL import Image, ImageOps, UnidentifiedImageError
+
+try:  # pragma: no cover - depend de l'environnement d'execution
+    import pillow_heif
+
+    # Doit etre appele a l'import : sans lui, `Image.open` refuse tout HEIC.
+    pillow_heif.register_heif_opener()
+except ImportError:  # pragma: no cover
+    # L'application demarre sans, mais les photos iPhone deposees depuis
+    # « Fichiers » seront refusees avec le message de `validate_file_type`.
+    pillow_heif = None
 
 from app.core.errors import ErrorCode
 from app.core.exceptions import AppException
@@ -51,7 +63,7 @@ _EXIF_ORIENTATION_TAG = 274
 _DIRECT_MODES = ("RGB", "L")
 
 
-def _normalise_image(source: Path) -> bytes:
+def _normaliser_octets(payload: bytes) -> bytes:
     """Retourne les octets d'image prets pour img2pdf.
 
     Le chemin nominal ne touche a rien : les octets d'origine sont transmis tels
@@ -68,15 +80,20 @@ def _normalise_image(source: Path) -> bytes:
     NB : ``ImageOps.exif_transpose`` retourne *toujours* une nouvelle instance,
     y compris sans EXIF. On teste donc explicitement le tag plutot que l'identite
     de l'objet, sinon chaque JPEG serait recompresse inutilement.
+
+    Travaille sur des octets, et non sur un chemin : le depot convertit desormais
+    en memoire, et le scanner le faisait deja. Une seule implementation pour les
+    deux, sinon la regle d'orientation finirait par diverger — et une photo
+    couchee dans un PDF ne se voit qu'a la lecture, chez le comptable.
     """
-    with Image.open(source) as image:
+    with Image.open(BytesIO(payload)) as image:
         try:
             orientation = image.getexif().get(_EXIF_ORIENTATION_TAG, 1)
         except Exception:  # noqa: BLE001 — EXIF corrompu : on l'ignore
             orientation = 1
 
         if orientation in (1, None) and image.mode in _DIRECT_MODES:
-            return source.read_bytes()
+            return payload
 
         oriented = ImageOps.exif_transpose(image) or image
         if oriented.mode in ("RGBA", "LA", "P"):
@@ -92,20 +109,50 @@ def _normalise_image(source: Path) -> bytes:
         return buffer.getvalue()
 
 
+def _normalise_image(source: Path) -> bytes:
+    """Variante « chemin » de :func:`_normaliser_octets`."""
+    return _normaliser_octets(Path(source).read_bytes())
+
+
 def image_bytes_to_pdf(payload: bytes) -> bytes:
-    """Enveloppe des octets JPEG/PNG deja en memoire dans un PDF A4.
+    """Enveloppe des octets image deja en memoire dans un PDF A4.
 
     Meme mise en page que :func:`convert_image_to_pdf`, sans aller-retour par
     le disque : le scanner produit son image en memoire et la rend directement
     au deposant en PDF.
+
+    Passe par :func:`_normaliser_octets`, ce qu'elle ne faisait pas : toute
+    photo brute qui la traversait sortait couchee dans le PDF quand l'appareil
+    avait enregistre une orientation EXIF.
     """
     try:
-        return img2pdf.convert(payload, layout_fun=_A4_LAYOUT)
+        return img2pdf.convert(_normaliser_octets(payload), layout_fun=_A4_LAYOUT)
     except Exception as exc:  # noqa: BLE001 — img2pdf leve des types varies
         logger.exception("Echec de conversion PDF depuis la memoire : %s", exc)
         raise AppException(
             ErrorCode.INVALID_FILE_TYPE,
             detail="La conversion du document scanne en PDF a echoue.",
+        ) from exc
+
+
+def octets_en_pdf(payload: bytes) -> tuple[bytes, bool]:
+    """Jumeau « octets » de :func:`ensure_pdf`.
+
+    Retourne ``(contenu, a_ete_converti)``. Un PDF est rendu **tel quel**, sans
+    re-encapsulation : le fichier depose et le fichier servi sont alors identiques
+    octet pour octet.
+    """
+    if payload.startswith(PDF_MAGIC):
+        return payload, False
+    try:
+        return image_bytes_to_pdf(payload), True
+    except AppException:
+        raise
+    except (UnidentifiedImageError, OSError) as exc:
+        logger.warning("Justificatif illisible comme image : %s", exc)
+        raise AppException(
+            ErrorCode.INVALID_FILE_TYPE,
+            detail="Ce justificatif n'a pas pu etre lu comme une image.",
         ) from exc
 
 
