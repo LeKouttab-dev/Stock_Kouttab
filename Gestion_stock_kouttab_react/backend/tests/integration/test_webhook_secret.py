@@ -89,3 +89,67 @@ def test_sans_secret_le_developpement_reste_tolerant(client: TestClient, monkeyp
     monkeypatch.setattr(settings, "app_env", "development")
 
     assert _poster(client)["reason"] == "invalid_json"
+
+
+# --- Enregistrement chez HelloAsso -------------------------------------------
+
+
+def test_le_refus_de_partenariat_est_une_consigne_pas_une_panne(
+    client_authenticated_as, super_admin_user, monkeypatch
+):
+    """HelloAsso réserve l'enregistrement automatique à ses partenaires.
+
+    Une association ordinaire reçoit un 403 au corps vide. La réponse est
+    **définitive** : la rendre en 502 la ferait passer pour une panne passagère
+    — « réessayez plus tard » — alors qu'il faut aller coller l'adresse à la
+    main. Un intermédiaire peut de surcroît remplacer le corps d'un 502 par sa
+    propre page, ce qui ferait disparaître la consigne.
+    """
+    from app.core.errors import ErrorCode
+    from app.core.exceptions import AppException
+    from app.api.v1.endpoints import buvette as endpoint
+
+    class _ClientRefusant:
+        def register_webhook(self, org_slug, url):
+            raise AppException(
+                ErrorCode.HELLOASSO_API_ERROR, extras={"upstream_status": 403}
+            )
+
+    monkeypatch.setattr(endpoint, "get_helloasso_client", lambda _s: _ClientRefusant())
+
+    reponse = client_authenticated_as(super_admin_user).post(
+        "/api/v1/buvette/webhook/configure", json={}
+    )
+
+    assert reponse.status_code == 409
+    corps = reponse.json()
+    assert "Mon Compte" in corps["message"]
+    # L'adresse à coller accompagne le refus : un jeton ne se retape pas.
+    #
+    # On vérifie le chemin, pas le schéma : le domaine vient de la configuration
+    # de la machine, et affirmer « https » ferait échouer ce test sur un poste de
+    # développement. Même piège que le test du SMTP, qui a rougi la CI neuf
+    # commits durant.
+    assert "buvette/webhook/helloasso" in corps["extras"]["url_a_enregistrer"]
+
+
+def test_une_vraie_panne_reste_une_panne(
+    client_authenticated_as, super_admin_user, monkeypatch
+):
+    """Seul le 403 change de nature. Un 500 d'HelloAsso reste un 502 chez nous."""
+    from app.core.errors import ErrorCode
+    from app.core.exceptions import AppException
+    from app.api.v1.endpoints import buvette as endpoint
+
+    class _ClientEnPanne:
+        def register_webhook(self, org_slug, url):
+            raise AppException(
+                ErrorCode.HELLOASSO_API_ERROR, extras={"upstream_status": 500}
+            )
+
+    monkeypatch.setattr(endpoint, "get_helloasso_client", lambda _s: _ClientEnPanne())
+
+    reponse = client_authenticated_as(super_admin_user).post(
+        "/api/v1/buvette/webhook/configure", json={}
+    )
+    assert reponse.status_code == 502

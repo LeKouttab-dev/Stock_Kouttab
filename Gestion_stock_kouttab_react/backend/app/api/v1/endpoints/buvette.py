@@ -441,6 +441,13 @@ def configure_webhook(payload: WebhookConfigureIn) -> Any:
                 "L'adresse a coller, jeton compris, est affichee ci-dessous."
             ),
             extras={"upstream_status": 403, "url_a_enregistrer": url},
+            # 409 et non le 502 par defaut du code d'erreur. Un 502 annonce une
+            # panne passagere — « reessayez plus tard » — alors que la reponse
+            # est definitive : ce compte n'aura jamais ce droit. Et un
+            # intermediaire peut remplacer le corps d'un 502 par sa propre page
+            # d'erreur, ce qui ferait disparaitre la consigne, qui est ici tout
+            # l'interet de la reponse.
+            status_code=409,
         ) from exc
     return MessageOut(message=f"Webhook HelloAsso configure sur {url}.")
 
