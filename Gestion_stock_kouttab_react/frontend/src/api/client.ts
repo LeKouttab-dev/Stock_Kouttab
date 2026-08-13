@@ -17,6 +17,22 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
     config.headers = config.headers ?? {};
     (config.headers as Record<string, string>).Authorization = `Bearer ${token}`;
   }
+
+  // Un envoi de fichier ne doit jamais partir étiqueté « JSON ».
+  //
+  // L'instance pose `Content-Type: application/json` par défaut, ce qui écrase
+  // la détection d'axios : un `FormData` partait alors sans sa frontière
+  // (`boundary`), le serveur ne parvenait pas à le découper, et rendait un
+  // VAL_5001 incompréhensible. Chaque appel multipart devait donc penser à
+  // rétablir l'en-tête à la main — cinq le faisaient, le dépôt du RIB l'avait
+  // oublié.
+  //
+  // On retire l'en-tête plutôt que d'écrire « multipart/form-data » : seul le
+  // navigateur connaît la frontière qu'il va employer.
+  if (config.data instanceof FormData) {
+    delete (config.headers as Record<string, string>)['Content-Type'];
+  }
+
   return config;
 });
 
