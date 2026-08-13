@@ -266,12 +266,28 @@ def _process_order(
 def _webhook_secret_ok(provided: str | None) -> bool:
     """Compare le secret d'URL en temps constant.
 
-    Si aucun secret n'est configure, on laisse passer (comportement historique)
-    mais on le signale : l'endpoint est alors ouvert et permet a un tiers de
-    forger des ventes.
+    C'est la SEULE protection de cet endpoint : il est public, HelloAsso ne
+    presente aucune session. Accepter un `Order` forge cree des lignes de vente
+    et decremente le stock.
+
+    **Sans secret configure, la production refuse.** Elle laissait tout passer
+    — « comportement historique » — et le 2026-08-13 elle tournait effectivement
+    avec `HELLOASSO_WEBHOOK_SECRET` vide : n'importe qui connaissant l'URL
+    pouvait vider l'inventaire. Un avertissement dans les journaux ne protege
+    rien, personne ne les lit.
+
+    Le developpement reste tolerant : aucune machine locale n'a de secret, et la
+    buvette doit rester testable.
     """
     expected = settings.helloasso_webhook_secret
     if not expected:
+        if settings.is_production:
+            logger.error(
+                "Webhook HelloAsso REFUSE : HELLOASSO_WEBHOOK_SECRET est vide. "
+                "Definir la variable, redemarrer, puis reenregistrer le webhook "
+                "depuis Buvette > Configurer le webhook."
+            )
+            return False
         logger.warning(
             "Webhook HelloAsso non protege : definir HELLOASSO_WEBHOOK_SECRET."
         )
