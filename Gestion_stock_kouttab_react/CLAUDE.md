@@ -2,6 +2,15 @@
 
 Guide pour Claude Code et tout LLM travaillant sur ce projet. À lire en début de session.
 
+> **Documentation complète : [`docs/`](docs/README.md).** Ce fichier en est la
+> version condensée, orientée contribution. Pour comprendre l'application en
+> profondeur — architecture, modèle de données, fonctionnalités, sécurité,
+> déploiement, tests — commencer par [`docs/README.md`](docs/README.md).
+>
+> Avant de modifier quoi que ce soit :
+> [`docs/08-PIEGES-ET-BONNES-PRATIQUES.md`](docs/08-PIEGES-ET-BONNES-PRATIQUES.md)
+> — les erreurs déjà commises sur ce projet, et ce qu'elles ont coûté.
+
 ---
 
 ## 1. Vue d'ensemble

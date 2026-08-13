@@ -103,9 +103,39 @@ def test_l_etat_des_envois_est_consultable(client_authenticated_as, compta_user)
     assert reponse.status_code == 200
 
     etat = reponse.json()
+    # `email_enabled` est faux partout : la suite l'impose avant les imports.
     assert etat["email_enabled"] is False
-    assert etat["smtp_configure"] is True
+    # Le reste ne s'affirme PAS en dur : sa valeur depend de la configuration de
+    # la machine. Ce test l'a fait, et il a rougi la CI pendant neuf commits —
+    # il passait en local, ou le `.env` porte un SMTP, et echouait sur le
+    # runner, qui n'en a aucun. Un test ne doit pas dependre de son
+    # environnement ; le contrat verifiable est la FORME de la reponse.
+    assert isinstance(etat["smtp_configure"], bool)
     assert isinstance(etat["destinataires_compta"], list)
+    assert isinstance(etat["en_attente"], int)
+    assert isinstance(etat["en_echec"], int)
+
+
+def test_l_etat_reflete_la_configuration(client_authenticated_as, compta_user, monkeypatch):
+    """Le contrat reel : l'ecran dit ce qui est configure, quoi qu'il en soit.
+
+    On maitrise l'entree plutot que de subir celle de la machine.
+    """
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "smtp_host", "")
+    monkeypatch.setattr(settings, "smtp_user", "")
+    etat = client_authenticated_as(compta_user).get(
+        "/api/v1/admin/outbound-emails/etat"
+    ).json()
+    assert etat["smtp_configure"] is False
+
+    monkeypatch.setattr(settings, "smtp_host", "mail.exemple.test")
+    monkeypatch.setattr(settings, "smtp_user", "no-reply@exemple.test")
+    etat = client_authenticated_as(compta_user).get(
+        "/api/v1/admin/outbound-emails/etat"
+    ).json()
+    assert etat["smtp_configure"] is True
 
 
 def test_l_etat_reste_ferme_aux_benevoles(client_authenticated_as, benevole_user):

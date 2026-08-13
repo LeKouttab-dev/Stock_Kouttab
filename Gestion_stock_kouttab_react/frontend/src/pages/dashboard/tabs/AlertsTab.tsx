@@ -27,12 +27,10 @@ export function AlertsTab() {
   // Pas de `catch` : `useSendStockAlert` signale déjà l'échec par un toast,
   // en ajouter un second en affichait deux à l'écran.
   const handleSend = () => {
+    // Le serveur rend le décompte dans son message ; l'afficher tel quel évite
+    // d'inventer des chiffres qu'il ne renvoie pas.
     sendAlert.mutate(undefined, {
-      onSuccess: (res) =>
-        toast.success(
-          'Email envoyé',
-          `Notifié ${res.recipients} responsable(s) pour ${res.items} article(s).`,
-        ),
+      onSuccess: (res) => toast.success('Alertes envoyées', res.message),
     });
   };
 

@@ -149,8 +149,15 @@ async function refuseModification(id: number): Promise<StockModification> {
   return data;
 }
 
-async function sendStockAlert(): Promise<{ recipients: number; items: number }> {
-  const { data } = await api.post<{ recipients: number; items: number }>('/stock/alert');
+/**
+ * Envoie les alertes de stock bas aux responsables.
+ *
+ * L'URL était `/stock/alert`, qui n'a jamais existé : le bouton du tableau de
+ * bord partait en 404. La route réelle est `/stock/low-stock/notify`, et elle
+ * rend un simple message — pas le décompte que le typage annonçait.
+ */
+async function sendStockAlert(): Promise<{ message: string }> {
+  const { data } = await api.post<{ message: string }>('/stock/low-stock/notify');
   return data;
 }
 
