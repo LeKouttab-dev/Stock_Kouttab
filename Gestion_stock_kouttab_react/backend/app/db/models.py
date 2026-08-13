@@ -902,6 +902,99 @@ class BuvetteSale(Base):
     )
 
 
+class Conversation(Base):
+    """Fil de discussion entre un benevole et l'equipe.
+
+    Le formulaire de contact envoyait un courriel et n'en gardait rien : la
+    reponse partait de la boite du comptable, hors de l'application, et personne
+    ne savait plus quelles questions restaient sans reponse. Une question posee
+    un vendredi disparaissait dans une boite parmi d'autres.
+
+    Un fil porte la question, les reponses, et son etat. Le courriel reste — il
+    previent —, mais il ne porte plus la conversation.
+
+    ``attente_equipe`` et ``non_lu_demandeur`` sont **denormalises** plutot que
+    deduits du dernier message : ce sont exactement les deux questions que les
+    pastilles posent a chaque chargement de page, et les recalculer imposerait
+    une sous-requete sur les messages a chaque fois, vers une base distante.
+    """
+
+    __tablename__ = "Conversations"
+    __table_args__ = (
+        Index("idx_conv_user", "id_user"),
+        Index("idx_conv_statut", "statut"),
+        Index("idx_conv_destinataire", "destinataire"),
+    )
+
+    STATUT_OUVERTE = "ouverte"
+    STATUT_EN_COURS = "en_cours"
+    STATUT_TRAITEE = "traitee"
+
+    DEST_COMPTA = "compta"
+    DEST_ADMIN = "admin"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    # L'auteur de la question. Jamais saisi : repris du compte connecte.
+    id_user: Mapped[int] = mapped_column(
+        Integer, ForeignKey("Admins.id", ondelete="CASCADE"), nullable=False
+    )
+    # Mot-cle, jamais une adresse : le serveur seul sait a qui il correspond.
+    destinataire: Mapped[str] = mapped_column(String(20), nullable=False)
+    sujet: Mapped[str] = mapped_column(String(150), nullable=False)
+    statut: Mapped[str] = mapped_column(String(20), default=STATUT_OUVERTE, nullable=False)
+
+    # Le fil attend une reponse de l'equipe : ce que compte sa pastille.
+    attente_equipe: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # Une reponse est arrivee et le demandeur ne l'a pas encore ouverte.
+    non_lu_demandeur: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    closed_by: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("Admins.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+    user: Mapped["Admin"] = relationship("Admin", foreign_keys=[id_user])
+    messages: Mapped[list["ConversationMessage"]] = relationship(
+        "ConversationMessage",
+        back_populates="conversation",
+        cascade="all, delete-orphan",
+        order_by="ConversationMessage.id",
+    )
+
+
+class ConversationMessage(Base):
+    """Un message dans un fil.
+
+    ``auteur_nom`` et ``de_l_equipe`` sont figes a l'ecriture. Un compte
+    supprime laisserait sinon des messages anonymes, et un benevole promu
+    comptable ferait retroactivement passer ses anciennes questions pour des
+    reponses de l'equipe.
+    """
+
+    __tablename__ = "ConversationMessages"
+    __table_args__ = (Index("idx_convmsg_conversation", "id_conversation"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id_conversation: Mapped[int] = mapped_column(
+        Integer, ForeignKey("Conversations.id", ondelete="CASCADE"), nullable=False
+    )
+    id_auteur: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("Admins.id", ondelete="SET NULL"), nullable=True
+    )
+    auteur_nom: Mapped[str] = mapped_column(String(150), nullable=False)
+    de_l_equipe: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    corps: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    conversation: Mapped["Conversation"] = relationship(
+        "Conversation", back_populates="messages"
+    )
+
+
 __all__ = [
     "Stock",
     "Category",
@@ -915,4 +1008,6 @@ __all__ = [
     "StockModification",
     "BuvetteProduct",
     "BuvetteSale",
+    "Conversation",
+    "ConversationMessage",
 ]

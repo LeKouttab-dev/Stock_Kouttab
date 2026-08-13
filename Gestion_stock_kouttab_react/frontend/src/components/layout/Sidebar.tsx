@@ -89,7 +89,16 @@ export function Sidebar({ open, onClose }: SidebarProps) {
     { to: '/profile', label: fr.nav.profile, icon: User, visible: true },
     // Visible de tous : c'est justement la personne sans droits qui a le
     // plus besoin de savoir a qui s'adresser.
-    { to: '/contact', label: fr.nav.contact, icon: LifeBuoy, visible: true },
+    {
+      to: '/contact',
+      label: fr.nav.contact,
+      icon: LifeBuoy,
+      visible: true,
+      // Les deux côtés du fil sur une seule pastille : ce que l'équipe doit
+      // traiter, et les réponses que je n'ai pas encore lues. L'un des deux
+      // vaut toujours 0 pour un bénévole.
+      badge: (aTraiter?.conversations_a_traiter ?? 0) + (aTraiter?.conversations_non_lues ?? 0),
+    },
   ];
 
   return (

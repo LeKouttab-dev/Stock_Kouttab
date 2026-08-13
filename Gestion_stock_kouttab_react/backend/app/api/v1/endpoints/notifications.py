@@ -20,7 +20,16 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
-from app.db.models import Admin, Expense, Invoice, JustificatifTicket, Stock, StockModification
+from app.crud.conversation import portee_de
+from app.db.models import (
+    Admin,
+    Conversation,
+    Expense,
+    Invoice,
+    JustificatifTicket,
+    Stock,
+    StockModification,
+)
 from app.db.session import get_db
 from app.schemas.notification import PendingSummaryOut
 
@@ -51,6 +60,7 @@ def pending_summary(
     est_comptable = current_user.role in _ACCOUNTANT_ROLES
     est_admin_stock = current_user.role in _STOCK_ADMIN_ROLES
     est_super_admin = current_user.role == "Super Admin"
+    portee = portee_de(current_user)
 
     return PendingSummaryOut(
         notes_a_valider=(
@@ -92,5 +102,25 @@ def pending_summary(
             )
             if est_comptable
             else 0
+        ),
+        # Fils qui attendent une reponse, dans la portee du role seulement : la
+        # comptabilite n'apprend pas combien de questions vont a l'administration.
+        conversations_a_traiter=(
+            _compter(
+                db,
+                Conversation,
+                Conversation.destinataire.in_(portee)
+                & Conversation.attente_equipe.is_(True)
+                & (Conversation.statut != Conversation.STATUT_TRAITEE),
+            )
+            if portee
+            else 0
+        ),
+        # Mes propres fils, chacun pour soi : visible de tous.
+        conversations_non_lues=_compter(
+            db,
+            Conversation,
+            (Conversation.id_user == current_user.id)
+            & Conversation.non_lu_demandeur.is_(True),
         ),
     )

@@ -82,6 +82,9 @@ def test_un_benevole_n_a_rien_a_traiter(
         # autres : le compteur global de la comptabilite reste a zero.
         "justificatifs_demandes": 0,
         "tickets_ouverts": 0,
+        # Il n'a ouvert aucun fil, et n'apprend rien de ceux des autres.
+        "conversations_a_traiter": 0,
+        "conversations_non_lues": 0,
     }
 
 

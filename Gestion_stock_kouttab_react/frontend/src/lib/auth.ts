@@ -29,6 +29,7 @@ export const ACTIONS = {
   POLES_MANAGE: 'poles:manage',
   EVENTS_MANAGE: 'events:manage',
   COMPTA_RESEND_EMAIL: 'compta:resend_email',
+  CONVERSATIONS_HANDLE: 'conversations:handle',
 } as const;
 
 export type Action = (typeof ACTIONS)[keyof typeof ACTIONS];
@@ -64,6 +65,9 @@ const PERMISSIONS: Record<Action, Role[]> = {
   [ACTIONS.POLES_MANAGE]: ['Super Admin'],
   [ACTIONS.EVENTS_MANAGE]: ['Super Admin', 'AdminBenevoles'],
   [ACTIONS.COMPTA_RESEND_EMAIL]: ['Super Admin', 'Compta'],
+  // Doit refléter `PORTEE` dans `crud/conversation.py` : la comptabilité
+  // traite les fils qui lui sont adressés, le Super Admin les deux boîtes.
+  [ACTIONS.CONVERSATIONS_HANDLE]: ['Super Admin', 'Compta'],
 };
 
 export function canAccess(role: Role | null | undefined, action: Action): boolean {

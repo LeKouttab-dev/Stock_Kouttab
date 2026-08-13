@@ -497,6 +497,42 @@ export interface PendingSummary {
   justificatifs_demandes: number;
   /** Tickets ouverts toutes personnes confondues (comptabilité). */
   tickets_ouverts: number;
+  /** Fils de discussion qui attendent une réponse de l'équipe. */
+  conversations_a_traiter: number;
+  /** Mes fils où une réponse est arrivée que je n'ai pas encore ouverte. */
+  conversations_non_lues: number;
+}
+
+export type ContactCible = 'compta' | 'admin';
+export type ConversationStatut = 'ouverte' | 'en_cours' | 'traitee';
+
+export interface ConversationMessage {
+  id: number;
+  auteur_nom: string;
+  /** Écrit par la comptabilité ou l'administration, et non par le demandeur. */
+  de_l_equipe: boolean;
+  est_moi: boolean;
+  corps: string;
+  created_at?: string | null;
+}
+
+export interface Conversation {
+  id: number;
+  id_user: number;
+  demandeur?: string | null;
+  destinataire: ContactCible;
+  sujet: string;
+  statut: ConversationStatut;
+  attente_equipe: boolean;
+  non_lu_demandeur: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
+  nombre_messages: number;
+  dernier_message?: string | null;
+  dernier_message_at?: string | null;
+  /** Pastille calculée pour le demandeur de la requête, et pour lui seul. */
+  a_signaler: boolean;
+  messages: ConversationMessage[];
 }
 
 /** Bénévole et ce qu'on lui doit, dans l'écran comptable. */

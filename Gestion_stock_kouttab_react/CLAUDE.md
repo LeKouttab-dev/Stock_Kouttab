@@ -181,6 +181,8 @@ Gestion_stock_kouttab_react/
 | **Remboursements** | Un versement à un bénévole soldant N notes : `date_remboursement`, `moyen`, `etablissement`, `approuve_par`, `montant_total` (**instantané**), `chemin_pdf`, `chemin_xlsx` | `id_user`, `cree_par → Admins.id` |
 | **CategoriesDepense** | Référentiel administrable des catégories hors événement (`Courses`, `Stock goûter`, `Achat buvette`, `Achat matériel`, `Autre`) : `nom` UNIQUE, `is_default`, `is_active`, `ordre` | — |
 | **BuvetteProducts** | Produits de la buvette synchronisés HelloAsso : `helloasso_tier_id` UNIQUE, `name`, `price_cents`, `quantity`, `seuil_alerte`, `emoji`, `image_url`, `alert_sent`, `last_synced_at`, `is_active` | — |
+| **Conversations** | Fil de discussion : `id_user` (auteur), `destinataire` (`compta`·`admin`), `sujet`, `statut` (`ouverte`·`en_cours`·`traitee`), `attente_equipe`, `non_lu_demandeur` (**dénormalisés**, cf. §6) | `id_user`, `closed_by` |
+| **ConversationMessages** | Un message : `corps`, `auteur_nom` et `de_l_equipe` **figés à l'écriture** — un compte supprimé laisserait des messages anonymes, un bénévole promu comptable ferait passer ses anciennes questions pour des réponses | `id_conversation` (CASCADE), `id_auteur` |
 | **BuvetteSales** | Log idempotent des ventes HelloAsso : `helloasso_order_id`, `helloasso_payment_id`, `helloasso_item_id`, snapshot `product_name_snapshot`, `quantity_sold`, `amount_cents`, infos client, `raw_event` JSON | `buvette_product_id → BuvetteProducts.id` (SET NULL) ; UNIQUE (`helloasso_payment_id`, `helloasso_item_id`) |
 
 **Énumérations (string)**
@@ -223,7 +225,8 @@ le démarrage en production. Les valeurs en clair héritées restent lisibles
 | Notes de frais — voir RIB utilisateur | — | — | ✅ | ✅ |
 | RIB en document — déposer le sien | ✅ | ✅ | ✅ | ✅ |
 | RIB en document — télécharger celui d'un autre | — | — | ✅ | ✅ |
-| Contact — écrire à la compta ou à l'administration | ✅ | ✅ | ✅ | ✅ |
+| Contact — ouvrir un fil, répondre au sien | ✅ | ✅ | ✅ | ✅ |
+| Contact — boîte de l'équipe, statuts | — | — | ✅ (compta) | ✅ (les deux) |
 | Factures — déposer | ✅ | ✅ | ✅ | ✅ |
 | Factures — changer statut | — | — | ✅ | ✅ |
 | Admin — valider comptes pending | — | — | — | ✅ |
@@ -433,13 +436,44 @@ Les relances sont portées par `scripts/process_outbound_emails.py`, devenu
 recopier `compose.yml` à la main sur le VPS — étape hors du déploiement
 automatique (cf. `DEPLOIEMENT-VPS.md` §13).
 
-### Espace de contact
-- `POST /contact` — question d'un bénévole, `destinataire` valant `compta` ou
-  `admin`. **Le destinataire est un mot-clé, pas une adresse** : accepter une
-  adresse ferait de l'endpoint un relais de courriel ouvert. L'identité de
-  l'auteur vient du compte connecté, jamais du formulaire — un champ « votre
-  nom » se remplit de n'importe quoi. L'envoi passe par `outbox.enqueue` : une
-  question posée ne doit pas se perdre parce que le SMTP hoquetait.
+### Espace de contact — fils de discussion
+
+Le formulaire d'origine envoyait un courriel et n'en gardait rien : la réponse
+partait de la boîte du comptable, hors de l'application. Personne ne pouvait
+dire quelles questions restaient sans réponse, ni retrouver ce qui avait été
+répondu six mois plus tôt.
+
+- `POST|GET /conversations` — ouvrir un fil, lister les siens (tout authentifié)
+- `GET /conversations/equipe` — boîte de l'équipe, filtrée par la portée du rôle
+- `GET /conversations/{id}` — le fil ; **l'ouvrir éteint la pastille** du demandeur
+- `POST /conversations/{id}/messages` — répondre
+- `PATCH /conversations/{id}/statut` — `ouverte` · `en_cours` · `traitee` (équipe)
+- `PATCH /conversations/{id}/destinataire` — réorienter un fil mal adressé
+
+**Portée** (`crud/conversation.PORTEE`, jumelée à `ACTIONS.CONVERSATIONS_HANDLE`
+côté front) : la Compta lit les fils qui lui sont adressés, le Super Admin les
+deux boîtes — il est le recours quand une question a été mal orientée. Un fil se
+lit aussi par son auteur, et par personne d'autre : une question de
+remboursement porte sur des montants, parfois sur un différend.
+
+Deux propriétés héritées du formulaire tiennent toujours : **l'auteur n'est
+jamais saisi** (repris du compte connecté), et **le destinataire est un mot-clé,
+pas une adresse** — l'accepter ferait de l'endpoint un relais de courriel ouvert.
+
+`attente_equipe` et `non_lu_demandeur` sont **dénormalisés** sur le fil : ce sont
+exactement les deux questions que posent les pastilles à chaque chargement de
+page, et les déduire du dernier message imposerait une sous-requête vers une base
+distante à chaque fois.
+
+Le courriel subsiste mais **prévient seulement** : le fil est déjà enregistré
+quand `outbox.enqueue` est appelé. Un SMTP en panne retarde un avis, il ne fait
+plus perdre la question.
+
+**Répondre sur un fil `traitee` le rouvre.** Sans cela, une précision demandée
+après coup ne serait jamais lue : le fil est rangé, plus personne ne le regarde.
+
+Pas de temps réel : le fil se recharge à chaque envoi. Une question de bénévole
+se traite dans la journée, pas à la seconde.
 
 ### Notifications
 - `GET /notifications/summary` — dossiers en attente pour l'utilisateur
