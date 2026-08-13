@@ -180,6 +180,44 @@ def _parse_sold_at(value: Any) -> datetime | None:
     return None
 
 
+def _slug_du_formulaire(order: dict[str, Any]) -> str | None:
+    """Boutique ou billetterie d'ou vient la commande.
+
+    HelloAsso le place tantot a la racine, tantot sous `formSlug`/`formType`
+    dans un sous-objet selon l'evenement. On regarde les deux.
+    """
+    direct = order.get("formSlug")
+    if isinstance(direct, str):
+        return direct
+    formulaire = order.get("form")
+    if isinstance(formulaire, dict):
+        slug = formulaire.get("formSlug") or formulaire.get("slug")
+        if isinstance(slug, str):
+            return slug
+    return None
+
+
+def _concerne_la_buvette(order: dict[str, Any]) -> bool:
+    """Ecarte tout ce qui ne vient pas de la boutique buvette.
+
+    **Indispensable.** L'association n'a droit qu'a UNE URL de notification pour
+    tout son compte : la meme adresse recoit les ventes de la buvette ET les
+    inscriptions aux stages. Sans ce filtre, une inscription a un stage serait
+    enregistree comme une vente et decrementerait un stock qui n'a rien a voir.
+
+    Le relais WordPress filtre deja, mais un filtre cote emetteur ne protege que
+    tant qu'il fonctionne : celui-ci est le notre, et il ne depend de personne.
+
+    Un slug absent est accepte : les commandes de la boutique n'en portent pas
+    toujours selon le type d'evenement, et refuser par defaut ferait perdre des
+    ventes reelles. Le refus est reserve a un slug present et different.
+    """
+    slug = _slug_du_formulaire(order)
+    if slug is None:
+        return True
+    return slug.strip().lower() == settings.helloasso_buvette_form_slug.strip().lower()
+
+
 def _process_order(
     db: Session,
     order: dict[str, Any],
@@ -187,6 +225,14 @@ def _process_order(
     raw_event: dict[str, Any],
 ) -> None:
     """Iterate over order items and record sales."""
+    if not _concerne_la_buvette(order):
+        logger.info(
+            "Commande HelloAsso ignoree : formulaire=%s (attendu : %s).",
+            _slug_du_formulaire(order),
+            settings.helloasso_buvette_form_slug,
+        )
+        return
+
     order_id = order.get("id")
     payer = order.get("payer") or {}
     items = order.get("items") or []
