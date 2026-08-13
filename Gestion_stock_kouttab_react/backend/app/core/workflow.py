@@ -20,7 +20,10 @@ INVOICE_TRANSITIONS: dict[str, set[str]] = {
     "En attente": {"En cours de traitement", "Validée", "Refusée"},
     "En cours de traitement": {"Validée", "Refusée", "En attente"},
     "Validée": set(),  # terminal : une facture validee est comptabilisee
-    "Refusée": {"En attente"},  # rouvrable si le deposant corrige sa piece
+    # Un refus se revoit. Seul « En attente » etait ouvert : reconnaitre une
+    # erreur d'appreciation obligeait a repasser par la case depart, en deux
+    # gestes, sans que rien a l'ecran ne l'explique.
+    "Refusée": {"En attente", "En cours de traitement", "Validée"},
 }
 
 # Notes de frais : En attente -> Approuvee -> Remboursee.
@@ -38,7 +41,10 @@ EXPENSE_TRANSITIONS: dict[str, set[str]] = {
     # soit ferme. `crud.expense.validate_expense` la refuse des qu'un versement
     # est rattache : revenir en arriere contredirait un justificatif emis.
     "Remboursée": {"Approuvée"},
-    "Refusée": {"En attente"},
+    # Un refus se revoit : la comptabilite refuse, le benevole s'explique, et
+    # la note est approuvee. Seul « En attente » etait ouvert — il fallait deux
+    # gestes pour cela, et l'ecran ne disait pas lequel en premier.
+    "Refusée": {"En attente", "Approuvée"},
 }
 
 

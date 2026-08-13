@@ -53,6 +53,17 @@ const notes: Expense[] = [
     status: 'Remboursée',
   } as Expense,
   {
+    id: 6,
+    id_user: 11,
+    user_full_name: 'Ancienne Note',
+    date_depense: '2024-03-04',
+    montant: 8,
+    remboursement_deja_emis: 0,
+    remise: 0,
+    // Écriture de la version Streamlit : sans accent.
+    status: 'Refusee',
+  } as unknown as Expense,
+  {
     id: 5,
     id_user: 7,
     user_full_name: 'Omar Benfdila',
@@ -247,6 +258,20 @@ describe('pages/expenses/ValidateExpensesPage', () => {
 
     // Chercher un PDF qui n'a jamais existé est pire que de le dire.
     expect(await screen.findByText(/sans versement enregistré/)).toBeInTheDocument();
+  });
+
+  it('ouvre le formulaire d’une note héritée sur un statut exploitable', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ValidateExpensesPage />);
+    await toutAfficher(user);
+    await user.click(screen.getByText('Ancienne Note'));
+    await user.click(screen.getByText(/04\/03\/2024/));
+
+    // Avec « Refusee » tel quel, le schéma du formulaire refusait la
+    // soumission : « Mettre à jour » ne partait jamais, sans message. Les
+    // anciennes notes étaient donc impossibles à corriger.
+    const liste = await screen.findByRole('combobox');
+    expect(liste).toHaveTextContent('Refusée');
   });
 
   it('un bénévole sans note approuvée ne propose aucune sélection', async () => {

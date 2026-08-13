@@ -39,7 +39,7 @@ import {
   useRemboursementParNote,
 } from '@/api/endpoints/reimbursements';
 import { expenseValidateSchema, type ExpenseValidateFormValues } from '@/lib/schemas/expense';
-import { EXPENSE_STATUS } from '@/lib/constants';
+import { EXPENSE_STATUS, normaliserStatut } from '@/lib/constants';
 import type { Expense, Reimbursement } from '@/types/api';
 import { cn, copyToClipboard } from '@/lib/utils';
 import { buildAttachmentFilename, deduplicateFilenames } from '@/lib/naming';
@@ -382,10 +382,13 @@ function ValidateExpenseDetail({ expense, total }: DetailProps) {
   }, [expense]);
 
   const versement = useRemboursementParNote().get(expense.id);
+  const statutCanonique = normaliserStatut(expense.status, EXPENSE_STATUS) ?? 'En attente';
+  const statutInitial =
+    statutCanonique === 'Remboursée' && !versement ? 'Approuvée' : statutCanonique;
   // Une note soldée par un versement est verrouillée : son justificatif porte
   // le montant et la date, y revenir le contredirait. Seul le commentaire reste
   // modifiable.
-  const verrouillee = expense.status === 'Remboursée' && Boolean(versement);
+  const verrouillee = statutCanonique === 'Remboursée' && Boolean(versement);
 
   const form = useForm<ExpenseValidateFormValues>({
     resolver: zodResolver(expenseValidateSchema),
@@ -399,8 +402,11 @@ function ValidateExpenseDetail({ expense, total }: DetailProps) {
       // non-changement, et le message « Statut mis à jour » s'affichait alors
       // que rien n'avait bougé. Un affichage ne doit jamais contredire ce qui
       // sera soumis.
-      status:
-        expense.status === 'Remboursée' && !versement ? 'Approuvée' : expense.status,
+      //
+      // `normaliserStatut` couvre les notes héritées de la version Streamlit,
+      // dont le statut s'écrit sans accents : le schéma du formulaire les
+      // rejetait, et « Mettre à jour » ne partait jamais, en silence.
+      status: statutInitial,
       commentaires_compta: expense.commentaires_compta ?? '',
     },
   });
@@ -532,7 +538,7 @@ function ValidateExpenseDetail({ expense, total }: DetailProps) {
 
       {/* Une note soldée ne se pilote plus par la liste des statuts : elle
           porte son versement, ou signale qu'il manque. */}
-      {expense.status === 'Remboursée' && <BlocVersement versement={versement} />}
+      {statutCanonique === 'Remboursée' && <BlocVersement versement={versement} />}
 
       <form
         onSubmit={form.handleSubmit(onValidate)}

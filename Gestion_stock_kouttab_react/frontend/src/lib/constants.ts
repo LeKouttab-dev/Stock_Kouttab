@@ -7,6 +7,34 @@ export type ValidationStatus = (typeof VALIDATION_STATUS)[number];
 export const EXPENSE_STATUS = ['En attente', 'Approuvée', 'Refusée', 'Remboursée'] as const;
 export type ExpenseStatus = (typeof EXPENSE_STATUS)[number];
 
+/**
+ * Ramène un statut hérité à son écriture actuelle.
+ *
+ * Les notes créées par la version Streamlit portent des statuts **sans
+ * accents** — « Refusee », « Approuvee ». Le formulaire de validation les
+ * refusait à la volée : son schéma n'accepte que les quatre valeurs
+ * canoniques, si bien que « Mettre à jour » ne partait jamais, **sans le
+ * moindre message**. C'est ce qui rendait les anciennes notes impossibles à
+ * corriger, alors que les récentes fonctionnaient.
+ *
+ * Renvoie `null` pour un statut réellement inconnu, à charge de l'appelant de
+ * choisir un repli.
+ */
+export function normaliserStatut<T extends readonly string[]>(
+  valeur: string | null | undefined,
+  connus: T,
+): T[number] | null {
+  if (!valeur) return null;
+  const sansAccents = (texte: string) =>
+    texte
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .trim()
+      .toLowerCase();
+  const cible = sansAccents(valeur);
+  return connus.find((connu) => sansAccents(connu) === cible) ?? null;
+}
+
 export const INVOICE_STATUS = [
   'En attente',
   'En cours de traitement',

@@ -23,6 +23,8 @@ pytestmark = pytest.mark.unit
         ("En cours de traitement", "Validée"),
         ("En cours de traitement", "En attente"),
         ("Refusée", "En attente"),
+        ("Refusée", "En cours de traitement"),
+        ("Refusée", "Validée"),
     ],
 )
 def test_invoice_allowed_transitions(current: str, new: str) -> None:
@@ -35,7 +37,6 @@ def test_invoice_allowed_transitions(current: str, new: str) -> None:
         ("Validée", "En attente"),
         ("Validée", "Refusée"),
         ("Validée", "En cours de traitement"),
-        ("Refusée", "Validée"),
     ],
 )
 def test_invoice_forbidden_transitions(current: str, new: str) -> None:
@@ -63,6 +64,10 @@ def test_unknown_current_status_is_tolerated() -> None:
         ("En attente", "Refusée"),
         ("Approuvée", "En attente"),
         ("Refusée", "En attente"),
+        # Un refus se revoit : la comptabilite refuse, le benevole s'explique,
+        # et la note est approuvee. Passer par « En attente » etait le seul
+        # chemin, en deux gestes, sans que l'ecran le dise.
+        ("Refusée", "Approuvée"),
         # Porte de sortie pour les notes marquees « Remboursee » a tort,
         # avant que ce chemin ne soit ferme. Le CRUD la refuse des qu'un
         # versement est rattache (cf. crud/expense.validate_expense).
