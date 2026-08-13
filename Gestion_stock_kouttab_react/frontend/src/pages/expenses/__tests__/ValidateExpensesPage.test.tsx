@@ -89,6 +89,9 @@ vi.mock('@/api/endpoints/expenses', () => ({
   useValidateExpense: () => ({ mutate: vi.fn(), isPending: false }),
   useArchiveExpense: () => ({ mutate: vi.fn(), isPending: false }),
   useSupprimerDefinitivement: () => ({ mutate: supprimer, isPending: false }),
+  useEcarterJustificatif: () => ({ mutate: vi.fn(), isPending: false }),
+  useRestaurerJustificatif: () => ({ mutate: vi.fn(), isPending: false }),
+  useAjouterJustificatif: () => ({ mutate: vi.fn(), isPending: false }),
   useRestoreExpense: () => ({ mutate: vi.fn(), isPending: false }),
   expenseQueryKeys: { all: ['expenses'] },
 }));

@@ -63,6 +63,8 @@ def _serialize(expense: Expense) -> dict[str, Any]:
                 "taille_fichier": f.taille_fichier,
                 "type_fichier": f.type_fichier,
                 "date_upload": f.date_upload,
+                "ecarte_at": f.ecarte_at,
+                "motif_ecart": f.motif_ecart,
             }
             for f in expense.files
         ],
@@ -419,6 +421,82 @@ def restore_expense(db: Session, expense_id: int, *, role: str) -> Expense:
     db.commit()
     db.refresh(expense)
     return expense
+
+
+def ecarter_fichier(
+    db: Session, expense_id: int, file_id: int, *, user: Any, motif: str
+) -> ExpenseFile:
+    """Sort une piece du dossier sans la detruire.
+
+    Une piece illisible ou rattachee a la mauvaise note ne pouvait ni etre
+    retiree ni remplacee. L'ecarter la retire de ce que la comptabilite examine
+    et de ce qui part au circuit comptable, tout en la gardant en base : une
+    piece jointe a un dossier reste une trace, meme refusee.
+
+    Le motif est obligatoire — il est montre au deposant, qui doit savoir ce
+    qu'on lui reproche pour redeposer ce qu'il faut.
+    """
+    if user.role not in ("Compta", "Super Admin"):
+        raise AppException(
+            ErrorCode.FORBIDDEN, detail="Reserve a la comptabilite."
+        )
+    if not motif.strip():
+        raise AppException(
+            ErrorCode.VALIDATION_ERROR,
+            detail="Indiquez pourquoi cette piece est ecartee : le deposant le lira.",
+        )
+
+    fichier = _fichier_de_la_note(db, expense_id, file_id)
+    fichier.ecarte_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    fichier.ecarte_par = user.id
+    fichier.motif_ecart = motif.strip()
+
+    # Le deposant doit l'apprendre : c'est une demande d'action.
+    note = get_expense(db, expense_id, with_user=False)
+    if note is not None:
+        note.non_lu_demandeur = True
+
+    db.commit()
+    db.refresh(fichier)
+    return fichier
+
+
+def restaurer_fichier(db: Session, expense_id: int, file_id: int, *, role: str) -> ExpenseFile:
+    """Defait un ecart. C'est ce qui rend le geste sans danger."""
+    if role not in ("Compta", "Super Admin"):
+        raise AppException(ErrorCode.FORBIDDEN, detail="Reserve a la comptabilite.")
+
+    fichier = _fichier_de_la_note(db, expense_id, file_id)
+    fichier.ecarte_at = None
+    fichier.ecarte_par = None
+    fichier.motif_ecart = None
+    db.commit()
+    db.refresh(fichier)
+    return fichier
+
+
+def _fichier_de_la_note(db: Session, expense_id: int, file_id: int) -> ExpenseFile:
+    """Charge la piece EN VERIFIANT qu'elle appartient bien a cette note.
+
+    Sans ce controle, l'identifiant d'une piece d'une autre note passerait : les
+    deux sont des entiers qui se suivent.
+    """
+    fichier = db.get(ExpenseFile, file_id)
+    if fichier is None or fichier.id_note_de_frais != expense_id:
+        raise AppException(ErrorCode.NOT_FOUND, detail="Justificatif introuvable.")
+    return fichier
+
+
+def peut_deposer_une_piece(expense: Expense, *, user: Any) -> bool:
+    """Qui peut ajouter un justificatif a une note deja creee.
+
+    Le deposant tant que sa note n'est pas soldee — au-dela, le versement est
+    parti et son justificatif est emis. La comptabilite a tout moment : c'est
+    elle qui constate le manque.
+    """
+    if user.role in ("Compta", "Super Admin"):
+        return True
+    return expense.id_user == user.id and expense.status != "Remboursée"
 
 
 def list_files(db: Session, expense_id: int) -> list[ExpenseFile]:

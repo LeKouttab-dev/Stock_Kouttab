@@ -173,7 +173,9 @@ def prepare_expense_dispatch(
     # on retombe sur la date de la depense pour ne jamais produire un « NC ».
     date_value = expense.date_evenement or expense.date_depense
     attachments = _prepare_attachments(
-        files=list(expense.files),
+        # Une piece ecartee ne part pas au comptable : c'est justement lui
+        # qui l'a retiree du dossier.
+        files=[f for f in expense.files if f.ecarte_at is None],
         components=[
             expense.pole,
             expense.evenement or expense.categorie or expense.rattachement,

@@ -31,11 +31,13 @@ import {
 import {
   useAllExpenses,
   useArchiveExpense,
+  useRestaurerJustificatif,
   useRestoreExpense,
   useValidateExpense,
 } from '@/api/endpoints/expenses';
 import { ReimbursementModal } from './modals/ReimbursementModal';
 import { SuppressionDefinitiveModal } from './modals/SuppressionDefinitiveModal';
+import { EcartJustificatifModal } from './modals/EcartJustificatifModal';
 import {
   reimbursementDocumentPath,
   useRemboursementParNote,
@@ -388,6 +390,8 @@ function ValidateExpenseDetail({ expense, total }: DetailProps) {
   const { can } = useAuth();
   const peutSupprimer = can(ACTIONS.EXPENSES_DELETE);
   const [suppressionOuverte, setSuppressionOuverte] = useState(false);
+  const [pieceAEcarter, setPieceAEcarter] = useState<number | null>(null);
+  const restaurerPiece = useRestaurerJustificatif();
   const versement = useRemboursementParNote().get(expense.id);
   const statutCanonique = normaliserStatut(expense.status, EXPENSE_STATUS) ?? 'En attente';
   const statutInitial =
@@ -519,19 +523,57 @@ function ValidateExpenseDetail({ expense, total }: DetailProps) {
               // fichier réellement servi : annoncer `.pdf` pour télécharger un
               // PNG tromperait sur le contenu.
               const nomComptable = comptaNames[index] ?? f.nom_fichier;
+              const ecartee = Boolean(f.ecarte_at);
               return (
-                <li key={f.id}>
+                <li key={f.id} className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     onClick={() =>
                       download(`/expenses/${expense.id}/files/${f.id}`, nomComptable, f.id)
                     }
                     disabled={downloadingId === f.id}
-                    className="inline-flex items-center gap-1 text-primary hover:underline disabled:opacity-60"
+                    className={cn(
+                      'inline-flex items-center gap-1 text-primary hover:underline disabled:opacity-60',
+                      // Barrée, mais toujours téléchargeable : elle reste au
+                      // dossier, c'est tout l'objet de l'écart.
+                      ecartee && 'text-muted-foreground line-through',
+                    )}
                   >
                     <Download className="h-3.5 w-3.5" />
                     {nomComptable}
                   </button>
+
+                  {ecartee ? (
+                    <>
+                      <span className="text-xs text-muted-foreground">
+                        {fr.expenses.ecartee} — {f.motif_ecart}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          restaurerPiece.mutate(
+                            { expenseId: expense.id, fileId: f.id },
+                            { onSuccess: () => toast.success(fr.expenses.justificatifRetabli) },
+                          )
+                        }
+                      >
+                        <Undo2 className="h-3.5 w-3.5" />
+                        {fr.expenses.restaurer}
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setPieceAEcarter(f.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      {fr.expenses.ecarter}
+                    </Button>
+                  )}
                 </li>
               );
             })}
@@ -542,6 +584,12 @@ function ValidateExpenseDetail({ expense, total }: DetailProps) {
           <AlertDescription>{fr.expenses.aucunTicket}</AlertDescription>
         </Alert>
       )}
+
+      <EcartJustificatifModal
+        expenseId={expense.id}
+        fileId={pieceAEcarter}
+        onClose={() => setPieceAEcarter(null)}
+      />
 
       {/* Une note soldée ne se pilote plus par la liste des statuts : elle
           porte son versement, ou signale qu'il manque. */}

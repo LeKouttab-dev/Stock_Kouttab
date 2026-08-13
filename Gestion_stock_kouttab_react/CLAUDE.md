@@ -225,6 +225,8 @@ le démarrage en production. Les valeurs en clair héritées restent lisibles
 | Notes de frais — valider/refuser/rembourser | — | — | ✅ | ✅ |
 | Notes de frais — archiver / restaurer | — | — | ✅ | ✅ |
 | Notes de frais — supprimer définitivement | — | — | — | ✅ |
+| Justificatifs — écarter / rétablir | — | — | ✅ | ✅ |
+| Justificatifs — ajouter à une note existante | ✅ (la sienne) | ✅ | ✅ | ✅ |
 | Notes de frais — remboursement groupé + justificatif | — | — | ✅ | ✅ |
 | Remboursements — consulter les siens | ✅ | ✅ | ✅ | ✅ |
 | Justificatifs — demander, relancer, clore | — | — | ✅ | ✅ |
@@ -315,6 +317,10 @@ Préfixe : `/api/v1`. Auth : header `Authorization: Bearer <jwt>` (sauf `/auth/*
 - `GET /expenses` — toutes (Compta+) ; `?include_archived=true` pour l'historique
 - `PATCH /expenses/{id}/validate` — changer statut + commentaire compta (Compta+)
 - `GET /expenses/{id}/files` — liste fichiers
+- `POST /expenses/{id}/files` — **ajouter** une pièce à une note existante
+  (le déposant tant qu'elle n'est pas remboursée, la comptabilité à tout moment)
+- `DELETE /expenses/{id}/files/{file_id}` — **écarter** une pièce (Compta+,
+  motif obligatoire, montré au déposant) ; `POST .../restore` la rétablit
 - `GET /expenses/{id}/files/{file_id}` — download
 
 ### Invoices (Factures)
@@ -399,6 +405,25 @@ Toutes**, chacun portant son compte, et s'ouvre sur « À traiter ». Sans ces
 filtres, tout s'empilait dans la fiche de chaque bénévole : le travail du jour
 se noyait dans les mois précédents, et l'historique n'était consultable qu'en
 dépliant les personnes une par une.
+
+### Écarter un justificatif
+
+Une pièce illisible ou mal rattachée ne pouvait ni être retirée ni remplacée :
+`attach_file` n'était appelé qu'à la création, et l'écran conseillait même de
+« supprimer cette note et la recréer ».
+
+`FichiersNotesDeFrais.ecarte_at` / `ecarte_par` / `motif_ecart` (migration
+`f2b9d4e7a1c3`) : la pièce sort du dossier **et du circuit comptable**
+(`compta_dispatch` l'ignore), sans quitter la base. Réversible, comme
+l'archivage d'une note — une pièce jointe à un dossier reste une trace, même
+refusée.
+
+**Le motif est obligatoire** : il est montré au déposant, qui doit savoir ce
+qu'on lui reproche. Sans lui, il redépose la même pièce.
+
+Écarter et **ajouter** vont ensemble : livrer le premier sans le second aurait
+fait de cet écran un piège, la note se retrouvant sans justificatif et sans
+recours.
 
 ### Remboursements groupés
 

@@ -49,6 +49,9 @@ class ExpenseFileOut(BaseModel):
     taille_fichier: int | None = None
     type_fichier: str | None = None
     date_upload: datetime
+    # Ecartee par la comptabilite : la piece reste au dossier, hors examen.
+    ecarte_at: datetime | None = None
+    motif_ecart: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -88,5 +91,11 @@ class SuppressionDefinitiveIn(BaseModel):
     Obligatoire : la note effacee ne laisse rien derriere elle, ce motif est la
     seule trace qui subsistera dans les journaux.
     """
+
+    motif: str = Field(min_length=1, max_length=255)
+
+
+class EcartFichierIn(BaseModel):
+    """Motif d'un ecart. Montre au deposant : sans lui, il redepose la meme piece."""
 
     motif: str = Field(min_length=1, max_length=255)

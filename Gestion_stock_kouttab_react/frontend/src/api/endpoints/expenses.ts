@@ -60,6 +60,38 @@ async function updateExpense(params: { id: number; data: ExpenseUpdateRequest })
   return data;
 }
 
+/**
+ * Écarte un justificatif : il sort du dossier et du circuit comptable, sans
+ * quitter la base. Le motif est montré au déposant.
+ */
+async function ecarterJustificatif(params: {
+  expenseId: number;
+  fileId: number;
+  motif: string;
+}): Promise<void> {
+  await api.delete(`/expenses/${params.expenseId}/files/${params.fileId}`, {
+    data: { motif: params.motif },
+  });
+}
+
+async function restaurerJustificatif(params: {
+  expenseId: number;
+  fileId: number;
+}): Promise<void> {
+  await api.post(`/expenses/${params.expenseId}/files/${params.fileId}/restore`);
+}
+
+/** Ajoute une pièce à une note déjà créée — le pendant indispensable de l'écart. */
+async function ajouterJustificatif(params: {
+  expenseId: number;
+  files: File[];
+}): Promise<Expense> {
+  const formData = new FormData();
+  params.files.forEach((f) => formData.append('files', f));
+  const { data } = await api.post<Expense>(`/expenses/${params.expenseId}/files`, formData);
+  return data;
+}
+
 /** Archive la note : elle sort des listes courantes sans quitter la base. */
 async function archiveExpense(id: number): Promise<void> {
   await api.delete(`/expenses/${id}`);
@@ -130,6 +162,30 @@ export function useSupprimerDefinitivement() {
   const qc = useQueryClient();
   return useApiMutation({
     mutationFn: supprimerDefinitivement,
+    onSuccess: () => qc.invalidateQueries({ queryKey: expenseQueryKeys.all }),
+  });
+}
+
+export function useEcarterJustificatif() {
+  const qc = useQueryClient();
+  return useApiMutation({
+    mutationFn: ecarterJustificatif,
+    onSuccess: () => qc.invalidateQueries({ queryKey: expenseQueryKeys.all }),
+  });
+}
+
+export function useRestaurerJustificatif() {
+  const qc = useQueryClient();
+  return useApiMutation({
+    mutationFn: restaurerJustificatif,
+    onSuccess: () => qc.invalidateQueries({ queryKey: expenseQueryKeys.all }),
+  });
+}
+
+export function useAjouterJustificatif() {
+  const qc = useQueryClient();
+  return useApiMutation({
+    mutationFn: ajouterJustificatif,
     onSuccess: () => qc.invalidateQueries({ queryKey: expenseQueryKeys.all }),
   });
 }

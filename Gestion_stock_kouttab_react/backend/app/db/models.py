@@ -691,6 +691,16 @@ class ExpenseFile(Base):
     )
     date_upload: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
+    # ---- Ecart --------------------------------------------------------------
+    # Une piece illisible ou mal rattachee sort du dossier sans quitter la base.
+    # Le motif accompagne le geste : sans lui, le deposant ne sait pas ce qu'on
+    # lui reproche, et redepose la meme chose.
+    ecarte_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    ecarte_par: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("Admins.id", ondelete="SET NULL"), nullable=True
+    )
+    motif_ecart: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
     expense: Mapped["Expense"] = relationship("Expense", back_populates="files")
 
 

@@ -147,6 +147,19 @@ export const fr = {
     informationsRemboursement: 'Mes informations de remboursement',
     remboursementsTab: 'Remboursements',
     duNouveau: 'Du nouveau sur cette pièce',
+    ecarter: 'Écarter',
+    ecarterTitre: 'Écarter ce justificatif',
+    ecarterAide:
+      'La pièce sort du dossier et n’est plus transmise à la comptabilité. ' +
+      'Elle reste conservée et peut être rétablie.',
+    ecarterMotif: 'Pourquoi cette pièce est-elle écartée ?',
+    ecarterMotifAide: 'Le déposant lira ce motif — sans lui, il redéposera la même pièce.',
+    ecarterMotifPlaceholder: 'Ex. : montant illisible sur le ticket',
+    ecartee: 'Écartée',
+    justificatifEcarte: 'Justificatif écarté.',
+    justificatifRetabli: 'Justificatif rétabli.',
+    ajouterJustificatif: 'Ajouter un justificatif',
+    justificatifAjoute: 'Justificatif ajouté.',
     formatsAcceptes:
       'Photo (JPEG, PNG, HEIC, WEBP) ou PDF, 10 Mo par fichier. ' +
       'Tout justificatif est converti en PDF à l’enregistrement.',
@@ -214,7 +227,12 @@ export const fr = {
     filtreToutes: 'Toutes',
     aucuneDansFiltre: 'Aucune note dans cette sélection.',
     noteUpdated: 'Note de frais mise à jour.',
-    pourModifierTickets: 'Pour modifier les tickets, veuillez supprimer cette note et la recréer.',
+    pourModifierTickets:
+      'Les tickets déjà déposés ne se modifient pas ; vous pouvez en ajouter un ' +
+      'depuis la fiche de la note.',
+    pieceEcarteeAide:
+      'La comptabilité a écarté une pièce de cette note. Déposez-en une nouvelle ' +
+      'en tenant compte du motif indiqué.',
     commentaireUtilisateur: "Commentaires de l'utilisateur",
   },
   invoices: {

@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Download, Pencil, ReceiptText, ScanLine } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
+import { Download, Pencil, ReceiptText, ScanLine, Upload } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -27,7 +27,12 @@ import {
 } from '@/components/ui/select';
 import { useExpenseCategories, usePoles } from '@/api/endpoints/referentials';
 import { buildAttachmentFilename, deduplicateFilenames } from '@/lib/naming';
-import { useCreateExpense, useMyExpenses, useUpdateExpense } from '@/api/endpoints/expenses';
+import {
+  useAjouterJustificatif,
+  useCreateExpense,
+  useMyExpenses,
+  useUpdateExpense,
+} from '@/api/endpoints/expenses';
 import {
   reimbursementDocumentPath,
   useRemboursementParNote,
@@ -577,6 +582,12 @@ function MyExpensesList() {
                 );
               })()}
 
+              {/* Une pièce écartée est une demande d'action : on dit laquelle,
+                  pourquoi, et on donne de quoi y répondre. Sans ce bloc, la
+                  comptabilité retirait une pièce et le déposant ne pouvait rien
+                  faire — l'écran conseillait même de recréer la note. */}
+              <PiecesEcartees expense={exp} />
+
               {exp.status === 'En attente' && !isEditing && (
                 <Button size="sm" variant="outline" onClick={() => startEdit(exp)}>
                   <Pencil className="h-4 w-4" aria-hidden />
@@ -656,6 +667,74 @@ function MyExpensesList() {
         );
       })}
     </div>
+  );
+}
+
+
+/**
+ * Les pièces écartées d'une note, et de quoi en redéposer une.
+ *
+ * La comptabilité peut retirer un justificatif illisible ou mal rattaché. Sans
+ * ce bloc, le déposant voyait sa pièce disparaître de l'examen sans savoir
+ * pourquoi, et n'avait aucun moyen d'en fournir une autre — l'écran conseillait
+ * de supprimer la note et de la recréer.
+ */
+function PiecesEcartees({ expense }: { expense: Expense }) {
+  const ajouter = useAjouterJustificatif();
+  const toast = useToast();
+  const champ = useRef<HTMLInputElement>(null);
+
+  const ecartees = (expense.files ?? []).filter((f) => f.ecarte_at);
+  // Une note soldée ne se complète plus : le versement est parti.
+  const peutAjouter = expense.status !== 'Remboursée';
+  if (ecartees.length === 0) return null;
+
+  const onChoisir = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fichiers = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    if (fichiers.length === 0) return;
+    ajouter.mutate(
+      { expenseId: expense.id, files: fichiers },
+      { onSuccess: () => toast.success(fr.expenses.justificatifAjoute) },
+    );
+  };
+
+  return (
+    <Alert variant="warning">
+      <AlertDescription className="space-y-2">
+        <p>{fr.expenses.pieceEcarteeAide}</p>
+        <ul className="text-xs">
+          {ecartees.map((f) => (
+            <li key={f.id}>
+              <span className="line-through">{f.nom_fichier}</span> — {f.motif_ecart}
+            </li>
+          ))}
+        </ul>
+        {peutAjouter && (
+          <>
+            <input
+              ref={champ}
+              type="file"
+              multiple
+              accept=".png,.jpg,.jpeg,.pdf,.heic,.heif,.webp,image/*,application/pdf"
+              className="hidden"
+              onChange={onChoisir}
+              data-testid={`ajout-justificatif-${expense.id}`}
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => champ.current?.click()}
+              loading={ajouter.isPending}
+            >
+              <Upload className="mr-1 h-3.5 w-3.5" />
+              {fr.expenses.ajouterJustificatif}
+            </Button>
+          </>
+        )}
+      </AlertDescription>
+    </Alert>
   );
 }
 

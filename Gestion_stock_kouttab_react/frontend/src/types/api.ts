@@ -145,6 +145,9 @@ export interface StockModification {
 
 /* Expenses */
 export interface ExpenseFile {
+  /** Écartée par la comptabilité : hors examen et hors circuit, mais conservée. */
+  ecarte_at?: string | null;
+  motif_ecart?: string | null;
   id: number;
   id_note_de_frais: number;
   nom_fichier: string;

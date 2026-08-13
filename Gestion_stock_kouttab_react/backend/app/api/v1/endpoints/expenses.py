@@ -26,6 +26,7 @@ from app.db.models import Admin
 from app.db.session import SessionLocal, get_db
 from app.schemas.auth import MessageOut
 from app.schemas.expense import (
+    EcartFichierIn,
     ExpenseOut,
     ExpenseUpdate,
     ExpenseValidate,
@@ -448,9 +449,77 @@ def list_expense_files(
             "taille_fichier": f.taille_fichier,
             "type_fichier": f.type_fichier,
             "date_upload": f.date_upload,
+            "ecarte_at": f.ecarte_at,
+            "motif_ecart": f.motif_ecart,
         }
         for f in expense.files
     ]
+
+
+@router.post("/{expense_id}/files", response_model=ExpenseOut, status_code=201)
+async def add_expense_file(
+    expense_id: int,
+    files: list[UploadFile] = File(...),
+    db: Session = Depends(get_db),
+    current_user: Admin = Depends(get_current_user),
+) -> Any:
+    """Ajoute un justificatif a une note deja creee.
+
+    N'existait pas : `attach_file` n'etait appele qu'a la creation, et l'ecran
+    conseillait de « supprimer cette note et la recreer ». Ecarter la seule
+    piece d'une note l'aurait donc laissee vide, sans aucun recours — les deux
+    gestes n'ont de sens qu'ensemble.
+    """
+    expense = expense_crud.get_expense(db, expense_id)
+    if not expense:
+        raise AppException(ErrorCode.EXPENSE_NOT_FOUND)
+    if not expense_crud.peut_deposer_une_piece(expense, user=current_user):
+        raise AppException(
+            ErrorCode.FORBIDDEN,
+            detail="Cette note est soldee : son justificatif de remboursement est emis.",
+        )
+
+    for upload in files or []:
+        if not upload or not upload.filename:
+            continue
+        meta = await save_upload_file(upload, "expenses", convertir_en_pdf=True)
+        expense_crud.attach_file(
+            db,
+            expense_id=expense.id,
+            nom_fichier=str(meta["filename"]),
+            chemin_fichier=str(meta["path"]),
+            taille_fichier=int(meta["size"]),
+            type_fichier=str(meta["mime"]),
+            contenu=meta.get("contenu"),  # type: ignore[arg-type]
+        )
+
+    return _to_out(expense_crud.get_expense_dict(db, expense.id) or {}, requester=current_user)
+
+
+@router.delete("/{expense_id}/files/{file_id}", response_model=MessageOut)
+def ecarter_justificatif(
+    expense_id: int,
+    file_id: int,
+    payload: EcartFichierIn,
+    db: Session = Depends(get_db),
+    current_user: Admin = Depends(get_current_user),
+) -> Any:
+    """Ecarte une piece du dossier — reversible, comme l'archivage d'une note."""
+    expense_crud.ecarter_fichier(
+        db, expense_id, file_id, user=current_user, motif=payload.motif
+    )
+    return MessageOut(message="Justificatif ecarte.")
+
+
+@router.post("/{expense_id}/files/{file_id}/restore", response_model=MessageOut)
+def restaurer_justificatif(
+    expense_id: int,
+    file_id: int,
+    db: Session = Depends(get_db),
+    current_user: Admin = Depends(get_current_user),
+) -> Any:
+    expense_crud.restaurer_fichier(db, expense_id, file_id, role=current_user.role)
+    return MessageOut(message="Justificatif retabli.")
 
 
 @router.get("/{expense_id}/files/{file_id}")
