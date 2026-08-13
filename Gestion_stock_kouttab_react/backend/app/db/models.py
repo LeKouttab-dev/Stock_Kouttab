@@ -620,6 +620,12 @@ class Expense(Base):
     )
     validated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
+    # Une decision de la comptabilite — statut ou commentaire — allume ce
+    # drapeau ; ouvrir sa liste l'eteint. Meme patron que
+    # `Conversation.non_lu_demandeur`, et pour la meme raison : c'est la
+    # question que pose la pastille a chaque chargement de page.
+    non_lu_demandeur: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
     # ---- Archivage --------------------------------------------------------
     # La note sort des listes courantes sans quitter la base.
     #
@@ -740,6 +746,16 @@ class Invoice(Base):
         Integer, ForeignKey("Admins.id", ondelete="SET NULL"), nullable=True
     )
     validated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    # Motif du comptable. Il n'existait pas : une facture refusee arrivait sans
+    # la moindre explication, et le deposant n'avait aucun moyen de savoir quoi
+    # corriger. Les notes de frais le portaient depuis toujours.
+    commentaires_compta: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Cf. `Expense.non_lu_demandeur` : allume par une decision de la
+    # comptabilite, eteint quand le deposant ouvre sa liste.
+    non_lu_demandeur: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()

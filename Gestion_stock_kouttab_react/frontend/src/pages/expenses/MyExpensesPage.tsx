@@ -509,12 +509,23 @@ function MyExpensesList() {
             <CardContent className="p-4 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <p className="font-semibold">
+                  <p className="flex items-center gap-2 font-semibold">
+                    {/* Un point, et non un compteur : ce qui compte est qu'il y
+                        ait du nouveau sur cette note, pas combien de fois. Il
+                        s'éteint dès que la liste a été ouverte. */}
+                    {exp.non_lu_demandeur && (
+                      <span
+                        className="h-2 w-2 flex-shrink-0 rounded-full bg-terracotta"
+                        aria-label={fr.expenses.duNouveau}
+                      />
+                    )}
                     {/* Les notes déposées avant la refonte n'ont ni événement ni
                         fournisseur : on retombe sur leur rattachement libre
                         plutôt que d'afficher une ligne amputée. */}
-                    {formatDate(exp.date_depense)} —{' '}
-                    {exp.evenement || exp.fournisseur || exp.rattachement}
+                    <span>
+                      {formatDate(exp.date_depense)} —{' '}
+                      {exp.evenement || exp.fournisseur || exp.rattachement}
+                    </span>
                   </p>
                   <p className="text-sm text-muted-foreground">
                     Montant : {formatCurrency(exp.montant)} · Total demandé :{' '}
@@ -525,9 +536,9 @@ function MyExpensesList() {
               </div>
 
               {exp.commentaires_compta && (
-                <Alert variant="info">
+                <Alert variant={exp.non_lu_demandeur ? 'warning' : 'info'}>
                   <AlertDescription>
-                    Commentaire de la comptabilité : {exp.commentaires_compta}
+                    {fr.expenses.motDeLaCompta} : {exp.commentaires_compta}
                   </AlertDescription>
                 </Alert>
               )}

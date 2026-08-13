@@ -53,9 +53,11 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       label: fr.nav.expenses,
       icon: ReceiptText,
       visible: can(ACTIONS.EXPENSES_SUBMIT),
-      // Déposer et valider vivent désormais sous la même entrée : la pastille
-      // compte ce que la comptabilité a à traiter.
-      badge: aTraiter?.notes_a_valider,
+      // Deux publics, une pastille : ce que la comptabilité doit traiter, et
+      // ce sur quoi elle s'est prononcée pour moi. L'un des deux vaut
+      // toujours 0 selon le rôle, sauf pour la comptabilité elle-même — qui
+      // dépose aussi ses propres notes.
+      badge: (aTraiter?.notes_a_valider ?? 0) + (aTraiter?.notes_suivies ?? 0),
     },
     {
       to: '/invoices/upload',
@@ -71,7 +73,10 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       label: fr.nav.invoices,
       icon: FileText,
       visible: can(ACTIONS.INVOICES_SUBMIT),
-      badge: (aTraiter?.factures_a_traiter ?? 0) + (aTraiter?.tickets_ouverts ?? 0),
+      badge:
+        (aTraiter?.factures_a_traiter ?? 0) +
+        (aTraiter?.tickets_ouverts ?? 0) +
+        (aTraiter?.factures_suivies ?? 0),
     },
     {
       to: '/admin',

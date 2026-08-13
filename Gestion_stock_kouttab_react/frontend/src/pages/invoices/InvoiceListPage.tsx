@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight, ClipboardList, Download, Search, Send } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import {
@@ -132,6 +134,12 @@ export function InvoiceListPage() {
                       ) : (
                         <ChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
                       )}
+                      {inv.non_lu_demandeur && (
+                        <span
+                          className="h-2 w-2 flex-shrink-0 rounded-full bg-terracotta"
+                          aria-label={fr.expenses.duNouveau}
+                        />
+                      )}
                       <span className="truncate font-medium">
                         Facture #{inv.id} — {inv.files?.[0]?.nom_fichier ?? '—'} (
                         {formatDate(inv.date_depot)})
@@ -174,10 +182,11 @@ function InvoiceDetail({ invoice }: { invoice: Invoice }) {
     );
   }, [invoice]);
   const [status, setStatus] = useState<InvoiceStatus>(invoice.status);
+  const [motif, setMotif] = useState(invoice.commentaires_compta ?? '');
 
   const onUpdate = () => {
     update.mutate(
-      { id: invoice.id, status },
+      { id: invoice.id, status, commentaires_compta: motif },
       { onSuccess: () => toast.success('Statut mis à jour') },
     );
   };
@@ -228,8 +237,18 @@ function InvoiceDetail({ invoice }: { invoice: Invoice }) {
 
       {invoice.commentaire && (
         <p>
-          <strong>Commentaire :</strong> {invoice.commentaire}
+          <strong>Commentaire du déposant :</strong> {invoice.commentaire}
         </p>
+      )}
+
+      {/* Le motif du comptable. Il n'existait nulle part : une facture refusée
+          arrivait sans explication, et le déposant ne savait pas quoi corriger. */}
+      {invoice.commentaires_compta && (
+        <Alert variant={invoice.non_lu_demandeur ? 'warning' : 'info'}>
+          <AlertDescription>
+            {fr.expenses.motDeLaCompta} : {invoice.commentaires_compta}
+          </AlertDescription>
+        </Alert>
       )}
 
       {invoice.files && invoice.files.length > 0 && (
@@ -259,7 +278,17 @@ function InvoiceDetail({ invoice }: { invoice: Invoice }) {
       )}
 
       {canChange && (
-        <div className="flex flex-wrap items-end gap-2 rounded-md border bg-background p-3">
+        <div className="space-y-2 rounded-md border bg-background p-3">
+          <div>
+            <Label>{fr.expenses.commentaireCompta}</Label>
+            <Textarea
+              rows={2}
+              value={motif}
+              onChange={(e) => setMotif(e.target.value)}
+              placeholder={fr.invoices.motifPlaceholder}
+            />
+          </div>
+          <div className="flex flex-wrap items-end gap-2">
           <div className="flex-1 min-w-[200px]">
             <Label>{fr.expenses.changerStatut}</Label>
             <Select value={status} onValueChange={(v) => setStatus(v as InvoiceStatus)}>
@@ -278,6 +307,7 @@ function InvoiceDetail({ invoice }: { invoice: Invoice }) {
           <Button onClick={onUpdate} loading={update.isPending}>
             {fr.common.update}
           </Button>
+          </div>
         </div>
       )}
 

@@ -156,6 +156,8 @@ export interface Expense {
   id_user: number;
   user_full_name: string | null;
   user_email?: string | null;
+  /** La comptabilité s'est prononcée et je ne l'ai pas encore vu. */
+  non_lu_demandeur?: boolean;
   /** Renseigné si la note a été rangée par la comptabilité. Réversible. */
   archived_at?: string | null;
   archived_by_name?: string | null;
@@ -232,6 +234,10 @@ export interface Invoice {
   id_user: number;
   user_full_name: string;
   commentaire?: string | null;
+  /** Motif du comptable, visible par le déposant — surtout utile en cas de refus. */
+  commentaires_compta?: string | null;
+  /** La comptabilité s'est prononcée et je ne l'ai pas encore vu. */
+  non_lu_demandeur?: boolean;
   status: InvoiceStatus;
   date_depot: string;
   files: InvoiceFile[];
@@ -497,6 +503,9 @@ export interface PendingSummary {
   justificatifs_demandes: number;
   /** Tickets ouverts toutes personnes confondues (comptabilité). */
   tickets_ouverts: number;
+  /** Mes pièces sur lesquelles la comptabilité s'est prononcée sans que je l'aie vu. */
+  notes_suivies: number;
+  factures_suivies: number;
   /** Fils de discussion qui attendent une réponse de l'équipe. */
   conversations_a_traiter: number;
   /** Mes fils où une réponse est arrivée que je n'ai pas encore ouverte. */

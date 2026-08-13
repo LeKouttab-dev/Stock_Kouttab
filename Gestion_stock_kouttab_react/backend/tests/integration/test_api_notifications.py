@@ -85,6 +85,9 @@ def test_un_benevole_n_a_rien_a_traiter(
         # Il n'a ouvert aucun fil, et n'apprend rien de ceux des autres.
         "conversations_a_traiter": 0,
         "conversations_non_lues": 0,
+        # Aucune de ses pieces n'a bouge.
+        "notes_suivies": 0,
+        "factures_suivies": 0,
     }
 
 

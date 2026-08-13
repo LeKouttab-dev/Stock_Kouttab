@@ -323,7 +323,8 @@ Préfixe : `/api/v1`. Auth : header `Authorization: Bearer <jwt>` (sauf `/auth/*
   `date_evenement`, et **exactement un** de `id_event` / `evenement_libre`.
   Optionnels : `fournisseur`, `montant`, `commentaire`.
 - `GET /invoices` — toutes (filtres statut, date, recherche)
-- `PATCH /invoices/{id}/status` — changer (Compta+), transitions contrôlées
+- `PATCH /invoices/{id}/status` — changer (Compta+), transitions contrôlées.
+  Accepte `commentaires_compta` : un refus arrivait sans le moindre motif.
 - `GET /invoices/{id}/files/{file_id}` — download
 - `POST /invoices/{id}/resend-compta-email` — relancer l'envoi (Compta+)
 
@@ -503,6 +504,24 @@ après coup ne serait jamais lue : le fil est rangé, plus personne ne le regard
 
 Pas de temps réel : le fil se recharge à chaque envoi. Une question de bénévole
 se traite dans la journée, pas à la seconde.
+
+### Suivi du déposant
+
+`Expense.non_lu_demandeur` et `Invoice.non_lu_demandeur` (migration
+`e1a8c3d6f0b2`) reprennent le patron de `Conversation.non_lu_demandeur` :
+dénormalisés, allumés par **toute décision de la comptabilité — statut ou
+commentaire** —, éteints quand le déposant ouvre sa liste (`crud.*.marquer_lues`,
+appelé par l'endpoint qui sert un écran, jamais par la lecture elle-même).
+
+Le commentaire n'allumait rien : il fallait ouvrir « Mes demandes » et repérer
+soi-même l'encart. Or c'est souvent lui qui porte la demande de correction.
+
+Les courriels de statut passent désormais par **`outbox`**, comme les envois
+comptables. Ils partaient en `_send` best-effort : un SMTP coupé les faisait
+disparaître sans trace, alors que c'est le seul avis que reçoit le déposant.
+
+Ils ne mentent plus non plus : un commentaire seul ne s'annonce plus
+« votre note a été approuvée » avec un objet rejouant le statut inchangé.
 
 ### Notifications
 - `GET /notifications/summary` — dossiers en attente pour l'utilisateur

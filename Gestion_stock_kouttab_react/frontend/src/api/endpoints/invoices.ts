@@ -68,9 +68,12 @@ async function resendComptaEmail(invoiceId: number): Promise<{ message: string }
 async function updateInvoiceStatus(params: {
   id: number;
   status: InvoiceStatus;
+  /** Motif du comptable : un refus arrivait sans la moindre explication. */
+  commentaires_compta?: string;
 }): Promise<Invoice> {
   const { data } = await api.patch<Invoice>(`/invoices/${params.id}/status`, {
     status: params.status,
+    commentaires_compta: params.commentaires_compta,
   });
   return data;
 }

@@ -116,6 +116,21 @@ def pending_summary(
             if portee
             else 0
         ),
+        # Mes pieces qui ont bouge sans que je l'aie vu. Chacun pour soi, et
+        # visible de tous : c'est la contrepartie du courriel de statut, qui
+        # peut ne jamais arriver.
+        notes_suivies=_compter(
+            db,
+            Expense,
+            (Expense.id_user == current_user.id)
+            & Expense.non_lu_demandeur.is_(True)
+            & Expense.archived_at.is_(None),
+        ),
+        factures_suivies=_compter(
+            db,
+            Invoice,
+            (Invoice.id_user == current_user.id) & Invoice.non_lu_demandeur.is_(True),
+        ),
         # Mes propres fils, chacun pour soi : visible de tous.
         conversations_non_lues=_compter(
             db,

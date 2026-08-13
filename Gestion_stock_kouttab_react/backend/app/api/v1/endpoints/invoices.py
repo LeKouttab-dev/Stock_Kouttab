@@ -27,12 +27,32 @@ from app.db.models import Admin
 from app.db.session import SessionLocal, get_db
 from app.schemas.auth import MessageOut
 from app.schemas.invoice import InvoiceOut, InvoiceStatusUpdate
-from app.services import compta_dispatch, outbox
+from app.services import compta_dispatch, email_layout, outbox
 from app.services import email as email_service
 from app.services.files import contenu_du_fichier, delete_file, save_upload_file
 
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
+
+
+# Ce que le statut signifie, et ce qu'il reste a faire. Le courriel de facture
+# se contentait d'annoncer « nouveau statut : Refusee » : le deposant apprenait
+# le refus sans savoir ni pourquoi, ni s'il devait redeposer quelque chose.
+_INTRO_STATUT_FACTURE: dict[str, str] = {
+    "En attente": "Votre facture est en attente de traitement par la comptabilite.",
+    "En cours de traitement": "Votre facture est prise en charge par la comptabilite.",
+    "Validée": "Votre facture a ete validee par la comptabilite.",
+    "Refusée": "Votre facture n'a pas ete retenue par la comptabilite.",
+}
+
+_SUITE_STATUT_FACTURE: dict[str, str] = {
+    "En cours de traitement": "Aucune action de votre part n'est necessaire pour l'instant.",
+    "Validée": "Elle est comptabilisee ; rien de plus n'est attendu de vous.",
+    "Refusée": (
+        "Le motif figure ci-dessus. Vous pouvez deposer une nouvelle piece corrigee "
+        "depuis « Depot de factures »."
+    ),
+}
 
 _ACCOUNTANT_ROLES = ("Compta", "Super Admin")
 
@@ -217,26 +237,61 @@ def update_invoice_status(
     db: Session = Depends(get_db),
     current_user: Admin = Depends(get_current_user),
 ) -> Any:
+    avant = invoice_crud.get_invoice(db, invoice_id)
+    ancien_statut = avant.status if avant else None
+
     invoice = invoice_crud.update_status(
-        db, invoice_id, payload.status, validated_by=current_user.id
+        db,
+        invoice_id,
+        payload.status,
+        validated_by=current_user.id,
+        comment=payload.commentaires_compta,
     )
 
-    # Le deposant est prevenu du changement de statut, comme sur les notes de
-    # frais. Sans cet envoi, il devait rouvrir l'application pour decouvrir que
-    # sa facture avait ete validee ou refusee.
+    # Le deposant est prevenu, comme sur les notes de frais. Le corps etait
+    # ecrit en dur, en texte brut : ni salutation, ni fournisseur, ni montant,
+    # ni ce qu'il reste a faire. Il passe desormais par le meme gabarit, et par
+    # la file — un refus qui n'arrive pas laisse le deposant sans rien.
     destinataire = getattr(invoice.user, "email", None) if invoice.user else None
-    if destinataire:
-        background.add_task(
-            email_service.send_status_change,
-            auteur_email=current_user.email,
-            recipient=destinataire,
-            subject=f"Mise a jour de votre facture #{invoice.id}",
-            body=(
-                f"Bonjour,\n\nVotre facture #{invoice.id} a ete mise a jour.\n"
-                f"Nouveau statut : {payload.status}\n\n"
-                "Cordialement,\nLe Kouttab."
+    if destinataire and email_service.doit_notifier_du_statut(
+        destinataire, current_user.email
+    ):
+        if payload.status != ancien_statut:
+            sujet = f"Votre facture #{invoice.id} — {payload.status}"
+            introduction = _INTRO_STATUT_FACTURE.get(
+                payload.status, f"Votre facture #{invoice.id} a ete mise a jour."
+            )
+        else:
+            sujet = f"Votre facture #{invoice.id} — message de la comptabilite"
+            introduction = (
+                "La comptabilite a laisse un commentaire sur votre facture. "
+                "Son statut n'a pas change."
+            )
+
+        envoi = outbox.enqueue(
+            db,
+            kind="statut_facture",
+            entity_type="invoice",
+            entity_id=invoice.id,
+            recipients=[destinataire],
+            subject=sujet,
+            body=email_layout.composer(
+                prenom=getattr(invoice.user, "prenom", None),
+                introduction=introduction,
+                blocs=[
+                    ("Facture", f"#{invoice.id}"),
+                    ("Fournisseur", invoice.fournisseur),
+                    ("Rattachement", invoice.evenement or invoice.categorie),
+                    ("Montant", invoice.montant),
+                    ("Statut", payload.status),
+                    ("Commentaire", payload.commentaires_compta),
+                ],
+                conclusion=_SUITE_STATUT_FACTURE.get(payload.status),
             ),
+            triggered_by=current_user.id,
         )
+        background.add_task(outbox.try_send_now, envoi.id)
+
     return InvoiceOut(**_serialize_invoice(invoice))
 
 

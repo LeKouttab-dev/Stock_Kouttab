@@ -6,7 +6,7 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import or_, select
+from sqlalchemy import or_, select, update
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.errors import ErrorCode
@@ -28,6 +28,8 @@ def serialize_invoice(invoice: Invoice) -> dict[str, Any]:
         "commentaire": invoice.commentaire,
         "date_depot": invoice.date_depot,
         "status": invoice.status,
+        "commentaires_compta": invoice.commentaires_compta,
+        "non_lu_demandeur": invoice.non_lu_demandeur,
         "created_at": invoice.created_at,
         "id_pole": invoice.id_pole,
         "pole": invoice.pole,
@@ -53,6 +55,16 @@ def serialize_invoice(invoice: Invoice) -> dict[str, Any]:
             for f in invoice.files
         ],
     }
+
+
+def marquer_lues(db: Session, user_id: int) -> None:
+    """Eteint les pastilles du deposant. Cf. `crud.expense.marquer_lues`."""
+    db.execute(
+        update(Invoice)
+        .where(Invoice.id_user == user_id, Invoice.non_lu_demandeur.is_(True))
+        .values(non_lu_demandeur=False)
+    )
+    db.commit()
 
 
 def list_invoices_for_user(db: Session, user_id: int) -> list[dict[str, Any]]:
@@ -171,15 +183,28 @@ def update_status(
     new_status: str,
     *,
     validated_by: int | None = None,
+    comment: str | None = None,
 ) -> Invoice:
     invoice = get_invoice(db, invoice_id)
     if not invoice:
         raise AppException(ErrorCode.INVOICE_NOT_FOUND)
     check_invoice_transition(invoice.status, new_status)
+
+    # Comme pour les notes : un commentaire seul est souvent la demande de
+    # correction, et doit prevenir le deposant.
+    a_bouge = new_status != invoice.status or (
+        comment is not None and comment != (invoice.commentaires_compta or "")
+    )
+
     if new_status != invoice.status:
         invoice.validated_by = validated_by
         invoice.validated_at = datetime.now(timezone.utc).replace(tzinfo=None)
     invoice.status = new_status
+    if comment is not None:
+        invoice.commentaires_compta = comment
+    if a_bouge:
+        invoice.non_lu_demandeur = True
+
     db.commit()
     db.refresh(invoice)
     return invoice

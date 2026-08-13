@@ -6,7 +6,7 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.errors import ErrorCode
@@ -44,6 +44,7 @@ def _serialize(expense: Expense) -> dict[str, Any]:
         "validated_by": expense.validated_by,
         "validated_at": expense.validated_at,
         "date_soumission": expense.date_soumission,
+        "non_lu_demandeur": expense.non_lu_demandeur,
         "archived_at": expense.archived_at,
         "archived_by_name": expense.archiviste.full_name if expense.archiviste else None,
         "user_full_name": user.full_name if user else None,
@@ -81,6 +82,21 @@ def list_expenses_for_user(db: Session, user_id: int) -> list[dict[str, Any]]:
         .order_by(Expense.date_soumission.desc())
     )
     return [_serialize(e) for e in db.execute(stmt).scalars().all()]
+
+
+def marquer_lues(db: Session, user_id: int) -> None:
+    """Eteint les pastilles du deposant : il vient de voir sa liste.
+
+    Separe de la lecture : `list_expenses_for_user` sert aussi a construire des
+    courriels et des exports, ou eteindre un signal n'aurait aucun sens. Seul
+    l'endpoint qui repond a un ecran appelle cette fonction.
+    """
+    db.execute(
+        update(Expense)
+        .where(Expense.id_user == user_id, Expense.non_lu_demandeur.is_(True))
+        .values(non_lu_demandeur=False)
+    )
+    db.commit()
 
 
 def list_all_expenses(db: Session, *, include_archived: bool = False) -> list[dict[str, Any]]:
@@ -282,11 +298,21 @@ def validate_expense(
         )
 
     check_expense_transition(expense.status, new_status)
+
+    # Le deposant doit savoir qu'il s'est passe quelque chose, y compris quand
+    # SEUL le commentaire change : c'est souvent lui qui porte la demande de
+    # correction, et il n'allumait rien.
+    a_bouge = new_status != expense.status or (comment or "") != (
+        expense.commentaires_compta or ""
+    )
+
     if new_status != expense.status:
         expense.validated_by = validated_by
         expense.validated_at = datetime.now(timezone.utc).replace(tzinfo=None)
     expense.status = new_status
     expense.commentaires_compta = comment
+    if a_bouge:
+        expense.non_lu_demandeur = True
     db.commit()
     db.refresh(expense)
     return expense

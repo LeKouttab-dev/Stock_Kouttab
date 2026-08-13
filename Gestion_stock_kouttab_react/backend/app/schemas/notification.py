@@ -22,6 +22,10 @@ class PendingSummaryOut(BaseModel):
     justificatifs_demandes: int = 0
     # Tickets ouverts, toutes personnes confondues (comptabilite).
     tickets_ouverts: int = 0
+    # Mes pieces sur lesquelles la comptabilite s'est prononcee sans que je
+    # l'aie vu : chacun pour soi, visible de tous.
+    notes_suivies: int = 0
+    factures_suivies: int = 0
     # Fils de discussion qui attendent une reponse de l'equipe.
     conversations_a_traiter: int = 0
     # Mes fils ou une reponse est arrivee que je n'ai pas encore ouverte.
@@ -37,4 +41,6 @@ class PendingSummaryOut(BaseModel):
             + self.justificatifs_demandes
             + self.conversations_a_traiter
             + self.conversations_non_lues
+            + self.notes_suivies
+            + self.factures_suivies
         )

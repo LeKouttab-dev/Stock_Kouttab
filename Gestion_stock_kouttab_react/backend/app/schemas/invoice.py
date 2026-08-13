@@ -18,6 +18,8 @@ class InvoiceIn(BaseModel):
 
 
 class InvoiceStatusUpdate(BaseModel):
+    # Motif du comptable : une facture refusee arrivait sans explication.
+    commentaires_compta: str | None = None
     status: INVOICE_STATUS
 
 
@@ -35,6 +37,8 @@ class InvoiceOut(BaseModel):
     id: int
     id_user: int
     commentaire: str | None = None
+    commentaires_compta: str | None = None
+    non_lu_demandeur: bool = False
     date_depot: date
     status: INVOICE_STATUS
     created_at: datetime

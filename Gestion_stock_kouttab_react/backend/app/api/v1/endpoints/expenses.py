@@ -123,6 +123,10 @@ def list_my_expenses(
     db: Session = Depends(get_db), current_user: Admin = Depends(get_current_user)
 ) -> Any:
     rows = expense_crud.list_expenses_for_user(db, current_user.id)
+    # Ouvrir sa liste vaut lecture : la pastille s'eteint ici, APRES que les
+    # lignes ont ete serialisees — sinon l'ecran qui vient de l'allumer ne la
+    # montrerait jamais.
+    expense_crud.marquer_lues(db, current_user.id)
     return [_to_out(r, requester=current_user) for r in rows]
 
 
@@ -309,6 +313,11 @@ def validate_expense(
     db: Session = Depends(get_db),
     current_user: Admin = Depends(get_current_user),
 ) -> Any:
+    # Le statut d'avant : sans lui, impossible de savoir si l'on annonce un
+    # changement ou un simple commentaire.
+    avant = expense_crud.get_expense(db, expense_id, with_user=False)
+    ancien_statut = avant.status if avant else None
+
     expense = expense_crud.validate_expense(
         db,
         expense_id,
@@ -316,31 +325,58 @@ def validate_expense(
         comment=payload.commentaires_compta,
         validated_by=current_user.id,
     )
-    out = expense_crud.get_expense_dict(db, expense.id)
-    if out and out.get("user_email"):
-        background.add_task(
-            email_service.send_status_change,
-            auteur_email=current_user.email,
-            recipient=out["user_email"],
-            subject=f"Votre note de frais #{expense.id} — {payload.status}",
+    out = expense_crud.get_expense_dict(db, expense.id) or {}
+
+    destinataire = out.get("user_email")
+    if destinataire and email_service.doit_notifier_du_statut(
+        destinataire, current_user.email
+    ):
+        # Le courriel annoncait « votre note a ete approuvee » meme quand SEUL
+        # le commentaire changeait, avec un objet rejouant le statut inchange.
+        # Un message qui se trompe sur ce qu'il annonce finit par etre ignore,
+        # y compris les fois ou il dit vrai.
+        if payload.status != ancien_statut:
+            sujet = f"Votre note de frais #{expense.id} — {payload.status}"
+            introduction = _INTRO_STATUT.get(
+                payload.status, f"Votre note de frais #{expense.id} a ete mise a jour."
+            )
+            conclusion = _SUITE_STATUT.get(payload.status)
+        else:
+            sujet = f"Votre note de frais #{expense.id} — message de la comptabilite"
+            introduction = (
+                "La comptabilite a laisse un commentaire sur votre note de frais. "
+                "Son statut n'a pas change."
+            )
+            conclusion = "Retrouvez votre note dans l'application, onglet « Mes demandes »."
+
+        # Par la file, et non plus en envoi tolerant : c'est le seul avis que
+        # recoit le deposant, et un echec SMTP le faisait disparaitre sans
+        # laisser de trace nulle part.
+        envoi = outbox.enqueue(
+            db,
+            kind="statut_note",
+            entity_type="expense",
+            entity_id=expense.id,
+            recipients=[destinataire],
+            subject=sujet,
             body=email_layout.composer(
                 prenom=out.get("user_prenom"),
-                introduction=_INTRO_STATUT.get(
-                    payload.status,
-                    f"Votre note de frais #{expense.id} a ete mise a jour.",
-                ),
+                introduction=introduction,
                 blocs=[
                     ("Note de frais", f"#{expense.id}"),
                     ("Date de depense", expense.date_depense),
                     ("Fournisseur", expense.fournisseur),
                     ("Montant", expense.montant),
-                    ("Nouveau statut", payload.status),
+                    ("Statut", payload.status),
                     ("Commentaire", payload.commentaires_compta),
                 ],
-                conclusion=_SUITE_STATUT.get(payload.status),
+                conclusion=conclusion,
             ),
+            triggered_by=current_user.id,
         )
-    return _to_out(out or {}, requester=current_user)
+        background.add_task(outbox.try_send_now, envoi.id)
+
+    return _to_out(out, requester=current_user)
 
 
 # ---- Archivage --------------------------------------------------------------
