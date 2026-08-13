@@ -39,6 +39,8 @@ class InvoiceOut(BaseModel):
     commentaire: str | None = None
     commentaires_compta: str | None = None
     non_lu_demandeur: bool = False
+    archived_at: datetime | None = None
+    archived_by_name: str | None = None
     date_depot: date
     status: INVOICE_STATUS
     created_at: datetime

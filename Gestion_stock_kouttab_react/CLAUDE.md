@@ -237,7 +237,8 @@ le démarrage en production. Les valeurs en clair héritées restent lisibles
 | Contact — ouvrir un fil, répondre au sien | ✅ | ✅ | ✅ | ✅ |
 | Contact — boîte de l'équipe, statuts | — | — | ✅ (compta) | ✅ (les deux) |
 | Factures — déposer | ✅ | ✅ | ✅ | ✅ |
-| Factures — changer statut | — | — | ✅ | ✅ |
+| Factures — changer statut + motif | — | — | ✅ | ✅ |
+| Factures — archiver / restaurer | ✅ (les siennes, « En attente ») | — | ✅ | ✅ |
 | Admin — valider comptes pending | — | — | — | ✅ |
 | Admin — gérer utilisateurs/rôles | — | — | — | ✅ |
 | Admin — invitations email | — | — | — | ✅ |
@@ -328,9 +329,14 @@ Préfixe : `/api/v1`. Auth : header `Authorization: Bearer <jwt>` (sauf `/auth/*
 - `POST /invoices` — déposer (multipart). Champs obligatoires : `id_pole`,
   `date_evenement`, et **exactement un** de `id_event` / `evenement_libre`.
   Optionnels : `fournisseur`, `montant`, `commentaire`.
-- `GET /invoices` — toutes (filtres statut, date, recherche)
+- `GET /invoices` — toutes (filtres statut, date, recherche) ;
+  `?include_archived=true` pour l'historique. **Les filtres s'appliquent aussi
+  au déposant** : ils étaient ignorés pour lui, si bien que le menu déroulant
+  de son écran ne faisait rien.
 - `PATCH /invoices/{id}/status` — changer (Compta+), transitions contrôlées.
   Accepte `commentaires_compta` : un refus arrivait sans le moindre motif.
+- `DELETE /invoices/{id}` — **archiver**, non supprimer ; `POST /{id}/restore`
+  la rétablit (Compta+). Le déposant n'archive que ce qui est « En attente ».
 - `GET /invoices/{id}/files/{file_id}` — download
 - `POST /invoices/{id}/resend-compta-email` — relancer l'envoi (Compta+)
 

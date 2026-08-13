@@ -280,6 +280,12 @@ export const fr = {
     enAttente: 'En attente',
     enCours: 'En cours',
     validees: 'Validées',
+    refusees: 'Refusées',
+    archiverAide:
+      'Range la facture hors des listes courantes. Elle reste conservée avec ses ' +
+      'pièces, et peut être restaurée.',
+    factureArchivee: 'Facture archivée.',
+    factureRestauree: 'Facture restaurée.',
     motifPlaceholder: 'Motif visible par le déposant, utile surtout en cas de refus',
     deposeePar: 'Déposée par',
     dateDepot: 'Date de dépôt',

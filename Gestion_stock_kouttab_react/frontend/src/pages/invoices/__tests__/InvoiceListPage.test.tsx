@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { renderWithProviders } from '@/test/test-utils';
@@ -13,6 +13,8 @@ import type { Invoice } from '@/types/api';
  * elles venaient.
  */
 
+const archiver = vi.fn();
+
 const factures: Invoice[] = [
   {
     id: 1,
@@ -24,11 +26,23 @@ const factures: Invoice[] = [
     pole: 'Frais généraux',
     categorie: 'Courses',
   } as Invoice,
+  {
+    id: 2,
+    id_user: 7,
+    user_full_name: 'Omar Benfdila',
+    status: 'Validée',
+    date_depot: '2026-07-02',
+    files: [{ id: 2, nom_fichier: 'ancienne.pdf' }],
+    archived_at: '2026-08-01T10:00:00',
+    archived_by_name: 'Compta',
+  } as Invoice,
 ];
 
 vi.mock('@/api/endpoints/invoices', () => ({
   useInvoices: () => ({ data: factures, isLoading: false }),
   useUpdateInvoiceStatus: () => ({ mutate: vi.fn(), isPending: false }),
+  useArchiverFacture: () => ({ mutate: archiver, isPending: false }),
+  useRestaurerFacture: () => ({ mutate: vi.fn(), isPending: false }),
   useResendComptaEmail: () => ({ mutate: vi.fn(), isPending: false }),
   invoiceQueryKeys: { all: ['invoices'] },
 }));
@@ -57,5 +71,36 @@ describe('pages/invoices/InvoiceListPage', () => {
     // part : avec le bug, ce libellé restait suivi du vide.
     const ligne = (await screen.findByText(/Déposée par/)).closest('p');
     expect(ligne).toHaveTextContent('Omar Benfdila');
+  });
+});
+
+describe('pages/invoices/InvoiceListPage — filtres et archivage', () => {
+  it('ouvre sur les factures à traiter, archives exclues', () => {
+    renderWithProviders(<InvoiceListPage />);
+
+    expect(screen.getByText(/Facture #1/)).toBeInTheDocument();
+    // L'archivée ne remonte que dans sa propre vue.
+    expect(screen.queryByText(/Facture #2/)).not.toBeInTheDocument();
+  });
+
+  it('range les archives dans leur filtre, avec leur compte', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<InvoiceListPage />);
+
+    const onglet = screen.getByRole('tab', { name: /Archivées/ });
+    expect(onglet).toHaveTextContent('1');
+
+    await user.click(onglet);
+    expect(await screen.findByText(/Facture #2/)).toBeInTheDocument();
+  });
+
+  it('archive une facture depuis son détail', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<InvoiceListPage />);
+
+    await user.click(screen.getByText(/Facture #1/));
+    await user.click(await screen.findByRole('button', { name: /Archiver/ }));
+
+    await waitFor(() => expect(archiver).toHaveBeenCalledWith(1, expect.anything()));
   });
 });

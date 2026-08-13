@@ -1,5 +1,14 @@
 import { useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, ClipboardList, Download, Search, Send } from 'lucide-react';
+import {
+  Archive,
+  ChevronDown,
+  ChevronRight,
+  ClipboardList,
+  Download,
+  Search,
+  Send,
+  Undo2,
+} from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -16,10 +25,11 @@ import {
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { StatusBadge } from '@/components/shared/StatusBadge';
-import { KpiCard } from '@/components/shared/KpiCard';
 import {
+  useArchiverFacture,
   useInvoices,
   useResendComptaEmail,
+  useRestaurerFacture,
   useUpdateInvoiceStatus,
 } from '@/api/endpoints/invoices';
 import { INVOICE_STATUS, type InvoiceStatus } from '@/lib/constants';
@@ -30,30 +40,66 @@ import { buildAttachmentFilename, deduplicateFilenames } from '@/lib/naming';
 import { useDownloadAttachment } from '@/hooks/useDownloadAttachment';
 import { useToast } from '@/hooks/useToast';
 import { formatDate } from '@/lib/format';
+import { cn } from '@/lib/utils';
 import { fr } from '@/lib/i18n/fr';
 import { TicketsManagementSection } from './TicketsManagementSection';
 
+
+/**
+ * Les vues de l'écran des factures — même principe que sur les notes de frais.
+ *
+ * Le menu déroulant demandait au serveur une liste par statut, sans jamais dire
+ * combien il en restait ailleurs. Les pastilles portent leur compte : elles
+ * disent d'un coup d'œil s'il reste du travail, sans avoir à y entrer.
+ */
+const VUES = {
+  attente: {
+    libelle: fr.invoices.enAttente,
+    garde: (f: Invoice) => f.status === 'En attente',
+  },
+  encours: {
+    libelle: fr.invoices.enCours,
+    garde: (f: Invoice) => f.status === 'En cours de traitement',
+  },
+  validees: { libelle: fr.invoices.validees, garde: (f: Invoice) => f.status === 'Validée' },
+  refusees: { libelle: fr.invoices.refusees, garde: (f: Invoice) => f.status === 'Refusée' },
+  archivees: {
+    libelle: fr.expenses.filtreArchivees,
+    garde: (f: Invoice) => Boolean(f.archived_at),
+  },
+  toutes: { libelle: fr.expenses.filtreToutes, garde: () => true },
+} as const;
+
+type Vue = keyof typeof VUES;
+
+/** Les archives ne remontent que dans leur propre vue, et dans « Toutes ». */
+function visible(facture: Invoice, vue: Vue): boolean {
+  if (facture.archived_at && vue !== 'archivees' && vue !== 'toutes') return false;
+  return VUES[vue].garde(facture);
+}
+
 export function InvoiceListPage() {
-  const [statusFilter, setStatusFilter] = useState<string>('Toutes');
+  const [vue, setVue] = useState<Vue>('attente');
   const [search, setSearch] = useState('');
   const [date, setDate] = useState('');
   const [expanded, setExpanded] = useState<number | null>(null);
 
-  const { data: invoices = [], isLoading } = useInvoices({
-    status: statusFilter === 'Toutes' ? undefined : statusFilter,
+  // La recherche et la date restent côté serveur — elles portent sur le nom des
+  // pièces jointes, que le client n'a pas. Le statut, lui, se répartit ici.
+  const { data: toutes = [], isLoading } = useInvoices({
     date: date || undefined,
     search: search || undefined,
   });
 
-  const stats = useMemo(
-    () => ({
-      total: invoices.length,
-      enAttente: invoices.filter((i) => i.status === 'En attente').length,
-      enCours: invoices.filter((i) => i.status === 'En cours de traitement').length,
-      validees: invoices.filter((i) => i.status === 'Validée').length,
-    }),
-    [invoices],
+  const comptes = useMemo(
+    () =>
+      Object.fromEntries(
+        (Object.keys(VUES) as Vue[]).map((v) => [v, toutes.filter((f) => visible(f, v)).length]),
+      ) as Record<Vue, number>,
+    [toutes],
   );
+
+  const invoices = useMemo(() => toutes.filter((f) => visible(f, vue)), [toutes, vue]);
 
   return (
     <div className="space-y-4">
@@ -69,24 +115,29 @@ export function InvoiceListPage() {
           pièces reçues que la comptabilité constate ce qui manque. */}
       <TicketsManagementSection />
 
+      <div className="flex flex-wrap gap-2" role="tablist" aria-label="Filtrer les factures">
+        {(Object.keys(VUES) as Vue[]).map((v) => (
+          <button
+            key={v}
+            type="button"
+            role="tab"
+            aria-selected={vue === v}
+            onClick={() => setVue(v)}
+            className={cn(
+              'rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
+              vue === v
+                ? 'border-terracotta bg-terracotta text-cream-50'
+                : 'border-input bg-background hover:bg-muted/40',
+            )}
+          >
+            {VUES[v].libelle}
+            <span className="ml-1.5 opacity-70">{comptes[v]}</span>
+          </button>
+        ))}
+      </div>
+
       <Card>
-        <CardContent className="grid gap-3 p-4 md:grid-cols-3">
-          <div>
-            <Label>{fr.invoices.filtrerStatut}</Label>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Toutes">Toutes</SelectItem>
-                {INVOICE_STATUS.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {s}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <CardContent className="grid gap-3 p-4 md:grid-cols-2">
           <div>
             <Label>{fr.invoices.filtrerDate}</Label>
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
@@ -105,13 +156,6 @@ export function InvoiceListPage() {
           </div>
         </CardContent>
       </Card>
-
-      <div className="grid gap-3 md:grid-cols-4">
-        <KpiCard label={fr.invoices.totalFactures} value={stats.total} variant="info" />
-        <KpiCard label={fr.invoices.enAttente} value={stats.enAttente} variant="warning" />
-        <KpiCard label={fr.invoices.enCours} value={stats.enCours} variant="info" />
-        <KpiCard label={fr.invoices.validees} value={stats.validees} variant="success" />
-      </div>
 
       {isLoading ? (
         <LoadingSpinner fullPage />
@@ -140,7 +184,12 @@ export function InvoiceListPage() {
                           aria-label={fr.expenses.duNouveau}
                         />
                       )}
-                      <span className="truncate font-medium">
+                      <span
+                        className={cn(
+                          'truncate font-medium',
+                          inv.archived_at && 'text-muted-foreground',
+                        )}
+                      >
                         Facture #{inv.id} — {inv.files?.[0]?.nom_fichier ?? '—'} (
                         {formatDate(inv.date_depot)})
                       </span>
@@ -163,6 +212,8 @@ function InvoiceDetail({ invoice }: { invoice: Invoice }) {
   const canChange = can(ACTIONS.INVOICES_CHANGE_STATUS);
   const canResend = can(ACTIONS.COMPTA_RESEND_EMAIL);
   const update = useUpdateInvoiceStatus();
+  const archiver = useArchiverFacture();
+  const restaurer = useRestaurerFacture();
   const resend = useResendComptaEmail();
   const toast = useToast();
   const { download, downloadingId } = useDownloadAttachment();
@@ -308,6 +359,51 @@ function InvoiceDetail({ invoice }: { invoice: Invoice }) {
             {fr.common.update}
           </Button>
           </div>
+        </div>
+      )}
+
+      {/* Rangement, et non destruction : le `DELETE` d'origine effaçait la
+          facture, ses fichiers et leur contenu en base — sur n'importe quel
+          statut, « Validée » comprise, donc sur une pièce comptabilisée. */}
+      {invoice.archived_at ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-background p-3">
+          <p className="text-xs text-muted-foreground">
+            {fr.expenses.archiveePar
+              .replace('{date}', formatDate(invoice.archived_at))
+              .replace('{qui}', invoice.archived_by_name ?? '—')}
+          </p>
+          {canChange && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                restaurer.mutate(invoice.id, {
+                  onSuccess: () => toast.success(fr.invoices.factureRestauree),
+                })
+              }
+              loading={restaurer.isPending}
+            >
+              <Undo2 className="h-4 w-4" />
+              {fr.expenses.restaurer}
+            </Button>
+          )}
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-background p-3">
+          <p className="text-xs text-muted-foreground">{fr.invoices.archiverAide}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              archiver.mutate(invoice.id, {
+                onSuccess: () => toast.success(fr.invoices.factureArchivee),
+              })
+            }
+            loading={archiver.isPending}
+          >
+            <Archive className="h-4 w-4" />
+            {fr.expenses.archiver}
+          </Button>
         </div>
       )}
 

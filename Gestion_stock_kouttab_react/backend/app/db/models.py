@@ -766,6 +766,15 @@ class Invoice(Base):
     # comptabilite, eteint quand le deposant ouvre sa liste.
     non_lu_demandeur: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
+    # ---- Archivage --------------------------------------------------------
+    # Cf. `Expense.archived_at`. Le `DELETE` d'origine detruisait la facture,
+    # ses fichiers et leur contenu en base — sur n'importe quel statut, y
+    # compris « Validee », c'est-a-dire deja comptabilisee.
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    archived_by: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("Admins.id", ondelete="SET NULL"), nullable=True
+    )
+
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
@@ -774,6 +783,7 @@ class Invoice(Base):
     user: Mapped["Admin"] = relationship(
         "Admin", back_populates="invoices", foreign_keys=[id_user]
     )
+    archiviste: Mapped["Admin | None"] = relationship("Admin", foreign_keys=[archived_by])
     files: Mapped[list["InvoiceFile"]] = relationship(
         "InvoiceFile", back_populates="invoice", cascade="all, delete-orphan"
     )

@@ -15,12 +15,22 @@ async function fetchMyInvoices(): Promise<Invoice[]> {
   return data;
 }
 
+/**
+ * Toutes les factures, **archives comprises**.
+ *
+ * Un seul appel plutôt qu'un par filtre : l'écran compte et répartit déjà les
+ * lignes localement, et la base est distante — un aller-retour à chaque
+ * changement d'onglet coûterait plus que les quelques archives rapatriées.
+ * Même parti que sur l'écran des notes de frais.
+ */
 async function fetchAllInvoices(filters?: {
   status?: string;
   date?: string;
   search?: string;
 }): Promise<Invoice[]> {
-  const { data } = await api.get<Invoice[]>('/invoices', { params: filters });
+  const { data } = await api.get<Invoice[]>('/invoices', {
+    params: { ...filters, include_archived: true },
+  });
   return data;
 }
 
@@ -65,6 +75,15 @@ async function resendComptaEmail(invoiceId: number): Promise<{ message: string }
   return data;
 }
 
+/** Archive la facture : elle sort des listes sans quitter la base. */
+async function archiverFacture(id: number): Promise<void> {
+  await api.delete(`/invoices/${id}`);
+}
+
+async function restaurerFacture(id: number): Promise<void> {
+  await api.post(`/invoices/${id}/restore`);
+}
+
 async function updateInvoiceStatus(params: {
   id: number;
   status: InvoiceStatus;
@@ -96,6 +115,22 @@ export function useCreateInvoice() {
   const qc = useQueryClient();
   return useApiMutation({
     mutationFn: createInvoice,
+    onSuccess: () => qc.invalidateQueries({ queryKey: invoiceQueryKeys.all }),
+  });
+}
+
+export function useArchiverFacture() {
+  const qc = useQueryClient();
+  return useApiMutation({
+    mutationFn: archiverFacture,
+    onSuccess: () => qc.invalidateQueries({ queryKey: invoiceQueryKeys.all }),
+  });
+}
+
+export function useRestaurerFacture() {
+  const qc = useQueryClient();
+  return useApiMutation({
+    mutationFn: restaurerFacture,
     onSuccess: () => qc.invalidateQueries({ queryKey: invoiceQueryKeys.all }),
   });
 }

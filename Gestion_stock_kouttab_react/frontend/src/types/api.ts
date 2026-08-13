@@ -241,6 +241,9 @@ export interface Invoice {
   commentaires_compta?: string | null;
   /** La comptabilité s'est prononcée et je ne l'ai pas encore vu. */
   non_lu_demandeur?: boolean;
+  /** Rangée par la comptabilité. Réversible, comme pour une note. */
+  archived_at?: string | null;
+  archived_by_name?: string | null;
   status: InvoiceStatus;
   date_depot: string;
   files: InvoiceFile[];

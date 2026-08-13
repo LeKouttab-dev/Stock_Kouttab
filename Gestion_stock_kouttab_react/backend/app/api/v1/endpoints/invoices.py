@@ -29,7 +29,7 @@ from app.schemas.auth import MessageOut
 from app.schemas.invoice import InvoiceOut, InvoiceStatusUpdate
 from app.services import compta_dispatch, email_layout, outbox
 from app.services import email as email_service
-from app.services.files import contenu_du_fichier, delete_file, save_upload_file
+from app.services.files import contenu_du_fichier, save_upload_file
 
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
@@ -84,9 +84,19 @@ def _parse_optional_decimal(value: str | None) -> Decimal | None:
 
 @router.get("/me", response_model=list[InvoiceOut])
 def list_my_invoices(
-    db: Session = Depends(get_db), current_user: Admin = Depends(get_current_user)
+    status: str | None = Query(default=None),
+    days: int | None = Query(default=None, ge=0),
+    search: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user: Admin = Depends(get_current_user),
 ) -> Any:
-    return [InvoiceOut(**r) for r in invoice_crud.list_invoices_for_user(db, current_user.id)]
+    rows = invoice_crud.list_invoices_for_user(
+        db, current_user.id, status=status, days=days, search=search
+    )
+    # Cf. `expenses.list_my_expenses` : la pastille s'eteint APRES la
+    # serialisation, sinon l'ecran ne la montrerait jamais.
+    invoice_crud.marquer_lues(db, current_user.id)
+    return [InvoiceOut(**r) for r in rows]
 
 
 @router.get(
@@ -97,13 +107,20 @@ def list_invoices(
     status: str | None = Query(default=None),
     days: int | None = Query(default=None, ge=0),
     search: str | None = Query(default=None),
+    include_archived: bool = Query(default=False),
     db: Session = Depends(get_db),
     current_user: Admin = Depends(get_current_user),
 ) -> Any:
     if current_user.role in _ACCOUNTANT_ROLES:
-        rows = invoice_crud.list_invoices(db, status=status, days=days, search=search)
+        rows = invoice_crud.list_invoices(
+            db, status=status, days=days, search=search, include_archived=include_archived
+        )
     else:
-        rows = invoice_crud.list_invoices_for_user(db, current_user.id)
+        # Les memes filtres pour tout le monde : ils etaient ignores ici, si
+        # bien que le menu deroulant de statut ne faisait rien pour un benevole.
+        rows = invoice_crud.list_invoices_for_user(
+            db, current_user.id, status=status, days=days, search=search
+        )
     return [InvoiceOut(**r) for r in rows]
 
 
@@ -318,37 +335,31 @@ def download_invoice_file(
     return _servir(file_row)
 
 
+# ---- Archivage --------------------------------------------------------------
+#
+# `DELETE` garde son verbe — c'est le geste, « je range cette facture », et le
+# front l'appelle deja ainsi. Ce qui change est ce qu'il fait : plus rien n'est
+# detruit, ni la ligne, ni les fichiers, ni leur contenu en base.
+
+
 @router.delete("/{invoice_id}", response_model=MessageOut)
-def delete_invoice(
+def archive_invoice(
     invoice_id: int,
     db: Session = Depends(get_db),
     current_user: Admin = Depends(get_current_user),
 ) -> Any:
-    invoice = invoice_crud.get_invoice(db, invoice_id)
-    if not invoice:
-        raise AppException(ErrorCode.INVOICE_NOT_FOUND)
-    is_accountant = current_user.role in _ACCOUNTANT_ROLES
-    if invoice.id_user != current_user.id and not is_accountant:
-        raise AppException(
-            ErrorCode.FORBIDDEN, detail="Vous ne pouvez pas supprimer cette facture."
-        )
-    # Une facture prise en charge par la comptabilite est une piece comptable :
-    # son deposant ne peut plus la faire disparaitre.
-    if not is_accountant and invoice.status != "En attente":
-        raise AppException(
-            ErrorCode.FORBIDDEN,
-            detail=(
-                "Cette facture est deja traitee par la comptabilite et ne peut "
-                "plus etre supprimee. Contactez le service comptable."
-            ),
-            extras={"status": invoice.status},
-        )
-    files = list(invoice.files)
-    db.delete(invoice)
-    db.commit()
-    for f in files:
-        delete_file(f.chemin_fichier)
-    return MessageOut(message="Facture supprimee.")
+    invoice_crud.archiver(db, invoice_id, user=current_user)
+    return MessageOut(message="Facture archivee.")
+
+
+@router.post("/{invoice_id}/restore", response_model=MessageOut)
+def restore_invoice(
+    invoice_id: int,
+    db: Session = Depends(get_db),
+    current_user: Admin = Depends(get_current_user),
+) -> Any:
+    invoice_crud.restaurer(db, invoice_id, role=current_user.role)
+    return MessageOut(message="Facture restauree.")
 
 
 # ---- Helpers ---------------------------------------------------------------
