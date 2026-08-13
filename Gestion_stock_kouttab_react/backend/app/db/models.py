@@ -603,6 +603,19 @@ class Expense(Base):
         Integer, ForeignKey("Admins.id", ondelete="SET NULL"), nullable=True
     )
     validated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    # ---- Archivage --------------------------------------------------------
+    # La note sort des listes courantes sans quitter la base.
+    #
+    # La suppression EFFACAIT la ligne et les justificatifs avec elle : une piece
+    # comptable que l'association doit conserver plusieurs annees disparaissait
+    # sur un clic, sans trace de son existence. Archiver range sans detruire, et
+    # se defait.
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    archived_by: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("Admins.id", ondelete="SET NULL"), nullable=True
+    )
+
     date_soumission: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
@@ -612,6 +625,7 @@ class Expense(Base):
     user: Mapped["Admin"] = relationship(
         "Admin", back_populates="expenses", foreign_keys=[id_user]
     )
+    archiviste: Mapped["Admin | None"] = relationship("Admin", foreign_keys=[archived_by])
     reimbursement: Mapped["Reimbursement | None"] = relationship(
         "Reimbursement", back_populates="expenses", foreign_keys=[id_remboursement]
     )

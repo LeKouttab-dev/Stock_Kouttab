@@ -118,9 +118,12 @@ def test_validate_by_accountant_changes_status_and_comment(db_session) -> None:
     assert validated.commentaires_compta == "OK pour moi."
 
 
-def test_delete_blocked_when_status_not_remboursee(db_session) -> None:
+def test_archive_blocked_when_status_not_remboursee(db_session) -> None:
+    """Ranger une note en cours de traitement la sortirait des listes alors que
+    le benevole attend encore son argent."""
     user = _make_user(db_session)
+    comptable = _make_user(db_session, role="Compta")
     expense = _create_expense(db_session, user, status="Approuvée")
     with pytest.raises(AppException) as exc_info:
-        expense_crud.delete_expense(db_session, expense.id, role="Compta")
+        expense_crud.archive_expense(db_session, expense.id, user=comptable)
     assert exc_info.value.code_value == "CONF_4006"  # EXPENSE_NOT_DELETABLE

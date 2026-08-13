@@ -72,6 +72,8 @@ class ExpenseOut(ExpenseBase):
     validated_at: datetime | None = None
     user_full_name: str | None = None
     user_email: str | None = None
+    archived_at: datetime | None = None
+    archived_by_name: str | None = None
     user_rib: str | None = None
     user_rib_document_nom: str | None = None
     files: list[ExpenseFileOut] = []

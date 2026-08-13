@@ -8,7 +8,8 @@ import {
   ClipboardCheck,
   Copy,
   Download,
-  Trash2,
+  Archive,
+  Undo2,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -26,18 +27,52 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useAllExpenses, useDeleteExpense, useValidateExpense } from '@/api/endpoints/expenses';
+import {
+  useAllExpenses,
+  useArchiveExpense,
+  useRestoreExpense,
+  useValidateExpense,
+} from '@/api/endpoints/expenses';
 import { ReimbursementModal } from './modals/ReimbursementModal';
 import { expenseValidateSchema, type ExpenseValidateFormValues } from '@/lib/schemas/expense';
 import { EXPENSE_STATUS } from '@/lib/constants';
 import type { Expense } from '@/types/api';
-import { copyToClipboard } from '@/lib/utils';
+import { cn, copyToClipboard } from '@/lib/utils';
 import { buildAttachmentFilename, deduplicateFilenames } from '@/lib/naming';
 import { useDownloadAttachment } from '@/hooks/useDownloadAttachment';
 import { useToast } from '@/hooks/useToast';
 import { formatCurrency, formatDate } from '@/lib/format';
 import { fr } from '@/lib/i18n/fr';
 import { expenseTotal } from '@/lib/money';
+
+/**
+ * Les vues de l'écran comptable.
+ *
+ * Sans elles, l'onglet empilait tout — en attente, approuvé, déjà remboursé —
+ * dans la fiche de chaque bénévole. Le travail du jour se noyait dans les mois
+ * précédents, et rien ne permettait de consulter l'historique en tant que tel.
+ */
+const VUES = {
+  traiter: { libelle: fr.expenses.filtreATraiter, garde: (n: Expense) => n.status === 'En attente' },
+  approuvees: {
+    libelle: fr.expenses.filtreApprouvees,
+    garde: (n: Expense) => n.status === 'Approuvée',
+  },
+  remboursees: {
+    libelle: fr.expenses.filtreRemboursees,
+    garde: (n: Expense) => n.status === 'Remboursée',
+  },
+  archivees: { libelle: fr.expenses.filtreArchivees, garde: (n: Expense) => Boolean(n.archived_at) },
+  toutes: { libelle: fr.expenses.filtreToutes, garde: () => true },
+} as const;
+
+type Vue = keyof typeof VUES;
+
+/** Les archives ne remontent que dans leur propre vue, et dans « Toutes ». */
+function visible(note: Expense, vue: Vue): boolean {
+  if (note.archived_at && vue !== 'archivees' && vue !== 'toutes') return false;
+  return VUES[vue].garde(note);
+}
 
 /**
  * Écran comptable, en trois niveaux : **bénévole → ses notes → le détail**.
@@ -52,11 +87,24 @@ import { expenseTotal } from '@/lib/money';
 export function ValidateExpensesPage({ embarquee = false }: { embarquee?: boolean } = {}) {
   const { data: expenses = [], isLoading } = useAllExpenses();
   const [benevoleOuvert, setBenevoleOuvert] = useState<number | null>(null);
+  // Ouverture sur le travail du jour : c'est la raison d'être de l'onglet.
+  const [vue, setVue] = useState<Vue>('traiter');
+
+  const comptes = useMemo(
+    () =>
+      Object.fromEntries(
+        (Object.keys(VUES) as Vue[]).map((v) => [v, expenses.filter((n) => visible(n, v)).length]),
+      ) as Record<Vue, number>,
+    [expenses],
+  );
 
   // Regroupement local : `useAllExpenses` rapporte déjà toutes les notes avec
   // le nom du déposant. Un second appel au serveur pour les mêmes données
   // coûterait un aller-retour vers une base distante sans rien apprendre.
-  const fiches = useMemo(() => groupeParBenevole(expenses), [expenses]);
+  const fiches = useMemo(
+    () => groupeParBenevole(expenses.filter((n) => visible(n, vue))),
+    [expenses, vue],
+  );
 
   if (isLoading) return <LoadingSpinner fullPage />;
 
@@ -75,8 +123,33 @@ export function ValidateExpensesPage({ embarquee = false }: { embarquee?: boolea
         </div>
       )}
 
+      <div className="flex flex-wrap gap-2" role="tablist" aria-label="Filtrer les notes">
+        {(Object.keys(VUES) as Vue[]).map((v) => (
+          <button
+            key={v}
+            type="button"
+            role="tab"
+            aria-selected={vue === v}
+            onClick={() => setVue(v)}
+            className={cn(
+              'rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
+              vue === v
+                ? 'border-terracotta bg-terracotta text-cream-50'
+                : 'border-input bg-background hover:bg-muted/40',
+            )}
+          >
+            {VUES[v].libelle}
+            {/* Le compte figure sur chaque filtre : c'est ce qui dit d'un coup
+                d'œil s'il reste du travail, sans avoir à y entrer. */}
+            <span className="ml-1.5 opacity-70">{comptes[v]}</span>
+          </button>
+        ))}
+      </div>
+
       {fiches.length === 0 ? (
-        <EmptyState title={fr.expenses.aucuneATraiter} />
+        <EmptyState
+          title={vue === 'traiter' ? fr.expenses.aucuneATraiter : fr.expenses.aucuneDansFiltre}
+        />
       ) : (
         <div className="space-y-3">
           {fiches.map((fiche) => (
@@ -113,7 +186,9 @@ function groupeParBenevole(expenses: Expense[]): FicheBenevoleData[] {
   }
 
   const fiches = [...parUser.entries()].map(([idUser, notes]) => {
-    const aRembourser = notes.filter((n) => n.status === 'Approuvée');
+    // Une note archivée est sortie du circuit : la proposer au paiement
+    // ferait payer deux fois ce que la comptabilité avait rangé.
+    const aRembourser = notes.filter((n) => n.status === 'Approuvée' && !n.archived_at);
     return {
       idUser,
       nom: notes[0]?.user_full_name ?? '—',
@@ -258,7 +333,8 @@ interface DetailProps {
 
 function ValidateExpenseDetail({ expense, total }: DetailProps) {
   const validate = useValidateExpense();
-  const remove = useDeleteExpense();
+  const archiver = useArchiveExpense();
+  const restaurer = useRestoreExpense();
   const toast = useToast();
   const { download, downloadingId } = useDownloadAttachment();
 
@@ -302,9 +378,12 @@ function ValidateExpenseDetail({ expense, total }: DetailProps) {
     toast.success(fr.expenses.ribCopie);
   };
 
-  const onDelete = () => {
-    if (!confirm(fr.expenses.suppressionWarning)) return;
-    remove.mutate(expense.id, { onSuccess: () => toast.success(fr.expenses.noteSupprimee) });
+  const onArchiver = () => {
+    archiver.mutate(expense.id, { onSuccess: () => toast.success(fr.expenses.noteArchivee) });
+  };
+
+  const onRestaurer = () => {
+    restaurer.mutate(expense.id, { onSuccess: () => toast.success(fr.expenses.noteRestauree) });
   };
 
   return (
@@ -441,18 +520,34 @@ function ValidateExpenseDetail({ expense, total }: DetailProps) {
         </div>
       </form>
 
-      {expense.status === 'Remboursée' && (
-        <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 space-y-2">
-          <p className="flex items-center gap-2 text-sm font-semibold">
-            <Trash2 className="h-4 w-4" aria-hidden />
-            {fr.expenses.zoneSuppression}
+      {/* Rangement, et non destruction : plus aucune confirmation alarmante,
+          puisque le geste se défait. */}
+      {expense.archived_at ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-background p-3">
+          <p className="text-xs text-muted-foreground">
+            {fr.expenses.archiveePar
+              .replace('{date}', formatDate(expense.archived_at))
+              .replace('{qui}', expense.archived_by_name ?? '—')}
           </p>
-          <p className="text-xs text-muted-foreground">{fr.expenses.suppressionWarning}</p>
-          <Button variant="destructive" size="sm" onClick={onDelete} loading={remove.isPending}>
-            <Trash2 className="h-4 w-4" />
-            {fr.expenses.supprimer}
+          <Button variant="outline" size="sm" onClick={onRestaurer} loading={restaurer.isPending}>
+            <Undo2 className="h-4 w-4" />
+            {fr.expenses.restaurer}
           </Button>
         </div>
+      ) : (
+        expense.status === 'Remboursée' && (
+          <div className="rounded-md border bg-background p-3 space-y-2">
+            <p className="flex items-center gap-2 text-sm font-semibold">
+              <Archive className="h-4 w-4" aria-hidden />
+              {fr.expenses.zoneArchivage}
+            </p>
+            <p className="text-xs text-muted-foreground">{fr.expenses.archivageAide}</p>
+            <Button variant="outline" size="sm" onClick={onArchiver} loading={archiver.isPending}>
+              <Archive className="h-4 w-4" />
+              {fr.expenses.archiver}
+            </Button>
+          </div>
+        )
       )}
     </div>
   );

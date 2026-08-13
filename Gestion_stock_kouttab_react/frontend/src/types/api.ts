@@ -156,6 +156,9 @@ export interface Expense {
   id_user: number;
   user_full_name: string | null;
   user_email?: string | null;
+  /** Renseigné si la note a été rangée par la comptabilité. Réversible. */
+  archived_at?: string | null;
+  archived_by_name?: string | null;
   user_rib?: string | null;
   /** Nom du RIB déposé par le bénévole ; même visibilité que `user_rib`. */
   user_rib_document_nom?: string | null;

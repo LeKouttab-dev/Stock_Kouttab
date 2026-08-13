@@ -215,6 +215,7 @@ le démarrage en production. Les valeurs en clair héritées restent lisibles
 | Notes de frais — soumettre | ✅ | ✅ | ✅ | ✅ |
 | Notes de frais — éditer ses propres notes "En attente" | ✅ | ✅ | ✅ | ✅ |
 | Notes de frais — valider/refuser/rembourser | — | — | ✅ | ✅ |
+| Notes de frais — archiver / restaurer | — | — | ✅ | ✅ |
 | Notes de frais — remboursement groupé + justificatif | — | — | ✅ | ✅ |
 | Remboursements — consulter les siens | ✅ | ✅ | ✅ | ✅ |
 | Justificatifs — demander, relancer, clore | — | — | ✅ | ✅ |
@@ -294,8 +295,9 @@ Préfixe : `/api/v1`. Auth : header `Authorization: Bearer <jwt>` (sauf `/auth/*
 - `GET /expenses/me` — mes notes
 - `POST /expenses` — créer (multipart : tickets en pièces jointes)
 - `PATCH /expenses/{id}` — éditer (si "En attente" et propriétaire)
-- `DELETE /expenses/{id}` — supprimer (Compta+ si "Remboursée")
-- `GET /expenses` — toutes (Compta+)
+- `DELETE /expenses/{id}` — **archiver**, non supprimer (Compta+, note "Remboursée")
+- `POST /expenses/{id}/restore` — défaire l'archivage (Compta+)
+- `GET /expenses` — toutes (Compta+) ; `?include_archived=true` pour l'historique
 - `PATCH /expenses/{id}/validate` — changer statut + commentaire compta (Compta+)
 - `GET /expenses/{id}/files` — liste fichiers
 - `GET /expenses/{id}/files/{file_id}` — download
@@ -355,6 +357,27 @@ La règle est résolue **une seule fois**, dans `crud/rattachement.py`, pour les
 factures comme pour les notes de frais : les deux écrans alimentent le même
 circuit comptable, et dupliquer la règle finirait par faire diverger ce que
 l'un accepte et l'autre refuse.
+
+### Archivage des notes de frais
+
+`DELETE /expenses/{id}` **archive** : la ligne reste en base avec ses
+justificatifs, et se restaure. Elle effaçait auparavant la note *et* les
+fichiers du disque — une pièce comptable que l'association doit conserver
+plusieurs années disparaissait sur un clic, sans trace de son existence.
+
+Le garde-fou est inchangé : seule une note « Remboursée » s'archive. Ranger une
+note en cours de traitement la sortirait des listes alors que le bénévole attend
+encore son argent.
+
+Les listes excluent les archives par défaut, côté bénévole comme côté
+comptabilité. L'écran comptable les affiche sous son filtre « Archivées », avec
+la date et l'auteur du rangement.
+
+L'écran comptable filtre par **À traiter · Approuvées · Remboursées · Archivées ·
+Toutes**, chacun portant son compte, et s'ouvre sur « À traiter ». Sans ces
+filtres, tout s'empilait dans la fiche de chaque bénévole : le travail du jour
+se noyait dans les mois précédents, et l'historique n'était consultable qu'en
+dépliant les personnes une par une.
 
 ### Remboursements groupés
 

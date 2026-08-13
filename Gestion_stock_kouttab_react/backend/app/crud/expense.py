@@ -40,6 +40,8 @@ def _serialize(expense: Expense) -> dict[str, Any]:
         "validated_by": expense.validated_by,
         "validated_at": expense.validated_at,
         "date_soumission": expense.date_soumission,
+        "archived_at": expense.archived_at,
+        "archived_by_name": expense.archiviste.full_name if expense.archiviste else None,
         "user_full_name": user.full_name if user else None,
         "user_email": user.email if user else None,
         # Sert la salutation des courriels : « Assalamu alaykum Omar » plutot
@@ -63,21 +65,38 @@ def _serialize(expense: Expense) -> dict[str, Any]:
 
 
 def list_expenses_for_user(db: Session, user_id: int) -> list[dict[str, Any]]:
+    """Les notes du benevole, **sans les archivees**.
+
+    Une note archivee a ete rangee par la comptabilite : la reafficher parmi les
+    demandes en cours laisserait croire qu'il reste quelque chose a suivre.
+    """
     stmt = (
         select(Expense)
         .options(selectinload(Expense.files), selectinload(Expense.user))
-        .where(Expense.id_user == user_id)
+        .where(Expense.id_user == user_id, Expense.archived_at.is_(None))
         .order_by(Expense.date_soumission.desc())
     )
     return [_serialize(e) for e in db.execute(stmt).scalars().all()]
 
 
-def list_all_expenses(db: Session) -> list[dict[str, Any]]:
+def list_all_expenses(db: Session, *, include_archived: bool = False) -> list[dict[str, Any]]:
+    """Toutes les notes pour la comptabilite.
+
+    Les archivees ne remontent que sur demande explicite : elles n'ont plus rien
+    a traiter, et les melanger au courant est exactement ce que l'archivage
+    cherche a eviter.
+    """
     stmt = (
         select(Expense)
-        .options(selectinload(Expense.files), selectinload(Expense.user))
+        .options(
+            selectinload(Expense.files),
+            selectinload(Expense.user),
+            selectinload(Expense.archiviste),
+        )
         .order_by(Expense.date_soumission.desc())
     )
+    if not include_archived:
+        stmt = stmt.where(Expense.archived_at.is_(None))
     return [_serialize(e) for e in db.execute(stmt).scalars().all()]
 
 
@@ -233,18 +252,47 @@ def validate_expense(
     return expense
 
 
-def delete_expense(db: Session, expense_id: int, *, role: str) -> Expense:
+def archive_expense(db: Session, expense_id: int, *, user: Any) -> Expense:
+    """Range la note sans la detruire.
+
+    Remplace la suppression, qui effacait la ligne **et** les justificatifs. Une
+    piece comptable se conserve plusieurs annees : la faire disparaitre sur un
+    clic, sans trace de son existence, etait le vrai risque de cet ecran.
+
+    Meme garde-fou qu'avant : seule une note deja remboursee s'archive. Ranger
+    une note en cours de traitement la ferait sortir des listes alors que le
+    benevole attend encore son argent.
+    """
+    expense = get_expense(db, expense_id)
+    if not expense:
+        raise AppException(ErrorCode.EXPENSE_NOT_FOUND)
+    if user.role not in ("Compta", "Super Admin"):
+        raise AppException(
+            ErrorCode.FORBIDDEN, detail="Archivage reserve aux comptables."
+        )
+    if expense.status != "Remboursée":
+        raise AppException(ErrorCode.EXPENSE_NOT_DELETABLE)
+    if expense.archived_at is None:
+        expense.archived_at = datetime.now(timezone.utc)
+        expense.archived_by = user.id
+        db.commit()
+        db.refresh(expense)
+    return expense
+
+
+def restore_expense(db: Session, expense_id: int, *, role: str) -> Expense:
+    """Defait un archivage. C'est ce qui rend l'operation sans danger."""
     expense = get_expense(db, expense_id)
     if not expense:
         raise AppException(ErrorCode.EXPENSE_NOT_FOUND)
     if role not in ("Compta", "Super Admin"):
         raise AppException(
-            ErrorCode.FORBIDDEN, detail="Suppression reservee aux comptables."
+            ErrorCode.FORBIDDEN, detail="Restauration reservee aux comptables."
         )
-    if expense.status != "Remboursée":
-        raise AppException(ErrorCode.EXPENSE_NOT_DELETABLE)
-    db.delete(expense)
+    expense.archived_at = None
+    expense.archived_by = None
     db.commit()
+    db.refresh(expense)
     return expense
 
 

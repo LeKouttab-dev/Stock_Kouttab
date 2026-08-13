@@ -20,8 +20,17 @@ async function fetchMyExpenses(): Promise<Expense[]> {
   return data;
 }
 
+/**
+ * Toutes les notes, **archives comprises**.
+ *
+ * Un seul appel plutôt qu'un par filtre : l'écran groupe et compte déjà les
+ * notes localement, et la base est distante — un aller-retour par changement de
+ * filtre coûterait plus cher que les quelques lignes archivées rapatriées.
+ */
 async function fetchAllExpenses(): Promise<Expense[]> {
-  const { data } = await api.get<Expense[]>('/expenses');
+  const { data } = await api.get<Expense[]>('/expenses', {
+    params: { include_archived: true },
+  });
   return data;
 }
 
@@ -51,8 +60,13 @@ async function updateExpense(params: { id: number; data: ExpenseUpdateRequest })
   return data;
 }
 
-async function deleteExpense(id: number): Promise<void> {
+/** Archive la note : elle sort des listes courantes sans quitter la base. */
+async function archiveExpense(id: number): Promise<void> {
   await api.delete(`/expenses/${id}`);
+}
+
+async function restoreExpense(id: number): Promise<void> {
+  await api.post(`/expenses/${id}/restore`);
 }
 
 async function validateExpense(params: {
@@ -93,10 +107,18 @@ export function useUpdateExpense() {
   });
 }
 
-export function useDeleteExpense() {
+export function useArchiveExpense() {
   const qc = useQueryClient();
   return useApiMutation({
-    mutationFn: deleteExpense,
+    mutationFn: archiveExpense,
+    onSuccess: () => qc.invalidateQueries({ queryKey: expenseQueryKeys.all }),
+  });
+}
+
+export function useRestoreExpense() {
+  const qc = useQueryClient();
+  return useApiMutation({
+    mutationFn: restoreExpense,
     onSuccess: () => qc.invalidateQueries({ queryKey: expenseQueryKeys.all }),
   });
 }

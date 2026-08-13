@@ -28,7 +28,7 @@ from app.schemas.auth import MessageOut
 from app.schemas.expense import ExpenseOut, ExpenseUpdate, ExpenseValidate
 from app.services import compta_dispatch, email_layout, outbox
 from app.services import email as email_service
-from app.services.files import contenu_du_fichier, delete_file, save_upload_file
+from app.services.files import contenu_du_fichier, save_upload_file
 
 
 router = APIRouter(prefix="/expenses", tags=["expenses"])
@@ -127,9 +127,11 @@ def list_my_expenses(
     dependencies=[Depends(require_roles(*_ACCOUNTANT_ROLES))],
 )
 def list_all_expenses(
-    db: Session = Depends(get_db), current_user: Admin = Depends(get_current_user)
+    include_archived: bool = False,
+    db: Session = Depends(get_db),
+    current_user: Admin = Depends(get_current_user),
 ) -> Any:
-    rows = expense_crud.list_all_expenses(db)
+    rows = expense_crud.list_all_expenses(db, include_archived=include_archived)
     return [_to_out(r, requester=current_user) for r in rows]
 
 
@@ -336,23 +338,31 @@ def validate_expense(
     return _to_out(out or {}, requester=current_user)
 
 
-# ---- Delete ----------------------------------------------------------------
+# ---- Archivage --------------------------------------------------------------
+#
+# `DELETE` conserve son verbe : c'est le geste du comptable, « je range cette
+# note », et le front l'appelle deja ainsi. Ce qui change est ce qu'il fait —
+# plus rien n'est detruit, ni la ligne ni les justificatifs.
 
 
 @router.delete("/{expense_id}", response_model=MessageOut)
-def delete_expense(
+def archive_expense(
     expense_id: int,
     db: Session = Depends(get_db),
     current_user: Admin = Depends(get_current_user),
 ) -> Any:
-    expense = expense_crud.get_expense(db, expense_id)
-    if not expense:
-        raise AppException(ErrorCode.EXPENSE_NOT_FOUND)
-    files = list(expense.files)
-    expense_crud.delete_expense(db, expense_id, role=current_user.role)
-    for f in files:
-        delete_file(f.chemin_fichier)
-    return MessageOut(message="Note supprimee.")
+    expense_crud.archive_expense(db, expense_id, user=current_user)
+    return MessageOut(message="Note archivee.")
+
+
+@router.post("/{expense_id}/restore", response_model=MessageOut)
+def restore_expense(
+    expense_id: int,
+    db: Session = Depends(get_db),
+    current_user: Admin = Depends(get_current_user),
+) -> Any:
+    expense_crud.restore_expense(db, expense_id, role=current_user.role)
+    return MessageOut(message="Note restauree.")
 
 
 # ---- Files -----------------------------------------------------------------
