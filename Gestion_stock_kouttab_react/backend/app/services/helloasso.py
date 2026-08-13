@@ -203,6 +203,10 @@ class HelloAssoClient:
             )
             raise AppException(
                 ErrorCode.HELLOASSO_API_ERROR,
+                detail=(
+                    f"HelloAsso a refuse la requete (code {response.status_code}). "
+                    "Le detail figure dans les journaux du serveur."
+                ),
                 extras={"method": "GET", "path": path, "upstream_status": response.status_code},
             )
         try:
@@ -225,6 +229,10 @@ class HelloAssoClient:
             )
             raise AppException(
                 ErrorCode.HELLOASSO_API_ERROR,
+                detail=(
+                    f"HelloAsso a refuse la requete (code {response.status_code}). "
+                    "Le detail figure dans les journaux du serveur."
+                ),
                 extras={"method": "PUT", "path": path, "upstream_status": response.status_code},
             )
         if response.status_code == 204 or not response.content:
@@ -245,6 +253,10 @@ class HelloAssoClient:
             )
             raise AppException(
                 ErrorCode.HELLOASSO_API_ERROR,
+                detail=(
+                    f"HelloAsso a refuse la requete (code {response.status_code}). "
+                    "Le detail figure dans les journaux du serveur."
+                ),
                 extras={"method": "DELETE", "path": path, "upstream_status": response.status_code},
             )
 
@@ -457,15 +469,27 @@ class HelloAssoClient:
         if response.status_code in (404, 405):
             return None
         if response.status_code >= 400:
+            # `path` n'existe pas dans cette methode — elle travaille sur
+            # `self._NOTIFICATIONS_PATH`. Toute reponse >= 400 autre que 404/405
+            # levait donc un `NameError` au lieu de l'erreur prevue, et la vraie
+            # cause disparaissait derriere une 500 sans explication.
             logger.warning(
                 "HelloAsso GET %s failed (status=%s body=%s)",
-                path,
+                self._NOTIFICATIONS_PATH,
                 response.status_code,
                 response.text[:500],
             )
             raise AppException(
                 ErrorCode.HELLOASSO_API_ERROR,
-                extras={"method": "GET", "path": path, "upstream_status": response.status_code},
+                detail=(
+                    "HelloAsso a refuse la lecture du webhook "
+                    f"(code {response.status_code})."
+                ),
+                extras={
+                    "method": "GET",
+                    "path": self._NOTIFICATIONS_PATH,
+                    "upstream_status": response.status_code,
+                },
             )
         if not response.content:
             return None
