@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.core.errors import ErrorCode
 from app.core.exceptions import AppException
 from app.db.models import Admin, Category, Stock, StockModification, SubCategory
-from app.utils.validators import validate_barcode
+from app.utils.validators import validate_barcode, validate_image_url
 
 
 # ---- Items -----------------------------------------------------------------
@@ -84,6 +84,7 @@ def create_item(
     quantite: int,
     seuil_alerte: int,
     emoji: str | None = "📦",
+    image_url: str | None = None,
     barcode: str | None = None,
 ) -> Stock:
     barcode_clean = validate_barcode(barcode)
@@ -94,6 +95,7 @@ def create_item(
         quantite=quantite,
         seuil_alerte=seuil_alerte,
         emoji=emoji or "📦",
+        image_url=validate_image_url(image_url),
         barcode=barcode_clean,
     )
     db.add(item)
@@ -115,6 +117,8 @@ def update_item(
     quantite: int | None = None,
     seuil_alerte: int | None = None,
     emoji: str | None = None,
+    image_url: str | None = None,
+    image_url_set: bool = False,
     barcode: str | None = None,
     barcode_set: bool = False,
 ) -> Stock:
@@ -124,6 +128,10 @@ def update_item(
     value" since ``None`` is a legitimate value for a barcode (clearing it).
     Callers built from a ``model_dump(exclude_unset=True)`` should pass
     ``barcode_set=True`` when ``barcode`` is among the updated fields.
+
+    ``image_url_set`` joue le meme role pour la photo : sans lui, on ne pourrait
+    que la remplacer, jamais la retirer — une photo erronee resterait collee a
+    l'article.
     """
     item = get_item(db, stock_id)
     if not item:
@@ -140,6 +148,8 @@ def update_item(
         item.seuil_alerte = seuil_alerte
     if emoji is not None:
         item.emoji = emoji
+    if image_url_set:
+        item.image_url = validate_image_url(image_url)
 
     barcode_clean: str | None = None
     if barcode_set:

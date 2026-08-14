@@ -74,6 +74,8 @@ export interface StockItem {
   quantite: number;
   seuil_alerte: number;
   emoji?: string | null;
+  /** Photo du produit, récupérée au scan du code-barres. `null` → l'emoji. */
+  image_url?: string | null;
   alert_sent?: boolean;
   // `string | null` quand le backend le renvoie ; absent dans certaines fixtures
   // de test (héritage). Le champ est garanti côté backend.
@@ -87,6 +89,7 @@ export interface StockItemCreate {
   quantite: number;
   seuil_alerte: number;
   emoji?: string | null;
+  image_url?: string | null;
   barcode?: string | null;
 }
 
@@ -420,6 +423,7 @@ export interface BuvetteProductCreate {
   quantity?: number;
   seuil_alerte?: number;
   emoji?: string;
+  image_url?: string | null;
   helloasso_tier_id?: number | null;
   barcode?: string | null;
 }

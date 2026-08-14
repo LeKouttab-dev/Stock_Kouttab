@@ -82,6 +82,9 @@ export function AddBuvetteFromBarcodeModal({
         quantity: values.quantity,
         seuil_alerte: values.seuil_alerte,
         emoji: values.emoji,
+        // Même oubli que côté stock : la carte sait afficher une photo, mais
+        // seuls les produits synchronisés depuis HelloAsso en avaient une.
+        image_url: off?.image_url ?? null,
         helloasso_tier_id: null,
         barcode: values.barcode,
       },

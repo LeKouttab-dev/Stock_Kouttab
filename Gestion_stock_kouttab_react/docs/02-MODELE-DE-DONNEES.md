@@ -45,8 +45,17 @@ uniquement par migration sont signalés en §4.3, anomalie A3.
 
 - **Colonnes notables** : `nom` (VARCHAR 255, **UNIQUE**), `categorie`,
   `sous_categorie`, `quantite`, `seuil_alerte` (défaut 10), `emoji` (défaut
-  📦), `barcode` (VARCHAR 32, **UNIQUE**, indexé — `models.py:47`),
-  `alert_sent` (drapeau anti-répétition de l'alerte de seuil).
+  📦), `image_url` (VARCHAR 500, photo du produit), `barcode` (VARCHAR 32,
+  **UNIQUE**, indexé — `models.py:47`), `alert_sent` (drapeau anti-répétition
+  de l'alerte de seuil).
+- **`image_url` porte une adresse, pas des octets** — contrairement à tout le
+  reste des documents de l'application. Cette image est publique, remplaçable,
+  et sa perte ne coûte rien : l'emoji reprend sa place. La mettre en base ferait
+  de surcroît payer un aller-retour vers une base **distante** par vignette,
+  sur un écran qui en affiche plusieurs dizaines. Même choix que
+  `BuvetteProducts.image_url`, pour le même usage. Seul `https://` est accepté
+  (`utils/validators.validate_image_url`) : la valeur est rendue telle quelle
+  dans un `<img src>`.
 - **FK** : aucune.
 - **Index** : `idx_categorie`, `idx_nom`, plus l'index unique sur `barcode`.
 - **Relation** : `Stock.modifications` → `StockModifications`, en
@@ -807,6 +816,7 @@ branchement, aucun `depends_on`, aucun chaînon manquant. L'ordre des
 | 18 | `f2b9d4e7a1c3` | `2026_08_14_0900-…_ecarter_un_justificatif.py` | Ajoute `ecarte_at` / `ecarte_par` / `motif_ecart` (+ index, + FK SET NULL) sur `FichiersNotesDeFrais`. | Une pièce illisible ou mal rattachée ne pouvait ni être retirée ni remplacée ; l'écran conseillait de « supprimer cette note et la recréer ». Écarter plutôt qu'effacer, comme pour les notes : la pièce sort du dossier, reste en base, se restaure. Le motif accompagne le geste. |
 | 19 | `a3c7e5b2f9d4` | `2026_08_14_1100-…_archiver_les_factures.py` | Ajoute `archived_at` / `archived_by` (+ index, + FK SET NULL) sur `Factures`. | Même raisonnement que `b8d5f3a0c4e7`, appliqué là où il manquait : `DELETE /invoices/{id}` supprimait la ligne, ses fichiers et leur contenu en base — sur **n'importe quelle** facture, y compris validée, donc déjà comptabilisée. |
 | 20 | `b4d8f6c3e0a5` | `2026_08_14_1600-…_pole_esp_vt_et_natures_de_depense.py` | Insère le pôle `ESP-VT` et quatre natures de dépense (mobilier et petit équipement, fournitures administratives, entretien, réceptions) ; fait passer `Autre` à `ordre = 99`. **Tête actuelle.** | La catégorie était **refusée** sous un pôle événementiel : l'événement dit à quelle occasion la dépense a eu lieu, pas ce qui a été acheté, et le comptable n'avait la nature de la dépense que sur la moitié des pièces. Entièrement additif — `id_categorie` reste nullable, et les pièces événementielles déposées avant ce jour n'en auront jamais : la leur inventer rétroactivement inscrirait dans la comptabilité une information que personne n'a saisie. Insertions en `WHERE NOT EXISTS`, le `ensure_default_*` du démarrage ayant pu prendre les devants. |
+| 21 | `c5e9a7d4f1b6` | `2026_08_14_1800-…_photo_du_produit_sur_le_stock.py` | Ajoute `Stock.image_url` (VARCHAR 500, nullable). **Tête actuelle.** | Le scan d'un code-barres affichait la photo OpenFoodFacts dans l'aperçu puis la **jetait** : l'article créé n'en gardait rien et la liste retombait sur l'emoji. Une adresse plutôt que les octets — image publique, remplaçable, perte sans conséquence, et une base distante ne doit pas être interrogée par vignette affichée. Additif : les articles existants laissent la colonne vide et gardent leur emoji. |
 
 ### 4.3 Vérification de la chaîne et anomalies
 

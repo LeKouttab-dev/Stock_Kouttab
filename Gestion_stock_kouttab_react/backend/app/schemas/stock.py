@@ -18,6 +18,7 @@ class StockItemBase(BaseModel):
     quantite: int = Field(ge=0, default=0)
     seuil_alerte: int = Field(ge=0, default=10)
     emoji: str | None = "📦"
+    image_url: str | None = Field(default=None, max_length=500)
     barcode: str | None = Field(default=None, max_length=32)
 
 
@@ -36,6 +37,7 @@ class StockItemUpdate(BaseModel):
     quantite: int | None = Field(default=None, ge=0)
     seuil_alerte: int | None = Field(default=None, ge=0)
     emoji: str | None = None
+    image_url: str | None = Field(default=None, max_length=500)
     barcode: str | None = Field(default=None, max_length=32)
 
 

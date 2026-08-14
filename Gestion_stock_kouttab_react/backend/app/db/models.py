@@ -44,6 +44,14 @@ class Stock(Base):
     quantite: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     seuil_alerte: Mapped[int] = mapped_column(Integer, nullable=False, default=10)
     emoji: Mapped[str | None] = mapped_column(String(10), default="📦")
+    # Photo du produit, telle que la rend le scan d'un code-barres.
+    #
+    # Une adresse, et non les octets : contrairement aux justificatifs, cette
+    # image est publique, remplacable, et sa perte ne coute rien — l'emoji
+    # reprend sa place. La stocker en base ferait payer un aller-retour vers
+    # une base distante par vignette affichee, sur un ecran qui en montre
+    # plusieurs dizaines a la fois. Meme choix que `BuvetteProducts.image_url`.
+    image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     barcode: Mapped[str | None] = mapped_column(
         String(32), nullable=True, unique=True, index=True
     )

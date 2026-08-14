@@ -80,6 +80,7 @@ def create_item(payload: StockItemIn, db: Session = Depends(get_db)) -> Any:
         quantite=payload.quantite,
         seuil_alerte=payload.seuil_alerte,
         emoji=payload.emoji,
+        image_url=payload.image_url,
         barcode=payload.barcode,
     )
     return StockItemOut.model_validate(item)
@@ -107,11 +108,15 @@ def update_item(
     payload_dict = payload.model_dump(exclude_unset=True)
     new_qty = payload_dict.pop("quantite", None)
     barcode_set = "barcode" in payload_dict
+    # Meme raison que pour le code-barres : `None` est une valeur legitime
+    # (retirer la photo), il faut donc distinguer « absent » de « mis a vide ».
+    image_url_set = "image_url" in payload_dict
     if payload_dict:
         item = stock_crud.update_item(
             db,
             item_id,
             barcode_set=barcode_set,
+            image_url_set=image_url_set,
             **payload_dict,
         )
     else:

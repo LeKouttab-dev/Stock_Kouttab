@@ -176,7 +176,7 @@ Gestion_stock_kouttab_react/
 
 | Table | Rôle | FK clés |
 |-------|------|---------|
-| **Stock** | Articles : `nom` UNIQUE, `categorie`, `sous_categorie`, `quantite`, `seuil_alerte`, `emoji`, `alert_sent` | — |
+| **Stock** | Articles : `nom` UNIQUE, `categorie`, `sous_categorie`, `quantite`, `seuil_alerte`, `emoji`, **`image_url`** (photo du produit, récupérée au scan ; l'emoji sert de repli), `barcode` UNIQUE, `alert_sent` | — |
 | **Categories** | Référentiel des catégories : `nom` UNIQUE, `is_default` | — |
 | **SousCategories** | Hiérarchie cat→sous-cat : UNIQUE (`nom_categorie`, `nom_sous_categorie`) | (logique) |
 | **Admins** | Utilisateurs : `username` UNIQUE, `password_hash` bcrypt, `role`, `validation_status`, profil (nom, prenom, email, telephone, **rib**) | — |

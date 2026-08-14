@@ -52,15 +52,26 @@ export function StockItemsList({ items }: StockItemsListProps) {
           return (
             <Card key={item.id} className="transition-shadow hover:shadow-md">
               <CardContent className="p-5 space-y-3">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="text-base font-semibold">
-                      <span className="mr-1.5 text-xl" aria-hidden>
-                        {item.emoji ?? '📦'}
-                      </span>
-                      {item.nom}
-                    </h3>
-                  </div>
+                <div className="flex items-start gap-3">
+                  {/* La photo quand on en a une, l'emoji sinon — même repli que
+                      les cartes de la buvette. Une photo absente ou retirée par
+                      OpenFoodFacts ne laisse donc jamais un trou. */}
+                  {item.image_url ? (
+                    <img
+                      src={item.image_url}
+                      alt=""
+                      className="h-14 w-14 flex-shrink-0 rounded-md bg-muted/30 object-contain"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <span
+                      className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-md bg-muted/30 text-3xl"
+                      aria-hidden
+                    >
+                      {item.emoji ?? '📦'}
+                    </span>
+                  )}
+                  <h3 className="min-w-0 flex-1 text-base font-semibold">{item.nom}</h3>
                 </div>
 
                 <div className="flex items-center justify-between rounded-md bg-muted/30 px-3 py-2">

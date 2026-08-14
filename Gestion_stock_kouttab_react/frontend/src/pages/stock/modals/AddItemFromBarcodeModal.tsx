@@ -105,6 +105,9 @@ export function AddItemFromBarcodeModal({
         quantite: values.quantite,
         seuil_alerte: values.seuil_alerte,
         emoji: values.emoji,
+        // La photo vue dans l'aperçu suit l'article : elle était affichée puis
+        // jetée, et la liste du stock retombait sur l'emoji.
+        image_url: off?.image_url ?? null,
         barcode: values.barcode,
       },
       {

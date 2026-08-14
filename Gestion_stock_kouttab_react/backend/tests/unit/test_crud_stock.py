@@ -287,3 +287,90 @@ def test_get_low_stock_items_filters_by_threshold(db_session) -> None:
     quantities = [i.quantite for i in low]
     assert all(q < 10 or True for q in quantities)
     assert len(low) >= 1
+
+
+# ---- La photo du produit ----------------------------------------------------
+#
+# Le scan d'un code-barres affichait la photo dans l'apercu, puis la jetait :
+# l'article cree n'en gardait rien et la liste retombait sur l'emoji.
+
+
+def test_la_photo_scannee_est_conservee(db_session) -> None:
+    item = stock_crud.create_item(
+        db_session,
+        nom=_name("photo"),
+        categorie="Nourriture",
+        sous_categorie=None,
+        quantite=1,
+        seuil_alerte=5,
+        image_url="https://images.openfoodfacts.org/images/products/front_fr.4.100.jpg",
+    )
+    assert item.image_url.endswith("front_fr.4.100.jpg")
+
+
+def test_un_article_sans_photo_reste_valide(db_session) -> None:
+    """L'emoji sert de repli : la photo n'a jamais ete obligatoire."""
+    item = stock_crud.create_item(
+        db_session,
+        nom=_name("sansphoto"),
+        categorie="Nourriture",
+        sous_categorie=None,
+        quantite=1,
+        seuil_alerte=5,
+    )
+    assert item.image_url is None
+
+
+def test_une_adresse_de_photo_non_https_est_refusee(db_session) -> None:
+    """Rendue telle quelle dans un `<img src>`.
+
+    `data:` ferait passer une image entiere par ce champ, et `http://` afficherait
+    un avertissement de contenu mixte sur un site servi en HTTPS — la photo ne
+    s'afficherait pas, sans explication.
+    """
+    for adresse in ("http://exemple.test/p.jpg", "data:image/png;base64,AAAA"):
+        with pytest.raises(AppException):
+            stock_crud.create_item(
+                db_session,
+                nom=_name("mauvaise"),
+                categorie="Nourriture",
+                sous_categorie=None,
+                quantite=1,
+                seuil_alerte=5,
+                image_url=adresse,
+            )
+
+
+def test_la_photo_se_retire(db_session) -> None:
+    """Sans le drapeau, on ne pourrait que la remplacer : une photo erronee
+    resterait collee a l'article."""
+    item = stock_crud.create_item(
+        db_session,
+        nom=_name("retrait"),
+        categorie="Nourriture",
+        sous_categorie=None,
+        quantite=1,
+        seuil_alerte=5,
+        image_url="https://images.openfoodfacts.org/p.jpg",
+    )
+
+    modifie = stock_crud.update_item(
+        db_session, item.id, image_url=None, image_url_set=True
+    )
+    assert modifie.image_url is None
+
+
+def test_une_mise_a_jour_sans_photo_ne_l_efface_pas(db_session) -> None:
+    """Le cas courant : ajuster une quantite ne doit pas perdre la photo."""
+    item = stock_crud.create_item(
+        db_session,
+        nom=_name("conserve"),
+        categorie="Nourriture",
+        sous_categorie=None,
+        quantite=1,
+        seuil_alerte=5,
+        image_url="https://images.openfoodfacts.org/p.jpg",
+    )
+
+    modifie = stock_crud.update_item(db_session, item.id, seuil_alerte=9)
+    assert modifie.image_url == "https://images.openfoodfacts.org/p.jpg"
