@@ -1,10 +1,16 @@
 """Ce que chaque pole exige au depot d'une piece comptable.
 
-La regle, en une phrase : le pole evenementiel se rattache a un evenement, les
-autres a une categorie. Elle vaut a l'identique pour les factures et les notes
-de frais, d'ou sa resolution commune.
+La regle, en une phrase : **toute** piece porte une categorie — la nature de la
+depense —, et les poles evenementiels y ajoutent un evenement et sa date. Elle
+vaut a l'identique pour les factures et les notes de frais, d'ou sa resolution
+commune.
 
-Le cas qui a motive tout ceci : une depense du local — des courses, du gouter —
+La categorie etait auparavant refusee sous un pole evenementiel. Mais
+l'evenement dit a quelle occasion la depense a eu lieu, pas ce qui a ete
+achete : le comptable n'avait la nature de la depense que sur la moitie des
+pieces.
+
+L'autre cas, celui qui a motive le referentiel : une depense du local — des courses, du gouter —
 n'a aucun evenement. En exiger un obligeait le deposant a en inventer, et le
 comptable recevait des pieces rattachees a des evenements qui n'existaient pas.
 """
@@ -29,46 +35,75 @@ DATE = __import__("datetime").date(2026, 8, 12)
 # ---- Pole evenementiel ------------------------------------------------------
 
 
-def test_evenementiel_accepte_un_evenement_libre(db_session: Session, first_pole: Pole):
+def test_evenementiel_porte_les_deux_rattachements(
+    db_session: Session, first_pole: Pole, first_category
+):
+    """L'evenement dit a quelle occasion, la categorie dit ce qui a ete achete."""
     resolu = rattachement_crud.resoudre(
         db_session,
         id_pole=first_pole.id,
         evenement_libre="Gala de fin d'année",
+        id_categorie=first_category.id,
         date_evenement=DATE,
     )
     assert resolu.evenement == "Gala de fin d'année"
-    assert resolu.categorie is None
+    assert resolu.categorie == first_category.nom
     assert resolu.date_evenement == DATE
+
+
+def test_l_evenement_nomme_le_fichier_avant_la_categorie(
+    db_session: Session, first_pole: Pole, first_category
+):
+    """Les deux coexistent, mais un seul nomme la piece envoyee au comptable.
+
+    Si la categorie l'emportait, les pieces d'un meme evenement cesseraient de
+    se ranger ensemble dans sa boite — c'est exactement ce que le nommage sert
+    a produire.
+    """
+    resolu = rattachement_crud.resoudre(
+        db_session,
+        id_pole=first_pole.id,
+        evenement_libre="Gala de fin d'année",
+        id_categorie=first_category.id,
+        date_evenement=DATE,
+    )
     assert resolu.libelle_document == "Gala de fin d'année"
 
 
-def test_evenementiel_refuse_une_categorie(
+def test_evenementiel_exige_aussi_une_categorie(db_session: Session, first_pole: Pole):
+    """Le cas signale : la nature de la depense sautait des qu'un evenement
+    entrait en jeu."""
+    with pytest.raises(AppException) as exc:
+        rattachement_crud.resoudre(
+            db_session,
+            id_pole=first_pole.id,
+            evenement_libre="Gala",
+            date_evenement=DATE,
+        )
+    assert "categorie" in str(exc.value.message).lower()
+
+
+def test_evenementiel_exige_un_evenement(
     db_session: Session, first_pole: Pole, first_category
 ):
-    """Les deux rattachements s'excluent : accepter les deux produirait des
-    pieces dont on ne saurait plus dire a quoi elles se rapportent."""
+    with pytest.raises(AppException):
+        rattachement_crud.resoudre(
+            db_session,
+            id_pole=first_pole.id,
+            id_categorie=first_category.id,
+            date_evenement=DATE,
+        )
+
+
+def test_evenementiel_exige_la_date(
+    db_session: Session, first_pole: Pole, first_category
+):
     with pytest.raises(AppException) as exc:
         rattachement_crud.resoudre(
             db_session,
             id_pole=first_pole.id,
             evenement_libre="Gala",
             id_categorie=first_category.id,
-            date_evenement=DATE,
-        )
-    assert "categorie" in str(exc.value.message).lower()
-
-
-def test_evenementiel_exige_un_evenement(db_session: Session, first_pole: Pole):
-    with pytest.raises(AppException):
-        rattachement_crud.resoudre(
-            db_session, id_pole=first_pole.id, date_evenement=DATE
-        )
-
-
-def test_evenementiel_exige_la_date(db_session: Session, first_pole: Pole):
-    with pytest.raises(AppException) as exc:
-        rattachement_crud.resoudre(
-            db_session, id_pole=first_pole.id, evenement_libre="Gala"
         )
     assert "date" in str(exc.value.message).lower()
 
@@ -136,9 +171,29 @@ def test_pole_inconnu_refuse(db_session: Session, first_category):
 # ---- Referentiel ------------------------------------------------------------
 
 
-def test_les_cinq_categories_initiales_existent(db_session: Session):
+def test_le_referentiel_des_categories_est_celui_arrete_avec_le_client(
+    db_session: Session,
+):
     noms = [c.nom for c in category_crud.list_categories(db_session)]
-    assert noms == ["Courses", "Stock goûter", "Achat buvette", "Achat matériel", "Autre"]
+    assert noms == [
+        "Courses",
+        "Stock goûter",
+        "Achat buvette",
+        "Achat matériel",
+        "Mobilier, immobilier et petit équipement",
+        "Fournitures administratives",
+        "Entretien",
+        "Réceptions (repas, déplacements, nourriture)",
+        "Autre",
+    ]
+
+
+def test_autre_reste_en_fin_de_liste(db_session: Session):
+    """Un fourre-tout offert avant les categories precises se choisit par
+    defaut. Son ordre est volontairement tres eleve, pour que les categories
+    ajoutees ensuite passent devant sans qu'on ait a y penser."""
+    noms = [c.nom for c in category_crud.list_categories(db_session)]
+    assert noms[-1] == "Autre"
 
 
 def test_une_categorie_du_referentiel_de_base_ne_se_supprime_pas(
@@ -200,6 +255,7 @@ def test_le_referentiel_des_poles_est_celui_arrete_avec_le_client(db_session: Se
         "Institut",
         "Halaqa",
         "Séjour annuel",
+        "ESP-VT",
     ]
 
 

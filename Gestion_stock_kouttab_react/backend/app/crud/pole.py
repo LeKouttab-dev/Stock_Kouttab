@@ -30,6 +30,7 @@ DEFAULT_POLES: tuple[tuple[str, int, bool, str | None], ...] = (
     ("Institut", 5, False, None),
     ("Halaqa", 6, False, None),
     ("Séjour annuel", 7, False, None),
+    ("ESP-VT", 8, False, None),
 )
 
 # Poles du referentiel precedent, remplaces par la liste ci-dessus. Ils sont

@@ -372,17 +372,19 @@ uniquement par migration sont signalés en §4.3, anomalie A3.
   liste évoluerait (`models.py:262-264`).
 - **`is_active` plutôt qu'une suppression** : une facture de 2026 doit garder un
   pôle lisible même si celui-ci n'est plus proposé en 2027 (`models.py:276-277`).
-- **`requiert_evenement`** : le pôle déclare lui-même ce que le dépôt exige — un
-  événement, ou une catégorie. Une dépense du local (courses, goûter, matériel)
-  n'a pas d'événement, et l'exiger obligeait à en inventer un pour satisfaire le
-  formulaire. Le drapeau vit sur le pôle plutôt que dans le code : un pôle créé
-  demain déclare son attente **sans redéploiement** (`models.py:280-286`).
+- **`requiert_evenement`** : le pôle déclare lui-même s'il exige **en plus** de
+  la catégorie un événement et sa date. Une dépense du local (courses, goûter,
+  matériel) n'a pas d'événement, et l'exiger obligeait à en inventer un pour
+  satisfaire le formulaire. Le drapeau vit sur le pôle plutôt que dans le code :
+  un pôle créé demain déclare son attente **sans redéploiement**
+  (`models.py:280-286`). La catégorie, elle, ne dépend d'aucun drapeau — elle
+  est demandée partout depuis `b4d8f6c3e0a5`.
 - **`type_evenement`** : famille (« T », « G », « J ») des événements proposés
   sous ce pôle. `NULL` = aucun filtre (`models.py:290-294`).
 
 | Table | Rôle |
 |---|---|
-| `CategoriesDepense` | Catégorie d'une dépense hors événement (référentiel administrable). |
+| `CategoriesDepense` | Nature d'une dépense — ce qui a été acheté — demandée sous **tous** les pôles (référentiel administrable). |
 
 `backend/app/db/models.py:302`
 
@@ -803,7 +805,8 @@ branchement, aucun `depends_on`, aucun chaînon manquant. L'ordre des
 | 16 | `d0f7b2c5e8a9` | `2026_08_13_2200-…_justificatifs_remboursement_en_base.py` | Ajoute `contenu_pdf` / `contenu_xlsx` (LONGBLOB) sur `Remboursements` et y charge les fichiers existants. | **Dernière** famille de documents restée sur le seul disque. Un `down -v`, un changement de VPS ou un `volume prune` laissait des remboursements enregistrés **sans leur preuve** — alors que ce document porte le montant versé, le moyen et l'approbation. |
 | 17 | `e1a8c3d6f0b2` | `2026_08_13_2300-…_suivi_non_lu.py` | Ajoute `non_lu_demandeur` (+ index) sur `NotesDeFrais` et `Factures` ; ajoute `Factures.commentaires_compta`. | Un commentaire de la comptabilité n'allumait rien : il fallait ouvrir « Mes demandes » et repérer soi-même l'encart, le seul canal étant un courriel best-effort. Et un **refus de facture arrivait sans motif**, la colonne n'existant nulle part. Dénormalisé pour éviter une sous-requête vers une base distante à chaque chargement. |
 | 18 | `f2b9d4e7a1c3` | `2026_08_14_0900-…_ecarter_un_justificatif.py` | Ajoute `ecarte_at` / `ecarte_par` / `motif_ecart` (+ index, + FK SET NULL) sur `FichiersNotesDeFrais`. | Une pièce illisible ou mal rattachée ne pouvait ni être retirée ni remplacée ; l'écran conseillait de « supprimer cette note et la recréer ». Écarter plutôt qu'effacer, comme pour les notes : la pièce sort du dossier, reste en base, se restaure. Le motif accompagne le geste. |
-| 19 | `a3c7e5b2f9d4` | `2026_08_14_1100-…_archiver_les_factures.py` | Ajoute `archived_at` / `archived_by` (+ index, + FK SET NULL) sur `Factures`. **Tête actuelle.** | Même raisonnement que `b8d5f3a0c4e7`, appliqué là où il manquait : `DELETE /invoices/{id}` supprimait la ligne, ses fichiers et leur contenu en base — sur **n'importe quelle** facture, y compris validée, donc déjà comptabilisée. |
+| 19 | `a3c7e5b2f9d4` | `2026_08_14_1100-…_archiver_les_factures.py` | Ajoute `archived_at` / `archived_by` (+ index, + FK SET NULL) sur `Factures`. | Même raisonnement que `b8d5f3a0c4e7`, appliqué là où il manquait : `DELETE /invoices/{id}` supprimait la ligne, ses fichiers et leur contenu en base — sur **n'importe quelle** facture, y compris validée, donc déjà comptabilisée. |
+| 20 | `b4d8f6c3e0a5` | `2026_08_14_1600-…_pole_esp_vt_et_natures_de_depense.py` | Insère le pôle `ESP-VT` et quatre natures de dépense (mobilier et petit équipement, fournitures administratives, entretien, réceptions) ; fait passer `Autre` à `ordre = 99`. **Tête actuelle.** | La catégorie était **refusée** sous un pôle événementiel : l'événement dit à quelle occasion la dépense a eu lieu, pas ce qui a été acheté, et le comptable n'avait la nature de la dépense que sur la moitié des pièces. Entièrement additif — `id_categorie` reste nullable, et les pièces événementielles déposées avant ce jour n'en auront jamais : la leur inventer rétroactivement inscrirait dans la comptabilité une information que personne n'a saisie. Insertions en `WHERE NOT EXISTS`, le `ensure_default_*` du démarrage ayant pu prendre les devants. |
 
 ### 4.3 Vérification de la chaîne et anomalies
 

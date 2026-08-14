@@ -416,13 +416,20 @@ au back ni au front : un pôle créé demain se comporte selon son propre drapea
 
 | `Poles.requiert_evenement` | Le dépôt exige | Nom du PDF comptable |
 |---|---|---|
-| `true` (EV(T), EV(G), EV(J)) | un **événement** — du référentiel ou saisi librement — **et** sa date | `{Pôle}_{Événement}_{date événement}.pdf` |
-| `false` (Frais généraux, Institut, Halaqa, Séjour annuel) | une **catégorie** de dépense et une description | `{Pôle}_{Catégorie}_{date dépense}.pdf` |
+| `true` (EV(T), EV(G), EV(J)) | la **catégorie**, plus un **événement** — du référentiel ou saisi librement — **et** sa date | `{Pôle}_{Événement}_{date événement}.pdf` |
+| `false` (Frais généraux, Institut, Halaqa, Séjour annuel, ESP-VT) | la **catégorie** et une description | `{Pôle}_{Catégorie}_{date dépense}.pdf` |
 
 Autres règles :
 
-- Fournir une catégorie sous un pôle événementiel est **refusé** avec un message
-  explicite, et réciproquement (`crud/rattachement.py:66-73`).
+- **La catégorie est demandée partout.** Elle était refusée sous un pôle
+  événementiel : l'événement dit à quelle occasion la dépense a eu lieu, la
+  catégorie dit ce qui a été acheté, et le comptable n'avait la seconde que sur
+  la moitié des pièces. Quand les deux coexistent, **l'événement nomme le
+  fichier** — sinon les pièces d'un même événement cesseraient de se ranger
+  ensemble dans sa boîte.
+- Un **événement reste refusé** sous un pôle qui n'en attend pas : le formulaire
+  ne le propose plus, mais l'API reste la frontière — un onglet resté ouvert ne
+  doit pas pouvoir rattacher une dépense du local à un événement.
 - Sous un pôle événementiel, la **date de l'événement est obligatoire**.
 - Les pôles EV portent une **famille** (`Poles.type_evenement` : `T`, `G`, `J`)
   et ne proposent que les événements de la leur (`Events.type_ev`). Cette

@@ -610,16 +610,22 @@ ici — un pôle créé demain se comporte selon son propre drapeau. » Le drape
 
 | `requiert_evenement` | Ce qui est exigé | Ce qui est refusé | Nom produit |
 |---|---|---|---|
-| `true` | un événement (référentiel **ou** saisie libre) et sa date (`:75-82`) | une catégorie (`:67-74`) | `{Pôle}_{Événement}_{date événement}.pdf` |
-| `false` | une catégorie active (`:103-106`) | tout événement (`:95-102`) | `{Pôle}_{Catégorie}_{date dépense}.pdf` |
+| `true` | une catégorie active, **plus** un événement (référentiel ou saisie libre) et sa date | — | `{Pôle}_{Événement}_{date événement}.pdf` |
+| `false` | une catégorie active | tout événement | `{Pôle}_{Catégorie}_{date dépense}.pdf` |
+
+La catégorie est résolue **avant** l'aiguillage, pour les deux branches : elle
+était auparavant refusée sous un pôle événementiel, si bien que le comptable
+n'avait la nature de la dépense que sur la moitié des pièces.
 
 La justification métier du second cas est donnée sur place : « une dépense du
 local n'en a pas, et en exiger un obligeait à en inventer » (`:93-94`).
 
-Le résultat est une dataclass gelée `Rattachement` (`:27-46`), dont la propriété
-`libelle_document` rend « l'événement sous un pôle événementiel, la catégorie
-sous les autres : dans les deux cas, ce qui dit à quoi la dépense se rattache »
-(`:40-46`).
+Le résultat est une dataclass gelée `Rattachement`, dont la propriété
+`libelle_document` rend l'événement sous un pôle événementiel, la catégorie sous
+les autres. Les deux coexistent désormais sur une même pièce et **l'événement
+reste prioritaire** : sans quoi les pièces d'un même événement cesseraient de se
+ranger ensemble chez le comptable — ce que le nommage sert précisément à
+produire.
 
 Deux résolveurs sont délégués :
 - `crud.event.resolve_event` (`backend/app/crud/event.py:112-135`) — exactement

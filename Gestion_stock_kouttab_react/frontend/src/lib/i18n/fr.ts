@@ -426,7 +426,7 @@ export const fr = {
   categories: {
     title: 'Catégories de dépense',
     subtitle:
-      'Proposées au dépôt sous les pôles qui ne se rattachent pas à un événement (local, institut).',
+      "La nature de la dépense — ce qui a été acheté. Demandée à chaque dépôt, sous tous les pôles.",
     label: 'Catégorie',
     selectPlaceholder: 'Sélectionnez une catégorie',
     unavailable: 'La liste des catégories est momentanément indisponible.',

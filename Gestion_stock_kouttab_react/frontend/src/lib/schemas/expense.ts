@@ -6,11 +6,16 @@ import { EXPENSE_STATUS } from '../constants';
  * Un ticket sans rattachement arrivait chez le comptable sous un nom incomplet,
  * impossible à imputer.
  *
- * Ce que le pôle commande, précisément :
+ * La **nature de la dépense est toujours demandée** : c'est elle qui dit ce qui
+ * a été acheté. L'événement, lui, dit à quelle occasion — le comptable a besoin
+ * des deux pour imputer, et il ne recevait la nature que sous les pôles sans
+ * événement.
+ *
+ * Ce que le pôle commande en plus, précisément :
  * - **pôle événementiel** → un événement (identifiant HelloAsso ou saisie libre
  *   pour ce qui n'existe pas chez eux) et sa date ;
- * - **tout autre pôle** → une catégorie (courses, goûter, matériel...) et une
- *   description de l'achat. Une dépense du local n'a pas d'événement, et en
+ * - **tout autre pôle** → une description de l'achat, qui prend la place que
+ *   l'événement occupait. Une dépense du local n'a pas d'événement, et en
  *   exiger un obligeait à en inventer.
  *
  * `requiert_evenement` est un champ technique, recopié depuis le pôle
@@ -36,6 +41,14 @@ export const expenseSchema = z
     id_categorie: z.number().int().positive().nullable().optional(),
   })
   .superRefine((v, ctx) => {
+    if (!v.id_categorie) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['id_categorie'],
+        message: 'Catégorie obligatoire',
+      });
+    }
+
     if (v.requiert_evenement) {
       if (!v.id_event && !v.evenement_libre?.trim()) {
         ctx.addIssue({
@@ -54,13 +67,6 @@ export const expenseSchema = z
       return;
     }
 
-    if (!v.id_categorie) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['id_categorie'],
-        message: 'Catégorie obligatoire',
-      });
-    }
     if (!v.commentaires?.trim()) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

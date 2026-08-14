@@ -63,11 +63,15 @@ export function InvoiceUploadPage() {
   const selectedCategorie = categories?.find((c) => c.id === categorieId) ?? null;
 
   /**
-   * Changement de pôle : on repart des champs du rattachement.
+   * Changement de pôle : on repart des champs de l'événement.
    *
    * Sans ce nettoyage, un événement saisi puis un basculement vers « Local »
    * laissait l'événement dans le formulaire — invisible, mais envoyé, et refusé
    * par l'API avec un message que rien à l'écran n'expliquait.
+   *
+   * La catégorie, elle, **survit au changement** : elle est demandée sous tous
+   * les pôles, et l'effacer ferait resaisir la nature de la dépense à chaque
+   * hésitation sur le pôle.
    */
   const changerPole = (id: number) => {
     const pole = poles?.find((p) => p.id === id) ?? null;
@@ -76,7 +80,6 @@ export function InvoiceUploadPage() {
     form.setValue('eventId', null);
     form.setValue('eventLibre', '');
     form.setValue('dateEvenement', '');
-    form.setValue('categorieId', null);
   };
 
   /**
@@ -190,11 +193,25 @@ export function InvoiceUploadPage() {
                 )}
               </div>
 
-              {/* Ce que le pôle commande : événement et date sous le pôle
-                  événementiel, catégorie ailleurs. Une facture du local n'a pas
-                  d'événement — la ligne disparaît plutôt que d'obliger à en
-                  inventer un. */}
-              {requiertEvenement ? (
+              {/* La nature de la dépense, demandée partout : elle dit ce qui
+                  a été acheté, là où l'événement dit à quelle occasion. */}
+              <div className="space-y-1.5">
+                <Label required>{fr.categories.label}</Label>
+                <CategorySelect
+                  categoryId={categorieId ?? null}
+                  onChange={(id) => form.setValue('categorieId', id, { shouldValidate: true })}
+                />
+                {form.formState.errors.categorieId && (
+                  <p className="text-xs text-destructive">
+                    {form.formState.errors.categorieId.message}
+                  </p>
+                )}
+              </div>
+
+              {/* L'événement et sa date, seulement sous un pôle qui en attend
+                  un. Une facture du local n'en a pas — la ligne disparaît
+                  plutôt que d'obliger à en inventer un. */}
+              {requiertEvenement && (
                 <>
                   <div className="space-y-1.5">
                     <Label required>{fr.invoices.evenement}</Label>
@@ -233,19 +250,6 @@ export function InvoiceUploadPage() {
                     )}
                   </div>
                 </>
-              ) : (
-                <div className="space-y-1.5">
-                  <Label required>{fr.categories.label}</Label>
-                  <CategorySelect
-                    categoryId={categorieId ?? null}
-                    onChange={(id) => form.setValue('categorieId', id, { shouldValidate: true })}
-                  />
-                  {form.formState.errors.categorieId && (
-                    <p className="text-xs text-destructive">
-                      {form.formState.errors.categorieId.message}
-                    </p>
-                  )}
-                </div>
               )}
 
               <div className="space-y-1.5">

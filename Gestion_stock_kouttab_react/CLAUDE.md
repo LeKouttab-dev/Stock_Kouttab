@@ -188,7 +188,7 @@ Gestion_stock_kouttab_react/
 | **StockModifications** | Workflow d'approbation modif stock | `id_user`, `id_stock`, `approuve_par → Admins.id` |
 | **TicketsJustificatif** | Demande de pièce manquante : `libelle` (seul obligatoire), `montant_attendu`, `date_achat`, `fournisseur`, `statut` (`ouvert`·`clos`·`annule`), `rappels_envoyes`, `dernier_rappel_at` | `id_user`, `cree_par`, `closed_by`, `id_facture → Factures.id` |
 | **Remboursements** | Un versement à un bénévole soldant N notes : `date_remboursement`, `moyen`, `etablissement`, `approuve_par`, `montant_total` (**instantané**), `chemin_pdf`, `chemin_xlsx` | `id_user`, `cree_par → Admins.id` |
-| **CategoriesDepense** | Référentiel administrable des catégories hors événement (`Courses`, `Stock goûter`, `Achat buvette`, `Achat matériel`, `Autre`) : `nom` UNIQUE, `is_default`, `is_active`, `ordre` | — |
+| **CategoriesDepense** | Référentiel administrable de la **nature des dépenses**, demandée sous tous les pôles (`Courses`, `Stock goûter`, `Achat buvette`, `Achat matériel`, `Mobilier, immobilier et petit équipement`, `Fournitures administratives`, `Entretien`, `Réceptions (repas, déplacements, nourriture)`, `Autre`) : `nom` UNIQUE, `is_default`, `is_active`, `ordre` — `Autre` porte `ordre = 99` pour rester en fin de liste | — |
 | **BuvetteProducts** | Produits de la buvette synchronisés HelloAsso : `helloasso_tier_id` UNIQUE, `name`, `price_cents`, `quantity`, `seuil_alerte`, `emoji`, `image_url`, `alert_sent`, `last_synced_at`, `is_active` | — |
 | **Conversations** | Fil de discussion : `id_user` (auteur), `destinataire` (`compta`·`admin`), `sujet`, `statut` (`ouverte`·`en_cours`·`traitee`), `attente_equipe`, `non_lu_demandeur` (**dénormalisés**, cf. §6) | `id_user`, `closed_by` |
 | **ConversationMessages** | Un message : `corps`, `auteur_nom` et `de_l_equipe` **figés à l'écriture** — un compte supprimé laisserait des messages anonymes, un bénévole promu comptable ferait passer ses anciennes questions pour des réponses | `id_conversation` (CASCADE), `id_auteur` |
@@ -382,8 +382,16 @@ n'est écrite en dur, ni au back ni au front :
 
 | `Poles.requiert_evenement` | Le dépôt exige | Nom du PDF comptable |
 |---|---|---|
-| `true` — EV(T), EV(G), EV(J) | un événement (référentiel ou saisie libre) **et** sa date | `{Pôle}_{Événement}_{date événement}.pdf` |
-| `false` — Frais généraux, Institut, Halaqa, Séjour annuel | une **catégorie** et une description de l'achat | `{Pôle}_{Catégorie}_{date dépense}.pdf` |
+| `true` — EV(T), EV(G), EV(J) | la **catégorie**, plus un événement (référentiel ou saisie libre) **et** sa date | `{Pôle}_{Événement}_{date événement}.pdf` |
+| `false` — Frais généraux, Institut, Halaqa, Séjour annuel, ESP-VT | la **catégorie** et une description de l'achat | `{Pôle}_{Catégorie}_{date dépense}.pdf` |
+
+**La catégorie est demandée sous tous les pôles.** Elle était refusée sous les
+pôles événementiels, l'événement y tenant lieu de rattachement — mais
+l'événement dit *à quelle occasion* la dépense a eu lieu, pas *ce qui a été
+acheté*. Le comptable a besoin des deux pour imputer, et il ne recevait la
+nature de la dépense que sur la moitié des pièces. Quand les deux coexistent,
+**l'événement l'emporte pour nommer le fichier** : sinon les pièces d'un même
+événement cesseraient de se ranger ensemble dans sa boîte.
 
 Les pôles EV portent une **famille** (`Poles.type_evenement` : `T`, `G`, `J`)
 et ne proposent que les événements de la leur (`Events.type_ev`). Cette famille

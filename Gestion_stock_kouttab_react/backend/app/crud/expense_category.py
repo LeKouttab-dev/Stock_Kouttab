@@ -19,14 +19,22 @@ from app.db.models import Expense, ExpenseCategory, Invoice
 logger = get_logger("expense_category")
 
 
-# Liste initiale fournie par le client. Elle vit en base : la faire evoluer ne
-# doit pas demander un deploiement.
+# Liste fournie par le client. Elle vit en base : la faire evoluer ne doit pas
+# demander un deploiement.
+#
+# `Autre` porte volontairement un ordre tres eleve : c'est le choix de repli,
+# et il doit rester en fin de liste quelles que soient les categories ajoutees
+# ensuite. Une categorie fourre-tout en milieu de liste se choisit par defaut.
 DEFAULT_CATEGORIES: tuple[tuple[str, int], ...] = (
     ("Courses", 1),
     ("Stock goûter", 2),
     ("Achat buvette", 3),
     ("Achat matériel", 4),
-    ("Autre", 5),
+    ("Mobilier, immobilier et petit équipement", 5),
+    ("Fournitures administratives", 6),
+    ("Entretien", 7),
+    ("Réceptions (repas, déplacements, nourriture)", 8),
+    ("Autre", 99),
 )
 
 
@@ -171,33 +179,24 @@ def delete_category(db: Session, category_id: int) -> None:
     db.commit()
 
 
-def resolve_for_pole(
-    db: Session,
-    *,
-    requiert_evenement: bool,
-    id_categorie: int | None,
-) -> ExpenseCategory | None:
-    """Controle la categorie fournie au regard de ce qu'attend le pole.
+def resolve_categorie(db: Session, *, id_categorie: int | None) -> ExpenseCategory:
+    """Controle la categorie fournie. Elle est exigee sous **tous** les poles.
 
     Resolue **avant** toute ecriture, comme le pole et l'evenement : la
-    categorie compose le nom du fichier envoye au comptable, et une erreur doit
-    revenir au deposant plutot que de produire une piece mal nommee.
-    """
-    if requiert_evenement:
-        if id_categorie is not None:
-            raise AppException(
-                ErrorCode.VALIDATION_ERROR,
-                detail=(
-                    "Ce pole se rattache a un evenement, pas a une categorie. "
-                    "Choisissez un evenement."
-                ),
-            )
-        return None
+    categorie compose le nom du fichier envoye au comptable sous les poles sans
+    evenement, et une erreur doit revenir au deposant plutot que de produire une
+    piece mal nommee.
 
+    Elle etait auparavant refusee sous les poles evenementiels, ou l'evenement
+    tenait lieu de rattachement. Mais l'evenement dit *a quelle occasion* la
+    depense a eu lieu, pas *ce qui a ete achete* : le comptable a besoin des
+    deux pour imputer, et il n'avait la nature de la depense que sur la moitie
+    des pieces.
+    """
     if id_categorie is None:
         raise AppException(
             ErrorCode.VALIDATION_ERROR,
-            detail="Categorie obligatoire pour ce pole.",
+            detail="Categorie obligatoire.",
         )
 
     categorie = get_category_or_404(db, id_categorie)
@@ -218,6 +217,6 @@ __all__ = [
     "get_category",
     "get_category_or_404",
     "list_categories",
-    "resolve_for_pole",
+    "resolve_categorie",
     "update_category",
 ]

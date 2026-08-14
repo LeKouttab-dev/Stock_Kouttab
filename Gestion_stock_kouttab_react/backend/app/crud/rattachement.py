@@ -1,9 +1,10 @@
 """Resolution du rattachement comptable d'une piece (pole + suite).
 
-Ce que « rattachement » recouvre : le pole, puis **selon le pole**, un evenement
-ou une categorie. Les factures et les notes de frais partagent exactement cette
-regle et alimentent le meme circuit comptable — la resoudre a un seul endroit
-evite qu'un ecran finisse par accepter ce que l'autre refuse.
+Ce que « rattachement » recouvre : le pole, la categorie de depense — toujours —
+et, **si le pole l'exige**, un evenement et sa date. Les factures et les notes
+de frais partagent exactement cette regle et alimentent le meme circuit
+comptable — la resoudre a un seul endroit evite qu'un ecran finisse par accepter
+ce que l'autre refuse.
 
 La resolution se fait **avant toute ecriture** : ces champs composent le nom du
 PDF envoye au comptable, et une erreur doit revenir au deposant plutot que de
@@ -40,8 +41,10 @@ class Rattachement:
     def libelle_document(self) -> str | None:
         """Deuxieme composant du nom du fichier comptable.
 
-        L'evenement sous un pole evenementiel, la categorie sous les autres :
-        dans les deux cas, ce qui dit a quoi la depense se rattache.
+        L'evenement sous un pole evenementiel, la categorie sous les autres.
+        Les deux coexistent desormais sur une meme piece ; **l'evenement reste
+        prioritaire** pour le nom du fichier, sans quoi les pieces d'un meme
+        evenement cesseraient de se ranger ensemble chez le comptable.
         """
         return self.evenement or self.categorie
 
@@ -63,15 +66,13 @@ def resoudre(
     """
     pole = pole_crud.get_pole_or_404(db, id_pole)
 
+    # La nature de la depense est demandee sous **tous** les poles. L'evenement
+    # dit a quelle occasion la depense a eu lieu, pas ce qui a ete achete : le
+    # comptable a besoin des deux pour imputer, et il ne recevait la nature que
+    # sur les pieces des poles sans evenement.
+    categorie = category_crud.resolve_categorie(db, id_categorie=id_categorie)
+
     if pole.requiert_evenement:
-        if id_categorie is not None:
-            raise AppException(
-                ErrorCode.VALIDATION_ERROR,
-                detail=(
-                    f"Le pole « {pole.nom} » se rattache a un evenement, pas a une "
-                    "categorie."
-                ),
-            )
         event_id, event_label = event_crud.resolve_event(
             db, event_id=id_event, evenement_libre=evenement_libre
         )
@@ -85,8 +86,8 @@ def resoudre(
             pole=pole.nom,
             id_event=event_id,
             evenement=event_label,
-            id_categorie=None,
-            categorie=None,
+            id_categorie=categorie.id,
+            categorie=categorie.nom,
             date_evenement=date_evenement,
         )
 
@@ -97,13 +98,9 @@ def resoudre(
             ErrorCode.VALIDATION_ERROR,
             detail=(
                 f"Le pole « {pole.nom} » ne se rattache pas a un evenement. "
-                "Choisissez une categorie."
+                "La categorie suffit."
             ),
         )
-    categorie = category_crud.resolve_for_pole(
-        db, requiert_evenement=False, id_categorie=id_categorie
-    )
-    assert categorie is not None  # garanti par resolve_for_pole
 
     return Rattachement(
         id_pole=pole.id,

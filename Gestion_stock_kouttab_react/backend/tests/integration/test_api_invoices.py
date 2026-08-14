@@ -17,6 +17,9 @@ def _upload_invoice(client, user, headers_factory, pole=None, **overrides) -> in
         "commentaire": "Une facture",
         "date_depot": "2024-04-15",
         "id_pole": str(pole.id) if pole is not None else "1",
+        # Demandee sous tous les poles, evenementiels compris : elle dit ce qui
+        # a ete achete, la ou l'evenement dit a quelle occasion.
+        "id_categorie": "1",
         "evenement_libre": "Gala de printemps",
         "date_evenement": "2024-04-10",
     }

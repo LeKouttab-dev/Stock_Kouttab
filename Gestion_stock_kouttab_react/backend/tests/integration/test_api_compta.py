@@ -34,6 +34,7 @@ def _jpeg_bytes() -> bytes:
 def _deposit(client, user, headers, *, pole_id, files=None, **overrides):
     payload = {
         "id_pole": str(pole_id),
+        "id_categorie": "1",
         "evenement_libre": "Gala d'été 2026",
         "date_evenement": "2026-03-14",
         "commentaire": "Achat de fournitures",
@@ -65,6 +66,7 @@ def test_default_poles_are_available(client: TestClient, benevole_user, auth_hea
         "Institut",
         "Halaqa",
         "Séjour annuel",
+        "ESP-VT",
     ]
     # Les poles du referentiel precedent sont desactives, donc absents de la
     # liste servie au depot, mais toujours en base pour les pieces qui les
@@ -312,6 +314,7 @@ def _deposit_expense(client, user, headers, *, pole_id, **overrides):
         "rattachement": "Buvette",
         "fournisseur": "Carrefour",
         "id_pole": str(pole_id),
+        "id_categorie": "1",
         "evenement_libre": "Gala d'été 2026",
         "date_evenement": "2026-03-14",
     }

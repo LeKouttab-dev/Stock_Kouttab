@@ -30,14 +30,28 @@ function chemins(resultat: ReturnType<typeof expenseSchema.safeParse>): string[]
 }
 
 describe('note de frais — pôle événementiel', () => {
-  it('accepte un événement saisi librement et sa date', () => {
+  it('accepte un événement saisi librement, sa date et une catégorie', () => {
+    const r = expenseSchema.safeParse({
+      ...NOTE_BASE,
+      requiert_evenement: true,
+      id_categorie: 3,
+      evenement_libre: 'Gala',
+      date_evenement: '2026-08-20',
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("exige la catégorie, comme partout ailleurs", () => {
+    // Le cas signalé : la nature de la dépense sautait dès qu'un événement
+    // entrait en jeu. L'événement dit à quelle occasion, la catégorie dit ce
+    // qui a été acheté — le comptable a besoin des deux.
     const r = expenseSchema.safeParse({
       ...NOTE_BASE,
       requiert_evenement: true,
       evenement_libre: 'Gala',
       date_evenement: '2026-08-20',
     });
-    expect(r.success).toBe(true);
+    expect(chemins(r)).toContain('id_categorie');
   });
 
   it("refuse l'absence d'événement", () => {
@@ -62,6 +76,7 @@ describe('note de frais — pôle événementiel', () => {
     const r = expenseSchema.safeParse({
       ...NOTE_BASE,
       requiert_evenement: true,
+      id_categorie: 3,
       evenement_libre: 'Gala',
       date_evenement: '2026-08-20',
       commentaires: '',
@@ -137,7 +152,7 @@ describe('facture — pôle sans événement', () => {
 });
 
 describe('facture — pôle événementiel', () => {
-  it('exige toujours événement et date', () => {
+  it('exige événement, date et catégorie', () => {
     const r = invoiceUploadSchema.safeParse({
       ...FACTURE_BASE,
       requiertEvenement: true,
@@ -148,13 +163,26 @@ describe('facture — pôle événementiel', () => {
       const paths = r.error.issues.map((i) => i.path.join('.'));
       expect(paths).toContain('eventId');
       expect(paths).toContain('dateEvenement');
+      expect(paths).toContain('categorieId');
     }
+  });
+
+  it('accepte les deux rattachements ensemble', () => {
+    const r = invoiceUploadSchema.safeParse({
+      ...FACTURE_BASE,
+      requiertEvenement: true,
+      categorieId: 2,
+      eventLibre: 'Gala',
+      dateEvenement: '2026-08-20',
+    });
+    expect(r.success).toBe(true);
   });
 
   it('refuse un événement choisi ET saisi', () => {
     const r = invoiceUploadSchema.safeParse({
       ...FACTURE_BASE,
       requiertEvenement: true,
+      categorieId: 2,
       eventId: 4,
       eventLibre: 'Gala',
       dateEvenement: '2026-08-20',

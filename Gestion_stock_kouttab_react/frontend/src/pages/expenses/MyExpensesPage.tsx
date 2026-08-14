@@ -175,11 +175,15 @@ function SubmitExpenseTab() {
   const selectedCategorie = categories?.find((c) => c.id === categorieId) ?? null;
 
   /**
-   * Changement de pôle : on repart des champs du rattachement.
+   * Changement de pôle : on repart des champs de l'événement.
    *
    * Sans ce nettoyage, un événement saisi puis un basculement vers « Local »
    * laissait l'événement dans le formulaire — invisible, mais envoyé, et refusé
    * par l'API avec un message que rien à l'écran n'expliquait.
+   *
+   * La catégorie, elle, **survit au changement** : elle est demandée sous tous
+   * les pôles, et l'effacer ferait resaisir la nature de la dépense à chaque
+   * hésitation sur le pôle.
    */
   const changerPole = (id: number) => {
     const pole = poles?.find((p) => p.id === id) ?? null;
@@ -188,7 +192,6 @@ function SubmitExpenseTab() {
     form.setValue('id_event', null);
     form.setValue('evenement_libre', '');
     form.setValue('date_evenement', '');
-    form.setValue('id_categorie', null);
   };
 
   /**
@@ -352,7 +355,24 @@ function SubmitExpenseTab() {
               )}
             </div>
 
-            {requiertEvenement ? (
+            {/* La nature de la dépense est demandée sous tous les pôles : elle
+                dit ce qui a été acheté, là où l'événement dit à quelle occasion.
+                Le comptable a besoin des deux pour imputer, et il ne la
+                recevait que sur les pièces des pôles sans événement. */}
+            <div className="space-y-1.5 md:col-span-2">
+              <Label required>{fr.categories.label}</Label>
+              <CategorySelect
+                categoryId={categorieId ?? null}
+                onChange={(id) => form.setValue('id_categorie', id, { shouldValidate: true })}
+              />
+              {form.formState.errors.id_categorie && (
+                <p className="text-xs text-destructive">
+                  {form.formState.errors.id_categorie.message}
+                </p>
+              )}
+            </div>
+
+            {requiertEvenement && (
               <>
                 <div className="space-y-1.5">
                   <Label required>{fr.invoices.evenement}</Label>
@@ -390,19 +410,6 @@ function SubmitExpenseTab() {
                   )}
                 </div>
               </>
-            ) : (
-              <div className="space-y-1.5 md:col-span-2">
-                <Label required>{fr.categories.label}</Label>
-                <CategorySelect
-                  categoryId={categorieId ?? null}
-                  onChange={(id) => form.setValue('id_categorie', id, { shouldValidate: true })}
-                />
-                {form.formState.errors.id_categorie && (
-                  <p className="text-xs text-destructive">
-                    {form.formState.errors.id_categorie.message}
-                  </p>
-                )}
-              </div>
             )}
           </div>
 

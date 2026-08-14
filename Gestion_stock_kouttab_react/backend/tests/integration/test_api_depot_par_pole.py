@@ -92,10 +92,15 @@ def test_note_sur_pole_local_avec_evenement_refusee(
     assert reponse.status_code == 422, reponse.text
 
 
-def test_note_sur_pole_evenementiel_inchangee(
-    client: TestClient, benevole_user, auth_headers, first_pole
+def test_note_sur_pole_evenementiel_porte_aussi_sa_categorie(
+    client: TestClient, benevole_user, auth_headers, first_pole, first_category
 ):
-    """Le pole evenementiel garde exactement son fonctionnement d'avant."""
+    """La nature de la depense accompagne l'evenement, elle ne le remplace pas.
+
+    Elle etait refusee sous ces poles : le comptable recevait « Gala de fin
+    d'annee » sans savoir s'il s'agissait de nourriture, de materiel ou de
+    fournitures.
+    """
     reponse = client.post(
         "/api/v1/expenses",
         data={
@@ -103,6 +108,7 @@ def test_note_sur_pole_evenementiel_inchangee(
             "montant": "24.90",
             "fournisseur": "Metro",
             "id_pole": str(first_pole.id),
+            "id_categorie": str(first_category.id),
             "evenement_libre": "Gala de fin d'année",
             "date_evenement": "2026-08-20",
         },
@@ -111,7 +117,7 @@ def test_note_sur_pole_evenementiel_inchangee(
     assert reponse.status_code == 201, reponse.text
     corps = reponse.json()
     assert corps["evenement"] == "Gala de fin d'année"
-    assert corps["categorie"] is None
+    assert corps["categorie"] == first_category.nom
 
 
 # ---- Factures ---------------------------------------------------------------

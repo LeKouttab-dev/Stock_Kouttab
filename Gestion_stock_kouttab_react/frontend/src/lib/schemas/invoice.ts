@@ -4,11 +4,11 @@ import { INVOICE_STATUS } from '../constants';
 /**
  * Dépôt d'une facture.
  *
- * Ce que le formulaire demande dépend du pôle choisi, et le pôle seul en
- * décide : sous le pôle événementiel, un événement et sa date ; sous les
- * autres — le local, l'institut — une catégorie (courses, goûter, matériel...)
- * et une description de l'achat. Une dépense du local n'a aucun événement, et
- * en exiger un obligeait à en inventer.
+ * La **catégorie est toujours demandée** — c'est la nature de la dépense, ce
+ * qui a été acheté. Le reste dépend du pôle choisi, et le pôle seul en décide :
+ * sous un pôle événementiel, un événement et sa date ; sous les autres — le
+ * local, l'institut — une description de l'achat. Une dépense du local n'a
+ * aucun événement, et en exiger un obligeait à en inventer.
  *
  * `requiertEvenement` est un champ technique, recopié depuis le pôle
  * sélectionné : Zod valide un objet et ne connaît pas le référentiel des pôles.
@@ -30,6 +30,14 @@ export const invoiceUploadSchema = z
     montant: z.string().optional(),
   })
   .superRefine((values, ctx) => {
+    if (!values.categorieId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['categorieId'],
+        message: 'La catégorie est obligatoire',
+      });
+    }
+
     if (values.requiertEvenement) {
       const hasFree = Boolean(values.eventLibre?.trim());
       const hasSelected = values.eventId !== null && values.eventId !== undefined;
@@ -58,13 +66,6 @@ export const invoiceUploadSchema = z
       return;
     }
 
-    if (!values.categorieId) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['categorieId'],
-        message: 'La catégorie est obligatoire',
-      });
-    }
     if (!values.comment?.trim()) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
