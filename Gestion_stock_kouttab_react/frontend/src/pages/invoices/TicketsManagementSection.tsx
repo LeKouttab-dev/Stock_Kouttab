@@ -53,9 +53,6 @@ export function TicketsManagementSection() {
   const [fournisseur, setFournisseur] = useState('');
   const [description, setDescription] = useState('');
 
-  const ouverts = tickets.filter((t) => t.statut === 'ouvert');
-  const clos = tickets.filter((t) => t.statut !== 'ouvert');
-
   const reinitialiser = () => {
     setIdUser('');
     setLibelle('');
@@ -94,7 +91,7 @@ export function TicketsManagementSection() {
             <CardTitle className="flex items-center gap-2 text-base">
               <FileWarning className="h-4 w-4" aria-hidden />
               {fr.tickets.titre}
-              {ouverts.length > 0 && <Badge variant="secondary">{ouverts.length}</Badge>}
+              {tickets.length > 0 && <Badge variant="secondary">{tickets.length}</Badge>}
             </CardTitle>
             <p className="text-xs text-muted-foreground">{fr.tickets.sousTitre}</p>
           </div>
@@ -208,77 +205,70 @@ export function TicketsManagementSection() {
           <p className="text-sm text-muted-foreground">{fr.tickets.aucun}</p>
         ) : (
           <ul className="space-y-2">
-            {[...ouverts, ...clos].map((ticket) => (
+            {/* Toutes les demandes affichées sont ouvertes : clore ou annuler
+                les efface. Un ticket est une relance, pas une pièce comptable —
+                une fois la facture reçue, la pièce est au dossier et la demande
+                ne documente plus rien. */}
+            {tickets.map((ticket) => (
               <li
                 key={ticket.id}
                 className="flex flex-wrap items-start justify-between gap-2 rounded-md border px-3 py-2"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
-                    {ticket.libelle}
-                    {ticket.statut !== 'ouvert' && (
-                      <Badge variant="outline">
-                        {ticket.statut === 'clos' ? fr.tickets.clos : fr.tickets.annule}
-                      </Badge>
-                    )}
-                  </p>
+                  <p className="text-sm font-medium">{ticket.libelle}</p>
                   <p className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-muted-foreground">
                     <span>{ticket.user_full_name ?? '—'}</span>
                     {ticket.montant_attendu != null && (
                       <span>{formatCurrency(Number(ticket.montant_attendu))}</span>
                     )}
                     {ticket.date_achat && <span>{formatDate(ticket.date_achat)}</span>}
-                    {ticket.statut === 'ouvert' && (
-                      <span>
-                        {ticket.rappels_envoyes} {fr.tickets.rappels}
-                      </span>
-                    )}
+                    <span>
+                      {ticket.rappels_envoyes} {fr.tickets.rappels}
+                    </span>
                   </p>
                 </div>
 
-                {ticket.statut === 'ouvert' && (
-                  <div className="flex flex-shrink-0 gap-1">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      title={fr.tickets.relancer}
-                      aria-label={`${fr.tickets.relancer} — ${ticket.libelle}`}
-                      onClick={() =>
-                        remind.mutate(ticket.id, {
-                          onSuccess: () => toast.success(fr.tickets.relance),
-                        })
-                      }
-                    >
-                      <Bell className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      title={fr.tickets.clore}
-                      aria-label={`${fr.tickets.clore} — ${ticket.libelle}`}
-                      onClick={() =>
-                        close.mutate(
-                          { id: ticket.id },
-                          { onSuccess: () => toast.success(fr.tickets.cloture) },
-                        )
-                      }
-                    >
-                      <Check className="h-4 w-4 text-forest" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      title={fr.tickets.annuler}
-                      aria-label={`${fr.tickets.annuler} — ${ticket.libelle}`}
-                      onClick={() => {
-                        if (!confirm(fr.tickets.confirmAnnulation)) return;
-                        close.mutate({ id: ticket.id, annule: true });
-                      }}
-                    >
-                      <X className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </div>
-                )}
+                <div className="flex flex-shrink-0 gap-1">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    title={fr.tickets.relancer}
+                    aria-label={`${fr.tickets.relancer} — ${ticket.libelle}`}
+                    onClick={() =>
+                      remind.mutate(ticket.id, {
+                        onSuccess: () => toast.success(fr.tickets.relance),
+                      })
+                    }
+                  >
+                    <Bell className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    title={fr.tickets.clore}
+                    aria-label={`${fr.tickets.clore} — ${ticket.libelle}`}
+                    onClick={() =>
+                      close.mutate(
+                        { id: ticket.id },
+                        { onSuccess: () => toast.success(fr.tickets.cloture) },
+                      )
+                    }
+                  >
+                    <Check className="h-4 w-4 text-forest" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    title={fr.tickets.annuler}
+                    aria-label={`${fr.tickets.annuler} — ${ticket.libelle}`}
+                    onClick={() => {
+                      if (!confirm(fr.tickets.confirmAnnulation)) return;
+                      close.mutate({ id: ticket.id, annule: true });
+                    }}
+                  >
+                    <X className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
               </li>
             ))}
           </ul>

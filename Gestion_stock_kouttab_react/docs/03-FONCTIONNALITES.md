@@ -536,6 +536,12 @@ clôt ou annule, en rattachant éventuellement la facture reçue.
   qu'une pièce déposée correspond à un ticket le fermerait dès que le bénévole
   dépose autre chose, et les relances cesseraient alors que la pièce attendue
   manque toujours.
+- **Clore supprime le ticket**, au lieu de l'archiver comme une note ou une
+  facture. L'écran de la comptabilité affichait les demandes closes à la suite
+  des ouvertes, indéfiniment : personne ne les relisait, et la pièce reçue est
+  au dossier de toute façon. Une seconde clôture répond donc 404, et une
+  fermeture par erreur se rattrape en rouvrant une demande — pas en restaurant
+  l'ancienne.
 - `GET /tickets/destinataires` est un endpoint distinct de `GET /users`
   (réservé au Super Admin) et ne renvoie **que l'identifiant et le nom complet**
   — ni adresse, ni rôle, ni téléphone — et **seulement les comptes actifs**

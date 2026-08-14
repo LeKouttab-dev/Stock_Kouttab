@@ -501,6 +501,14 @@ La **clôture est manuelle**, le rattachement de la facture aussi. Deviner qu'un
 pièce déposée correspond à un ticket le fermerait dès que le bénévole dépose
 autre chose, et les relances cesseraient alors que la pièce attendue manque.
 
+**Clore un ticket le supprime** — contrairement aux notes et aux factures, qui
+s'archivent. Un ticket est une relance, pas une pièce comptable : une fois la
+facture reçue, elle est au dossier et la demande ne documente plus rien. Les
+tickets clos s'empilaient dans l'écran de la comptabilité sans que personne ne
+les relise. Le coût d'une fermeture par erreur est faible — rouvrir une demande,
+c'est en créer une nouvelle. Le statut `clos`/`annule` ne survit donc que le
+temps de la réponse HTTP et de la ligne de journal.
+
 Les relances sont portées par `scripts/process_outbound_emails.py`, devenu
 « file d'envoi et relances programmées ». Un service dédié aurait imposé de
 recopier `compose.yml` à la main sur le VPS — étape hors du déploiement

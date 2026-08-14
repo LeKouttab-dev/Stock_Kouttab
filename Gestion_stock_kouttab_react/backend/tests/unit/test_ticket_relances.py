@@ -61,11 +61,20 @@ def test_le_quota_arrete_les_relances(db_session: Session, benevole_user):
 
 def test_un_ticket_clos_ne_relance_plus(db_session: Session, benevole_user):
     """La piece est arrivee : continuer a la reclamer serait le meilleur moyen
-    d'etre ignore la prochaine fois."""
+    d'etre ignore la prochaine fois.
+
+    La cloture supprime desormais le ticket : il ne peut plus etre selectionne
+    par la relance, faute d'exister.
+    """
+    from app.db.models import JustificatifTicket
+
     ticket = _ticket(db_session, benevole_user, created_at=T0)
-    ticket_crud.close_ticket(db_session, ticket.id)
-    db_session.refresh(ticket)
-    assert not ticket_crud.doit_relancer(ticket, maintenant=T0 + timedelta(days=10))
+    identifiant = ticket.id
+    ticket_crud.close_ticket(db_session, identifiant)
+
+    db_session.expire_all()
+    assert db_session.get(JustificatifTicket, identifiant) is None
+    assert ticket_crud.tickets_a_relancer(db_session, maintenant=T0 + timedelta(days=10)) == []
 
 
 def test_la_selection_ne_retient_que_les_tickets_dus(

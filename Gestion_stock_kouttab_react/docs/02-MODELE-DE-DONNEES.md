@@ -282,6 +282,12 @@ uniquement par migration sont signalés en §4.3, anomalie A3.
   aurait fermé le ticket à tort dès qu'il dépose une facture sans rapport, et
   les relances se seraient tues alors que la pièce attendue manquait toujours
   (`models.py:438-440`).
+- **La clôture supprime la ligne** (`crud/ticket.close_ticket`). Seule table du
+  modèle dans ce cas : partout ailleurs on archive. Un ticket est une relance,
+  pas une pièce comptable — la facture reçue, lui, ne documente plus rien.
+  `statut`, `closed_at` et `closed_by` sont renseignés puis l'objet est
+  supprimé : ils ne servent plus qu'à la réponse HTTP et au journal. Une
+  fermeture par erreur se rattrape en rouvrant une demande.
 
 ### 1.7 Conversations
 

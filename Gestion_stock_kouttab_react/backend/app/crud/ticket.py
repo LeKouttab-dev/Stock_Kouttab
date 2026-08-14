@@ -173,11 +173,25 @@ def close_ticket(
     closed_by: int | None = None,
     annule: bool = False,
 ) -> JustificatifTicket:
-    """Clot un ticket, en le rattachant eventuellement a la piece recue.
+    """Clot un ticket : il est **supprime**, pas archive.
 
-    Le rattachement est manuel : deviner qu'une facture deposee correspond a un
-    ticket fermerait la demande a tort des que le benevole depose autre chose,
-    et les relances cesseraient alors que la piece attendue manque toujours.
+    Le rattachement a la piece recue reste manuel : deviner qu'une facture
+    deposee correspond a un ticket fermerait la demande a tort des que le
+    benevole depose autre chose, et les relances cesseraient alors que la piece
+    attendue manque toujours.
+
+    **Pourquoi supprimer plutot que ranger**, contrairement aux notes et aux
+    factures : un ticket n'est pas une piece comptable, c'est une relance. Une
+    fois la facture recue — ou la demande abandonnee —, il ne documente plus
+    rien : la piece, elle, est au dossier. Les tickets clos s'accumulaient dans
+    l'ecran de la comptabilite sans que personne ne les relise jamais.
+
+    Le cout d'une fermeture par erreur est faible : rouvrir une demande, c'est
+    en creer une nouvelle. Sans commune mesure avec l'effacement d'un
+    justificatif.
+
+    L'objet est renvoye **detache** de la session, pour que l'appelant puisse
+    encore le serialiser dans sa reponse.
     """
     ticket = get_or_404(db, ticket_id)
     if ticket.statut != JustificatifTicket.STATUT_OUVERT:
@@ -199,9 +213,20 @@ def close_ticket(
     )
     ticket.closed_at = _maintenant()
     ticket.closed_by = closed_by
+
+    # Instantane pris AVANT la suppression : l'endpoint doit encore pouvoir
+    # repondre au client ce qu'il vient de fermer.
+    db.flush()
+    db.expunge(ticket)
+
+    db.delete(db.get(JustificatifTicket, ticket_id))
     db.commit()
-    db.refresh(ticket)
-    logger.info("Ticket #%d %s.", ticket.id, ticket.statut)
+    logger.info(
+        "Ticket #%d %s puis supprime (libelle=%r).",
+        ticket_id,
+        ticket.statut,
+        ticket.libelle,
+    )
     return ticket
 
 

@@ -105,9 +105,38 @@ def test_une_facture_d_un_autre_benevole_est_refusee(
     assert reponse.status_code == 422, reponse.text
 
 
+def test_clore_un_ticket_le_supprime(
+    client: TestClient, compta_user, benevole_user, auth_headers, db_session
+):
+    """Un ticket est une relance, pas une pièce comptable.
+
+    Une fois la facture reçue, il ne documente plus rien — la pièce, elle, est
+    au dossier. Les tickets clos s'accumulaient dans l'écran de la comptabilité
+    sans que personne ne les relise jamais.
+    """
+    from app.db.models import JustificatifTicket
+
+    ticket = _ouvrir(client, compta_user, auth_headers, benevole_user).json()
+
+    reponse = client.post(
+        f"/api/v1/tickets/{ticket['id']}/close", json={}, headers=auth_headers(compta_user)
+    )
+    # La réponse décrit encore ce qui vient d'être fermé.
+    assert reponse.status_code == 200, reponse.text
+    assert reponse.json()["statut"] == "clos"
+
+    db_session.expire_all()
+    assert db_session.get(JustificatifTicket, ticket["id"]) is None
+
+    # ...et il disparaît des listes, des deux côtés.
+    assert client.get("/api/v1/tickets", headers=auth_headers(compta_user)).json() == []
+    assert client.get("/api/v1/tickets/me", headers=auth_headers(benevole_user)).json() == []
+
+
 def test_un_ticket_clos_ne_se_referme_pas(
     client: TestClient, compta_user, benevole_user, auth_headers
 ):
+    """Il n'existe plus : la seconde tentative ne trouve rien."""
     ticket = _ouvrir(client, compta_user, auth_headers, benevole_user).json()
     client.post(
         f"/api/v1/tickets/{ticket['id']}/close", json={}, headers=auth_headers(compta_user)
@@ -115,7 +144,7 @@ def test_un_ticket_clos_ne_se_referme_pas(
     seconde = client.post(
         f"/api/v1/tickets/{ticket['id']}/close", json={}, headers=auth_headers(compta_user)
     )
-    assert seconde.status_code == 409, seconde.text
+    assert seconde.status_code == 404, seconde.text
 
 
 def test_un_ticket_clos_ne_se_relance_plus(
@@ -128,7 +157,7 @@ def test_un_ticket_clos_ne_se_relance_plus(
     reponse = client.post(
         f"/api/v1/tickets/{ticket['id']}/remind", headers=auth_headers(compta_user)
     )
-    assert reponse.status_code == 409, reponse.text
+    assert reponse.status_code == 404, reponse.text
 
 
 # ---- Droits -----------------------------------------------------------------
