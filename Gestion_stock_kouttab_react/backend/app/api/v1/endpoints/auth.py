@@ -28,6 +28,7 @@ from app.core.security import (
     verify_password_legacy,
 )
 from app.crud import auth_security
+from app.crud import sso as sso_crud
 from app.crud import invitation as invitation_crud
 from app.crud import password_reset as password_reset_crud
 from app.crud import user as user_crud
@@ -38,6 +39,7 @@ from app.schemas.auth import (
     ForgotPasswordIn,
     InvitationValidateOut,
     LoginIn,
+    SsoExchangeIn,
     LogoutIn,
     MessageOut,
     RefreshIn,
@@ -76,6 +78,51 @@ def _build_token_payload(
         user=_to_user_out(user),
         password_must_change=password_must_change,
     )
+
+
+# ---- SSO entrant (passage signé depuis gestion.lekouttab.fr) ---------------
+
+
+@router.post("/sso/exchange", response_model=TokenOut)
+@limiter.limit("10/15minutes")
+def sso_exchange(
+    request: Request,
+    payload: SsoExchangeIn,
+    db: Session = Depends(get_db),
+) -> Any:
+    """Échange un jeton de passage contre une session.
+
+    Le jeton atteste une identité, jamais un droit : compte existant → son
+    rôle ; compte inconnu → création ``BenevoleFrais`` (confiné aux notes de
+    frais), sans mot de passe communiqué. Secret partagé absent → la porte
+    n'existe pas (404).
+    """
+    from datetime import datetime as _dt, timezone as _tz
+
+    secret = settings.sso_shared_secret.strip()
+    if not secret:
+        raise AppException(ErrorCode.NOT_FOUND)
+
+    charge = sso_crud.verifier_jeton(payload.token, secret)
+    sso_crud.consommer_jti(
+        db,
+        charge["jti"],
+        _dt.fromtimestamp(int(charge["exp"]), tz=_tz.utc).replace(tzinfo=None),
+    )
+
+    user = sso_crud.retrouver_ou_creer(
+        db,
+        email=str(charge["email"]).strip().lower(),
+        prenom=charge.get("prenom"),
+        nom=charge.get("nom"),
+    )
+    if user.validation_status == "rejected":
+        raise AppException(ErrorCode.ACCOUNT_REJECTED)
+    if user.validation_status != "active":
+        raise AppException(ErrorCode.ACCOUNT_PENDING)
+
+    logger.info("Passage signé accepté pour le compte #%s (%s)", user.id, user.role)
+    return _build_token_payload(db, user, password_must_change=False)
 
 
 # ---- Signup ----------------------------------------------------------------

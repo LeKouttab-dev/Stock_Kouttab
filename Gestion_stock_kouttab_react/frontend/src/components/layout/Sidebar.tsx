@@ -91,14 +91,15 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       icon: Database,
       visible: can(ACTIONS.ADMIN_DATABASE),
     },
-    { to: '/profile', label: fr.nav.profile, icon: User, visible: true },
+    // Le BenevoleFrais gère son profil dans l'onglet dédié de /expenses.
+    { to: '/profile', label: fr.nav.profile, icon: User, visible: can(ACTIONS.PROFILE_VIEW) },
     // Visible de tous : c'est justement la personne sans droits qui a le
     // plus besoin de savoir a qui s'adresser.
     {
       to: '/contact',
       label: fr.nav.contact,
       icon: LifeBuoy,
-      visible: true,
+      visible: can(ACTIONS.CONTACT_VIEW),
       // Les deux côtés du fil sur une seule pastille : ce que l'équipe doit
       // traiter, et les réponses que je n'ai pas encore lues. L'un des deux
       // vaut toujours 0 pour un bénévole.

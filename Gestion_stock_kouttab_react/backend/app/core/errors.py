@@ -49,6 +49,7 @@ class ErrorCode(str, Enum):
     INVITATION_EXPIRED = "AUTH_1031"
     INVITATION_USED = "AUTH_1032"
     INVITATION_TOO_MANY_ATTEMPTS = "AUTH_1033"
+    SSO_EMAIL_AMBIGU = "AUTH_1040"
 
     # ---- Permissions (2xxx) ------------------------------------------------
     FORBIDDEN = "PERM_2001"
@@ -162,6 +163,10 @@ ERROR_MESSAGES: dict[ErrorCode, tuple[int, str]] = {
     ErrorCode.INVITATION_TOO_MANY_ATTEMPTS: (
         400,
         "Trop de tentatives sur cette invitation. Demandez-en une nouvelle.",
+    ),
+    ErrorCode.SSO_EMAIL_AMBIGU: (
+        409,
+        "Plusieurs comptes portent cette adresse email. Contactez un administrateur pour les fusionner.",
     ),
 
     # Permissions

@@ -9,7 +9,7 @@ from pydantic import BaseModel, EmailStr, Field
 from app.schemas.user import UserOut
 
 
-ROLE_LITERAL = Literal["Super Admin", "AdminBenevoles", "Compta", "Benevole"]
+ROLE_LITERAL = Literal["Super Admin", "AdminBenevoles", "Compta", "Benevole", "BenevoleFrais"]
 
 
 class LoginIn(BaseModel):
@@ -28,6 +28,12 @@ class ForgotPasswordIn(BaseModel):
     """Identifiant **ou** adresse e-mail, comme a la connexion."""
 
     identifiant: str = Field(min_length=3, max_length=254)
+
+
+class SsoExchangeIn(BaseModel):
+    """Jeton de passage émis par gestion.lekouttab.fr (transmis en fragment #)."""
+
+    token: str = Field(min_length=20, max_length=2048)
 
 
 class ResetPasswordIn(BaseModel):

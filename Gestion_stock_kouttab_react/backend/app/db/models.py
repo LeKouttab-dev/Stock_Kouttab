@@ -206,6 +206,23 @@ class PasswordReset(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
+class SsoEchange(Base):
+    """Jeton de passage (SSO gestion → stock) déjà consommé.
+
+    L'insertion sous contrainte unique EST le verrou anti-rejeu : atomique,
+    partagée entre workers, survivant aux redémarrages. Même patron que
+    ``RefreshTokens`` : seul le SHA256 du ``jti`` est stocké.
+    """
+
+    __tablename__ = "SsoEchanges"
+    __table_args__ = (Index("idx_sso_expires", "expires_at"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    jti_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
 class LoginAttempt(Base):
     """Compteur d'echecs de connexion, persiste en base.
 

@@ -167,6 +167,29 @@ export function useAdminSetup() {
   });
 }
 
+/* ---------- Passage signé depuis gestion.lekouttab.fr ---------- */
+
+async function ssoExchange(payload: { token: string }): Promise<LoginResponse> {
+  const { data } = await api.post<LoginResponse>('/auth/sso/exchange', payload);
+  return data;
+}
+
+/** Échange le jeton de passage contre une session — même contrat que le login. */
+export function useSsoExchange() {
+  const setSession = useAuthStore((s) => s.setSession);
+  return useApiMutation({
+    mutationFn: ssoExchange,
+    silentToast: true,
+    onSuccess: (data) => {
+      setSession({
+        user: data.user,
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token,
+      });
+    },
+  });
+}
+
 export function useValidateInvitation(token: string | null, email: string | null) {
   return useQuery({
     queryKey: ['auth', 'invitation', token, email],

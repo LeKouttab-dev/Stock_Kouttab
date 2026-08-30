@@ -41,6 +41,12 @@ def get_current_user(
     return user
 
 
+# Tous les rôles SAUF BenevoleFrais, qui est confiné aux notes de frais.
+# À poser sur tout router hors de ce périmètre : le menu ne protège rien,
+# c'est cette liste qui fait le confinement côté serveur.
+ROLES_COMPLETS = ("Super Admin", "AdminBenevoles", "Compta", "Benevole")
+
+
 def require_roles(*roles: str):
     """Factory of a FastAPI dependency that ensures the user has one of the roles."""
     role_set = set(roles)

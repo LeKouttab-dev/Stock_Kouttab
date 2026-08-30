@@ -16,6 +16,7 @@ import { SignupPage } from '@/pages/auth/SignupPage';
 import { AdminSetupPage } from '@/pages/auth/AdminSetupPage';
 import { ForgotPasswordPage } from '@/pages/auth/ForgotPasswordPage';
 import { ResetPasswordPage } from '@/pages/auth/ResetPasswordPage';
+import { SsoExchangePage } from '@/pages/auth/SsoExchangePage';
 
 /**
  * Charge un écran à la demande.
@@ -64,7 +65,7 @@ const ProfilePage = lazyNamed(() => import('@/pages/ProfilePage'), 'ProfilePage'
 const ContactPage = lazyNamed(() => import('@/pages/contact/ContactPage'), 'ContactPage');
 const NotFoundPage = lazyNamed(() => import('@/pages/NotFoundPage'), 'NotFoundPage');
 
-import { ACTIONS } from '@/lib/auth';
+import { ACTIONS , pageParDefaut } from '@/lib/auth';
 import { useAuth } from '@/hooks/useAuth';
 
 const queryClient = new QueryClient({
@@ -81,8 +82,8 @@ const queryClient = new QueryClient({
 });
 
 function RootRedirect() {
-  const { isAuthenticated } = useAuth();
-  return <Navigate to={isAuthenticated ? '/dashboard' : '/login'} replace />;
+  const { user, isAuthenticated } = useAuth();
+  return <Navigate to={isAuthenticated ? pageParDefaut(user?.role) : '/login'} replace />;
 }
 
 export default function App() {
@@ -98,6 +99,8 @@ export default function App() {
               <Route path="/admin-setup" element={<AdminSetupPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
+              {/* Passage signé depuis gestion.lekouttab.fr (jeton en fragment #). */}
+              <Route path="/sso" element={<SsoExchangePage />} />
 
               <Route
                 element={
@@ -106,13 +109,23 @@ export default function App() {
                   </ProtectedRoute>
                 }
               >
-                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/dashboard" element={
+                  <ProtectedRoute requiredAction={ACTIONS.DASHBOARD_VIEW}><DashboardPage /></ProtectedRoute>
+                } />
 
-                <Route path="/stock" element={<StockCategoriesPage />} />
-                <Route path="/stock/:category" element={<StockSubCategoriesPage />} />
-                <Route path="/stock/:category/:subcategory" element={<StockItemsPage />} />
+                <Route path="/stock" element={
+                  <ProtectedRoute requiredAction={ACTIONS.STOCK_VIEW}><StockCategoriesPage /></ProtectedRoute>
+                } />
+                <Route path="/stock/:category" element={
+                  <ProtectedRoute requiredAction={ACTIONS.STOCK_VIEW}><StockSubCategoriesPage /></ProtectedRoute>
+                } />
+                <Route path="/stock/:category/:subcategory" element={
+                  <ProtectedRoute requiredAction={ACTIONS.STOCK_VIEW}><StockItemsPage /></ProtectedRoute>
+                } />
 
-                <Route path="/expenses" element={<MyExpensesPage />} />
+                <Route path="/expenses" element={
+                  <ProtectedRoute requiredAction={ACTIONS.EXPENSES_SUBMIT}><MyExpensesPage /></ProtectedRoute>
+                } />
                 {/* La validation a rejoint « Notes de frais » sous forme
                     d'onglet. L'ancienne adresse reste valide : des signets et
                     des liens de courriels la visent encore. */}
@@ -121,11 +134,19 @@ export default function App() {
                   element={<Navigate to="/expenses#valider" replace />}
                 />
 
-                <Route path="/invoices/upload" element={<InvoiceUploadPage />} />
-                <Route path="/invoices" element={<InvoiceListPage />} />
+                <Route path="/invoices/upload" element={
+                  <ProtectedRoute requiredAction={ACTIONS.INVOICES_SUBMIT}><InvoiceUploadPage /></ProtectedRoute>
+                } />
+                <Route path="/invoices" element={
+                  <ProtectedRoute requiredAction={ACTIONS.INVOICES_SUBMIT}><InvoiceListPage /></ProtectedRoute>
+                } />
 
-                <Route path="/buvette" element={<BuvettePage />} />
-                <Route path="/buvette/sales" element={<BuvetteSalesPage />} />
+                <Route path="/buvette" element={
+                  <ProtectedRoute requiredAction={ACTIONS.BUVETTE_VIEW}><BuvettePage /></ProtectedRoute>
+                } />
+                <Route path="/buvette/sales" element={
+                  <ProtectedRoute requiredAction={ACTIONS.BUVETTE_VIEW}><BuvetteSalesPage /></ProtectedRoute>
+                } />
 
                 <Route
                   path="/admin"
@@ -144,8 +165,12 @@ export default function App() {
                   }
                 />
 
-                <Route path="/profile" element={<ProfilePage />} />
-                <Route path="/contact" element={<ContactPage />} />
+                <Route path="/profile" element={
+                  <ProtectedRoute requiredAction={ACTIONS.PROFILE_VIEW}><ProfilePage /></ProtectedRoute>
+                } />
+                <Route path="/contact" element={
+                  <ProtectedRoute requiredAction={ACTIONS.CONTACT_VIEW}><ContactPage /></ProtectedRoute>
+                } />
               </Route>
 
               <Route path="*" element={<NotFoundPage />} />
