@@ -8,7 +8,9 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
-ROLE_LITERAL = Literal["Super Admin", "AdminBenevoles", "Compta", "Benevole"]
+# "BenevoleFrais" : créé par le passage signé depuis gestion.lekouttab.fr,
+# confiné aux notes de frais (voir tests/integration/test_perimetre_benevole_frais.py).
+ROLE_LITERAL = Literal["Super Admin", "AdminBenevoles", "Compta", "Benevole", "BenevoleFrais"]
 VALIDATION_LITERAL = Literal["pending", "active", "rejected"]
 
 

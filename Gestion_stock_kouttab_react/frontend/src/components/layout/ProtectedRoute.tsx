@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { canAccess, type Action } from '@/lib/auth';
+import { canAccess, pageParDefaut, type Action } from '@/lib/auth';
 import type { Role } from '@/lib/constants';
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
 
@@ -24,11 +24,11 @@ export function ProtectedRoute({ children, requiredAction, requiredRoles }: Prot
   }
 
   if (requiredAction && !canAccess(user.role, requiredAction)) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={pageParDefaut(user.role)} replace />;
   }
 
   if (requiredRoles && !requiredRoles.includes(user.role)) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={pageParDefaut(user.role)} replace />;
   }
 
   return <>{children}</>;

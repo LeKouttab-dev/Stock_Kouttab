@@ -31,6 +31,8 @@ export const ACTIONS = {
   COMPTA_RESEND_EMAIL: 'compta:resend_email',
   CONVERSATIONS_HANDLE: 'conversations:handle',
   EXPENSES_DELETE: 'expenses:delete',
+  PROFILE_VIEW: 'profile:view',
+  CONTACT_VIEW: 'contact:view',
 } as const;
 
 export type Action = (typeof ACTIONS)[keyof typeof ACTIONS];
@@ -42,7 +44,9 @@ const PERMISSIONS: Record<Action, Role[]> = {
   [ACTIONS.STOCK_DIRECT_MOD]: ['Super Admin', 'AdminBenevoles'],
   [ACTIONS.STOCK_APPROVE_MODS]: ['Super Admin', 'AdminBenevoles'],
   [ACTIONS.STOCK_CRUD]: ['Super Admin', 'AdminBenevoles'],
-  [ACTIONS.EXPENSES_SUBMIT]: ['Super Admin', 'AdminBenevoles', 'Compta', 'Benevole'],
+  // 'BenevoleFrais' n'a QUE cette action : c'est tout son confinement côté
+  // interface. Le serveur tient le sien via ROLES_COMPLETS (deps.py).
+  [ACTIONS.EXPENSES_SUBMIT]: ['Super Admin', 'AdminBenevoles', 'Compta', 'Benevole', 'BenevoleFrais'],
   [ACTIONS.EXPENSES_VALIDATE]: ['Super Admin', 'Compta'],
   [ACTIONS.EXPENSES_VIEW_RIB]: ['Super Admin', 'Compta'],
   [ACTIONS.INVOICES_SUBMIT]: ['Super Admin', 'AdminBenevoles', 'Compta', 'Benevole'],
@@ -72,11 +76,26 @@ const PERMISSIONS: Record<Action, Role[]> = {
   // Irréversible : le plus petit cercle possible. La comptabilité archive.
   // Doit refléter le contrôle de `crud/expense.supprimer_definitivement`.
   [ACTIONS.EXPENSES_DELETE]: ['Super Admin'],
+  // Profil et contact quittent le « visible: true » de la Sidebar : un
+  // BenevoleFrais gère son profil dans l'onglet dédié de /expenses, et ses
+  // échanges passent par les commentaires de ses notes.
+  [ACTIONS.PROFILE_VIEW]: ['Super Admin', 'AdminBenevoles', 'Compta', 'Benevole'],
+  [ACTIONS.CONTACT_VIEW]: ['Super Admin', 'AdminBenevoles', 'Compta', 'Benevole'],
 };
 
 export function canAccess(role: Role | null | undefined, action: Action): boolean {
   if (!role) return false;
   return PERMISSIONS[action]?.includes(role) ?? false;
+}
+
+/**
+ * Première page du rôle après connexion — et destination de repli quand une
+ * route lui est refusée. Un BenevoleFrais rejeté vers /dashboard aurait
+ * bouclé : /dashboard lui est refusé aussi.
+ */
+export function pageParDefaut(role: Role | null | undefined): string {
+  if (!role) return '/login';
+  return canAccess(role, ACTIONS.DASHBOARD_VIEW) ? '/dashboard' : '/expenses';
 }
 
 export function hasAnyRole(role: Role | null | undefined, allowed: Role[]): boolean {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ACTIONS, canAccess, hasAnyRole } from './auth';
+import { ACTIONS, canAccess, hasAnyRole, pageParDefaut } from './auth';
 import type { Role } from './constants';
 
 describe('lib/auth — canAccess', () => {
@@ -44,6 +44,30 @@ describe('lib/auth — canAccess', () => {
   it('returns false for null/undefined role', () => {
     expect(canAccess(null, ACTIONS.STOCK_VIEW)).toBe(false);
     expect(canAccess(undefined, ACTIONS.STOCK_VIEW)).toBe(false);
+  });
+});
+
+describe('lib/auth — BenevoleFrais (confine aux notes de frais)', () => {
+  it('ne peut que deposer et suivre ses notes de frais', () => {
+    expect(canAccess('BenevoleFrais', ACTIONS.EXPENSES_SUBMIT)).toBe(true);
+    for (const action of Object.values(ACTIONS)) {
+      if (action === ACTIONS.EXPENSES_SUBMIT) continue;
+      expect(canAccess('BenevoleFrais', action), `action=${action}`).toBe(false);
+    }
+  });
+
+  it('sa page par defaut est /expenses, celle des autres /dashboard', () => {
+    expect(pageParDefaut('BenevoleFrais')).toBe('/expenses');
+    expect(pageParDefaut('Benevole')).toBe('/dashboard');
+    expect(pageParDefaut('Super Admin')).toBe('/dashboard');
+    expect(pageParDefaut(null)).toBe('/login');
+  });
+
+  it('les roles complets gardent profil et contact, pas lui', () => {
+    expect(canAccess('Benevole', ACTIONS.PROFILE_VIEW)).toBe(true);
+    expect(canAccess('Benevole', ACTIONS.CONTACT_VIEW)).toBe(true);
+    expect(canAccess('BenevoleFrais', ACTIONS.PROFILE_VIEW)).toBe(false);
+    expect(canAccess('BenevoleFrais', ACTIONS.CONTACT_VIEW)).toBe(false);
   });
 });
 

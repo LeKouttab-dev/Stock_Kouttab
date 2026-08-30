@@ -18,7 +18,7 @@ from fastapi import (
 from fastapi import Response
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, require_roles
+from app.api.deps import get_current_user, require_roles, ROLES_COMPLETS
 from app.core.errors import ErrorCode
 from app.core.exceptions import AppException
 from app.crud import invoice as invoice_crud
@@ -32,7 +32,7 @@ from app.services import email as email_service
 from app.services.files import contenu_du_fichier, save_upload_file
 
 
-router = APIRouter(prefix="/invoices", tags=["invoices"])
+router = APIRouter(prefix="/invoices", tags=["invoices"], dependencies=[Depends(require_roles(*ROLES_COMPLETS))])  # hors périmètre BenevoleFrais
 
 
 # Ce que le statut signifie, et ce qu'il reste a faire. Le courriel de facture

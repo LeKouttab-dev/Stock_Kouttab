@@ -25,7 +25,7 @@ from typing import Any
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, ROLES_COMPLETS, require_roles
 from app.core.config import settings
 from app.crud import conversation as conversation_crud
 from app.crud import user as user_crud
@@ -42,7 +42,7 @@ from app.services import outbox
 from app.services.email_layout import composer
 
 
-router = APIRouter(prefix="/conversations", tags=["contact"])
+router = APIRouter(prefix="/conversations", tags=["contact"], dependencies=[Depends(require_roles(*ROLES_COMPLETS))])  # hors périmètre BenevoleFrais
 
 LIBELLES = {
     Conversation.DEST_COMPTA: "la comptabilite",

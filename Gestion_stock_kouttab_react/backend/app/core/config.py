@@ -38,6 +38,15 @@ class Settings(BaseSettings):
     db_max_overflow: int = Field(default=0, alias="DB_MAX_OVERFLOW")
     db_pool_recycle: int = Field(default=280, alias="DB_POOL_RECYCLE")
 
+    # SSO entrant — passage signé depuis gestion.lekouttab.fr.
+    # Secret partagé DÉDIÉ (jamais JWT_SECRET_KEY) : vide = fonctionnalité coupée,
+    # l'endpoint d'échange répond alors 404 et rien n'existe.
+    # Générer avec : python -c "import secrets; print(secrets.token_urlsafe(48))"
+    sso_shared_secret: str = Field(default="", alias="SSO_SHARED_SECRET")
+    sso_issuer: str = Field(default="gestion.lekouttab.fr", alias="SSO_ISSUER")
+    sso_audience: str = Field(default="stock.lekouttab.fr", alias="SSO_AUDIENCE")
+    sso_max_age_seconds: int = Field(default=60, alias="SSO_MAX_AGE_SECONDS")
+
     # JWT
     jwt_secret_key: str = Field(default="change-me", alias="JWT_SECRET_KEY")
     jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
@@ -152,6 +161,13 @@ class Settings(BaseSettings):
                 "Generer une cle avec : python -c "
                 '"import base64, os; print(base64.urlsafe_b64encode(os.urandom(32)).decode())"'
             )
+        # Le passage signé ouvre des sessions : un secret partagé faible ou
+        # égal au secret JWT rendrait tout access token échangeable.
+        sso = self.sso_shared_secret.strip()
+        if sso and (len(sso) < 32 or sso in INSECURE_JWT_SECRETS):
+            problems.append("SSO_SHARED_SECRET est trop court (32 caractères minimum).")
+        if sso and sso == self.jwt_secret_key.strip():
+            problems.append("SSO_SHARED_SECRET doit différer de JWT_SECRET_KEY.")
         if problems:
             raise ValueError(
                 "Configuration de production invalide :\n- " + "\n- ".join(problems)

@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Query, UploadFile
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, require_roles
+from app.api.deps import get_current_user, require_roles, ROLES_COMPLETS
 from app.core.errors import ErrorCode
 from app.core.exceptions import AppException
 from app.crud import stock as stock_crud
@@ -37,7 +37,7 @@ from app.services import openfoodfacts as openfoodfacts_service
 from app.services.csv_import import import_inventory
 
 
-router = APIRouter(prefix="/stock", tags=["stock"])
+router = APIRouter(prefix="/stock", tags=["stock"], dependencies=[Depends(require_roles(*ROLES_COMPLETS))])  # hors périmètre BenevoleFrais
 
 
 _ADMIN_ROLES = ("AdminBenevoles", "Super Admin")

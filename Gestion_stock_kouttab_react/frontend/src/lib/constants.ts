@@ -1,4 +1,6 @@
-export const ROLES = ['Super Admin', 'AdminBenevoles', 'Compta', 'Benevole'] as const;
+// 'BenevoleFrais' : créé par le passage signé depuis gestion.lekouttab.fr,
+// confiné aux notes de frais (une seule action dans PERMISSIONS).
+export const ROLES = ['Super Admin', 'AdminBenevoles', 'Compta', 'Benevole', 'BenevoleFrais'] as const;
 export type Role = (typeof ROLES)[number];
 
 export const VALIDATION_STATUS = ['pending', 'active', 'rejected'] as const;
@@ -100,6 +102,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   AdminBenevoles: 'Admin Bénévoles',
   Compta: 'Comptabilité',
   Benevole: 'Bénévole',
+  BenevoleFrais: 'Bénévole — notes de frais',
 };
 
 /**
@@ -114,6 +117,8 @@ export const ROLE_COLORS: Record<Role, string> = {
   AdminBenevoles: 'bg-forest-100 text-forest-800 border-forest-200',
   Compta: 'bg-sage-200 text-forest-800 border-sage-300',
   Benevole: 'bg-sand-100 text-sand-800 border-sand-200',
+  // Même famille que Benevole : c'en est une déclinaison confinée.
+  BenevoleFrais: 'bg-sand-100 text-sand-800 border-sand-200',
 };
 
 /**

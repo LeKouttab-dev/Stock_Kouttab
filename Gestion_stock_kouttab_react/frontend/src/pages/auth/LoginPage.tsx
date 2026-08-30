@@ -12,6 +12,7 @@ import { ErrorAlert } from '@/components/shared/ErrorAlert';
 import { useLogin } from '@/api/endpoints/auth';
 import { loginSchema, type LoginFormValues } from '@/lib/schemas/auth';
 import { useAuth } from '@/hooks/useAuth';
+import { pageParDefaut } from '@/lib/auth';
 import { Logo } from '@/components/shared/Logo';
 import { fr } from '@/lib/i18n/fr';
 import { useToast } from '@/hooks/useToast';
@@ -19,7 +20,7 @@ import { useToast } from '@/hooks/useToast';
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const loginMutation = useLogin();
   const { success } = useToast();
 
@@ -34,20 +35,20 @@ export function LoginPage() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      const from = (location.state as { from?: string } | null)?.from ?? '/dashboard';
+      const from = (location.state as { from?: string } | null)?.from ?? pageParDefaut(user?.role);
       navigate(from, { replace: true });
     }
-  }, [isAuthenticated, location.state, navigate]);
+  }, [isAuthenticated, location.state, navigate, user]);
 
   if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={pageParDefaut(user?.role)} replace />;
   }
 
   const onSubmit = async (values: LoginFormValues) => {
     try {
-      await loginMutation.mutateAsync(values);
+      const data = await loginMutation.mutateAsync(values);
       success('Connexion réussie', 'Bienvenue !');
-      const from = (location.state as { from?: string } | null)?.from ?? '/dashboard';
+      const from = (location.state as { from?: string } | null)?.from ?? pageParDefaut(data.user.role);
       navigate(from, { replace: true });
     } catch {
       /* error rendered below */

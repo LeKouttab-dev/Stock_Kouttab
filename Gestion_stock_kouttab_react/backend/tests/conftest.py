@@ -295,6 +295,12 @@ def pending_user(db_session: Session):
     )
 
 
+@pytest.fixture()
+def benevole_frais_user(db_session: Session):
+    """Compte confine aux notes de frais (celui que cree le passage signe)."""
+    return _make_user(db_session, role="BenevoleFrais", prefix="bf")
+
+
 # ---------------------------------------------------------------------------
 # Auth header / pre-authenticated client factories
 # ---------------------------------------------------------------------------
