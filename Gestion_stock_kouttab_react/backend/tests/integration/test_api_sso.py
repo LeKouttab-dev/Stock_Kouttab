@@ -205,3 +205,80 @@ def test_un_jeton_sans_email_est_refuse(client: TestClient, sso_actif: str) -> N
     }
     token = jose_jwt.encode(charge, SECRET_TEST, algorithm="HS256")
     assert _echanger(client, token).status_code == 401
+
+
+# ---- Pastille inter-applications -------------------------------------------
+#
+# L'outil de gestion demande, serveur a serveur, ce que son utilisateur a
+# « a lire » cote stock — pour afficher la pastille sur SON entree
+# « Notes de frais ». Jeton dedie (typ 'sso-pastille'), 60 s, lecture seule.
+
+
+def _jeton_pastille(secret: str = SECRET_TEST, **surcharges) -> str:
+    surcharges.setdefault("typ", "sso-pastille")
+    return _jeton(secret, **surcharges)
+
+
+def test_pastille_rend_les_compteurs_du_compte(
+    client: TestClient, db_session, benevole_user, sso_actif: str
+) -> None:
+    from datetime import date
+    from decimal import Decimal
+    from app.crud import expense as expense_crud
+
+    note = expense_crud.create_expense(
+        db_session,
+        user_id=benevole_user.id,
+        date_depense=date(2026, 8, 12),
+        rattachement="Frais",
+        fournisseur="Action",
+        nature_charge="Courses",
+        montant=Decimal("5.00"),
+        commentaires=None,
+        remboursement_deja_emis=Decimal("0"),
+        remise=Decimal("0"),
+    )
+    note.non_lu_demandeur = True
+    db_session.commit()
+
+    resp = client.post(
+        "/api/v1/auth/sso/pastille",
+        json={"token": _jeton_pastille(email=benevole_user.email)},
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {"notes_suivies": 1, "factures_suivies": 0}
+
+
+def test_pastille_compte_inconnu_rend_zero_pas_une_erreur(
+    client: TestClient, sso_actif: str
+) -> None:
+    # Distinguer « inconnu » de « rien a lire » ferait de l'endpoint un test
+    # d'existence de compte pour qui tient le secret. Zero dans les deux cas.
+    resp = client.post(
+        "/api/v1/auth/sso/pastille",
+        json={"token": _jeton_pastille(email="personne@example.com")},
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {"notes_suivies": 0, "factures_suivies": 0}
+
+
+def test_pastille_refuse_un_jeton_de_session(client: TestClient, sso_actif: str) -> None:
+    # Le jeton d'echange (typ 'sso') ouvre une session ; il ne doit pas servir
+    # ici, ni l'inverse — chaque porte a son type.
+    resp = client.post(
+        "/api/v1/auth/sso/pastille", json={"token": _jeton(email="x@example.com")}
+    )
+    assert resp.status_code == 401
+
+
+def test_pastille_refuse_une_mauvaise_signature(client: TestClient, sso_actif: str) -> None:
+    resp = client.post(
+        "/api/v1/auth/sso/pastille",
+        json={"token": _jeton_pastille(secret="un-autre-secret-tout-aussi-long-99")},
+    )
+    assert resp.status_code == 401
+
+
+def test_pastille_sans_secret_configure_n_existe_pas(client: TestClient) -> None:
+    resp = client.post("/api/v1/auth/sso/pastille", json={"token": _jeton_pastille()})
+    assert resp.status_code == 404

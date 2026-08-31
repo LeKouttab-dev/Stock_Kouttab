@@ -27,7 +27,7 @@ from app.db.models import Admin
 from app.db.session import SessionLocal, get_db
 from app.schemas.auth import MessageOut
 from app.schemas.invoice import InvoiceOut, InvoiceStatusUpdate
-from app.services import compta_dispatch, email_layout, outbox
+from app.services import liens, compta_dispatch, email_layout, outbox
 from app.services import email as email_service
 from app.services.files import contenu_du_fichier, save_upload_file
 
@@ -311,7 +311,10 @@ def update_invoice_status(
                     ("Statut", payload.status),
                     ("Commentaire", payload.commentaires_compta),
                 ],
-                conclusion=_SUITE_STATUT_FACTURE.get(payload.status),
+                conclusion=liens.avec_lien(
+                    _SUITE_STATUT_FACTURE.get(payload.status),
+                    liens.lien_espace(getattr(invoice.user, "role", None), "invoices"),
+                ),
             ),
             triggered_by=current_user.id,
         )

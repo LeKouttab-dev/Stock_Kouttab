@@ -205,6 +205,7 @@ async def _relancer_en_arriere_plan(ticket_id: int, *, compter: bool = True) -> 
         await email_service.send_justificatif_reminder(
             recipient=ticket.user.email,
             prenom=ticket.user.prenom,
+            role=ticket.user.role,
             libelle=ticket.libelle,
             description=ticket.description,
             montant=(

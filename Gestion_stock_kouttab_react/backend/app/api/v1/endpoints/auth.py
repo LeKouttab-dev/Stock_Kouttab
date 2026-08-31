@@ -32,7 +32,9 @@ from app.crud import sso as sso_crud
 from app.crud import invitation as invitation_crud
 from app.crud import password_reset as password_reset_crud
 from app.crud import user as user_crud
-from app.db.models import Admin
+from sqlalchemy import func, select
+
+from app.db.models import Admin, Expense, Invoice
 from app.db.session import SessionLocal, get_db
 from app.schemas.auth import (
     AdminSetupIn,
@@ -123,6 +125,55 @@ def sso_exchange(
 
     logger.info("Passage signé accepté pour le compte #%s (%s)", user.id, user.role)
     return _build_token_payload(db, user, password_must_change=False)
+
+
+@router.post("/sso/pastille")
+# Serveur-a-serveur : TOUTES les requetes arrivent de l'IP du VPS de gestion
+# (une par utilisateur actif, toutes les 60 s, memoisees la-bas). Une limite
+# « par visiteur » comme celle du login etranglerait ce client unique.
+@limiter.limit("120/minute")
+def sso_pastille(
+    request: Request,
+    payload: SsoExchangeIn,
+    db: Session = Depends(get_db),
+) -> Any:
+    """Ce que l'utilisateur de l'outil de gestion a « a lire » cote stock.
+
+    Jeton dedie (typ 'sso-pastille', 60 s) signe du meme secret partage que le
+    passage : il atteste que la question vient bien de l'outil de gestion.
+    Lecture seule, pas d'anti-rejeu — repondre deux fois aux memes compteurs
+    n'ouvre rien.
+    """
+    secret = settings.sso_shared_secret.strip()
+    if not secret:
+        raise AppException(ErrorCode.NOT_FOUND)
+
+    charge = sso_crud.verifier_jeton(
+        payload.token, secret, typ_attendu="sso-pastille", exiger_jti=False
+    )
+    email = str(charge["email"]).strip().lower()
+    comptes = list(
+        db.execute(select(Admin).where(func.lower(Admin.email) == email)).scalars().all()
+    )
+    # Compte inconnu ou ambigu : zero, pas une erreur — distinguer ferait de
+    # l'endpoint un test d'existence de compte pour qui tient le secret.
+    if len(comptes) != 1:
+        return {"notes_suivies": 0, "factures_suivies": 0}
+
+    u = comptes[0]
+    notes = db.execute(
+        select(func.count()).select_from(Expense).where(
+            (Expense.id_user == u.id)
+            & Expense.non_lu_demandeur.is_(True)
+            & Expense.archived_at.is_(None)
+        )
+    ).scalar_one()
+    factures = db.execute(
+        select(func.count()).select_from(Invoice).where(
+            (Invoice.id_user == u.id) & Invoice.non_lu_demandeur.is_(True)
+        )
+    ).scalar_one()
+    return {"notes_suivies": int(notes), "factures_suivies": int(factures)}
 
 
 # ---- Signup ----------------------------------------------------------------

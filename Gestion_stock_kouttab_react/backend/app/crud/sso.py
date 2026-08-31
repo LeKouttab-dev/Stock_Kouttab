@@ -43,7 +43,9 @@ from app.db.models import Admin, SsoEchange
 _MARGE_HORLOGE_S = 10
 
 
-def verifier_jeton(token: str, secret: str) -> dict[str, Any]:
+def verifier_jeton(
+    token: str, secret: str, *, typ_attendu: str = "sso", exiger_jti: bool = True
+) -> dict[str, Any]:
     """Décode et contrôle un jeton de passage. Lève ``AppException`` sinon."""
     try:
         charge = jose_jwt.decode(
@@ -58,7 +60,7 @@ def verifier_jeton(token: str, secret: str) -> dict[str, Any]:
     except JWTError as exc:
         raise AppException(ErrorCode.TOKEN_INVALID) from exc
 
-    if charge.get("typ") != "sso":
+    if charge.get("typ") != typ_attendu:
         raise AppException(ErrorCode.TOKEN_INVALID, detail="Jeton de mauvais type.")
 
     # Un émetteur mal configuré qui signerait des jetons d'une heure ne doit
@@ -71,7 +73,7 @@ def verifier_jeton(token: str, secret: str) -> dict[str, Any]:
 
     email = (charge.get("email") or "").strip().lower()
     jti = charge.get("jti")
-    if not email or "@" not in email or not jti:
+    if not email or "@" not in email or (exiger_jti and not jti):
         raise AppException(ErrorCode.TOKEN_INVALID, detail="Jeton incomplet.")
 
     return charge
