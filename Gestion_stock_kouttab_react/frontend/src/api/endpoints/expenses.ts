@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useApiMutation } from '@/hooks/useApiMutation';
+import { notificationQueryKeys } from './notifications';
 import { api } from '../client';
 import type {
   Expense,
@@ -127,6 +128,28 @@ async function validateExpense(params: {
 
 export function useMyExpenses() {
   return useQuery({ queryKey: expenseQueryKeys.mine(), queryFn: fetchMyExpenses });
+}
+
+async function marquerMesNotesLues(): Promise<{ message: string }> {
+  const { data } = await api.post<{ message: string }>('/expenses/me/lues');
+  return data;
+}
+
+/**
+ * Geste explicite de lecture : éteint les pastilles « à lire » du déposant.
+ * Lire la liste ne les éteint plus (un refetch d'arrière-plan les consommait
+ * avant qu'elles soient vues) — seul cet appel, déclenché quand l'onglet est
+ * réellement affiché, vaut lecture.
+ */
+export function useMarquerNotesLues() {
+  const queryClient = useQueryClient();
+  return useApiMutation({
+    mutationFn: marquerMesNotesLues,
+    silentToast: true,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: notificationQueryKeys.summary() });
+    },
+  });
 }
 
 export function useAllExpenses() {

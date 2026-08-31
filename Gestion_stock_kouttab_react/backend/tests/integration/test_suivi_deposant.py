@@ -78,7 +78,33 @@ def test_un_commentaire_seul_allume_la_pastille(
     assert resume["notes_suivies"] == 1
 
 
-def test_ouvrir_ses_demandes_eteint_la_pastille(
+def test_lire_la_liste_n_eteint_plus_la_pastille(
+    client_authenticated_as, benevole_user, compta_user, db_session
+):
+    """Le marquage au GET éteignait la pastille sur n'importe quel rechargement
+    d'arrière-plan (retour de focus, refetch) — le déposant ne la voyait
+    jamais. Lire une liste n'est pas un geste de lecture : seul le marquage
+    explicite l'est, comme pour les conversations (ouvrir UN fil)."""
+    note = _note(db_session, benevole_user)
+    _valider(
+        client_authenticated_as(compta_user),
+        note.id,
+        status="Approuvée",
+        commentaires_compta="",
+    )
+
+    benevole = client_authenticated_as(benevole_user)
+
+    # Deux lectures successives — un refetch d'arrière-plan — ne changent rien.
+    mes_notes = benevole.get("/api/v1/expenses/me").json()
+    assert next(n for n in mes_notes if n["id"] == note.id)["non_lu_demandeur"] is True
+    benevole.get("/api/v1/expenses/me")
+
+    resume = benevole.get("/api/v1/notifications/summary").json()
+    assert resume["notes_suivies"] == 1
+
+
+def test_le_geste_explicite_eteint_la_pastille(
     client_authenticated_as, benevole_user, compta_user, db_session
 ):
     note = _note(db_session, benevole_user)
@@ -90,14 +116,60 @@ def test_ouvrir_ses_demandes_eteint_la_pastille(
     )
 
     benevole = client_authenticated_as(benevole_user)
-
-    # La liste montre encore la note signalée : éteindre AVANT de sérialiser
-    # priverait l'écran du seul signal qu'il devait afficher.
-    mes_notes = benevole.get("/api/v1/expenses/me").json()
-    assert next(n for n in mes_notes if n["id"] == note.id)["non_lu_demandeur"] is True
+    reponse = benevole.post("/api/v1/expenses/me/lues")
+    assert reponse.status_code == 200, reponse.text
 
     resume = benevole.get("/api/v1/notifications/summary").json()
     assert resume["notes_suivies"] == 0
+
+
+def test_le_geste_explicite_n_eteint_que_les_siennes(
+    client_authenticated_as, benevole_user, compta_user, admin_benevoles_user, db_session
+):
+    note = _note(db_session, benevole_user)
+    _valider(
+        client_authenticated_as(compta_user), note.id, status="Approuvée", commentaires_compta="x"
+    )
+
+    client_authenticated_as(admin_benevoles_user).post("/api/v1/expenses/me/lues")
+
+    resume = client_authenticated_as(benevole_user).get(
+        "/api/v1/notifications/summary"
+    ).json()
+    assert resume["notes_suivies"] == 1
+
+
+def test_les_factures_suivent_la_meme_regle(
+    client_authenticated_as, benevole_user, compta_user, db_session, local_pole, first_category
+):
+    """Le même défaut existait mot pour mot sur les factures (marquage au GET
+    de la liste) : les deux moitiés du circuit se corrigent ensemble."""
+    from app.crud import invoice as invoice_crud
+    from datetime import date as _date
+
+    facture = invoice_crud.create_invoice(
+        db_session,
+        user_id=benevole_user.id,
+        commentaire=None,
+        date_depot=_date(2026, 8, 12),
+        id_pole=local_pole.id,
+        pole=local_pole.nom,
+        id_categorie=first_category.id,
+        categorie=first_category.nom,
+        fournisseur="Action",
+    )
+    client_authenticated_as(compta_user).patch(
+        f"/api/v1/invoices/{facture.id}/status",
+        json={"status": "Refusée", "commentaires_compta": "Pièce illisible."},
+    )
+
+    benevole = client_authenticated_as(benevole_user)
+
+    benevole.get("/api/v1/invoices/me")
+    assert benevole.get("/api/v1/notifications/summary").json()["factures_suivies"] == 1
+
+    assert benevole.post("/api/v1/invoices/me/lues").status_code == 200
+    assert benevole.get("/api/v1/notifications/summary").json()["factures_suivies"] == 0
 
 
 def test_la_pastille_ne_regarde_que_ses_propres_notes(
@@ -122,7 +194,7 @@ def test_une_decision_sans_changement_n_allume_rien(
     note = _note(db_session, benevole_user, statut="Approuvée")
     compta = client_authenticated_as(compta_user)
     _valider(compta, note.id, status="Approuvée", commentaires_compta="Vu")
-    client_authenticated_as(benevole_user).get("/api/v1/expenses/me")
+    client_authenticated_as(benevole_user).post("/api/v1/expenses/me/lues")
 
     _valider(compta, note.id, status="Approuvée", commentaires_compta="Vu")
 
@@ -181,6 +253,46 @@ def test_le_courriel_annonce_bien_un_vrai_changement(
 
     envoi = _envois(db_session, "expense")[0]
     assert "a ete approuvee" in envoi.body
+
+
+# --- Justificatif écarté ------------------------------------------------------
+
+
+def test_ecarter_un_justificatif_previent_par_courriel(
+    client_authenticated_as, benevole_user, compta_user, db_session
+):
+    """Écarter est une demande d'action (redéposer une pièce), mais seul un
+    signal muet l'annonçait : la pastille. Le déposant doit recevoir le motif
+    par courriel, comme pour un changement de statut."""
+    from app.db.models import ExpenseFile
+
+    note = _note(db_session, benevole_user)
+    piece = ExpenseFile(
+        id_note_de_frais=note.id,
+        nom_fichier="ticket.jpg",
+        chemin_fichier="/tmp/ticket.jpg",
+    )
+    db_session.add(piece)
+    db_session.commit()
+
+    # Le motif est obligatoire et voyage dans le corps (DELETE via request()).
+    reponse = client_authenticated_as(compta_user).request(
+        "DELETE",
+        f"/api/v1/expenses/{note.id}/files/{piece.id}",
+        json={"motif": "Photo illisible, merci de redeposer."},
+    )
+    assert reponse.status_code == 200, reponse.text
+
+    envoi = _envois(db_session, "expense")[0]
+    assert json.loads(envoi.recipients) == [benevole_user.email]
+    assert "justificatif" in envoi.subject.lower()
+    assert "Photo illisible" in envoi.body
+
+    # Et la pastille, elle, reste le second canal.
+    resume = client_authenticated_as(benevole_user).get(
+        "/api/v1/notifications/summary"
+    ).json()
+    assert resume["notes_suivies"] == 1
 
 
 # --- Les factures ------------------------------------------------------------

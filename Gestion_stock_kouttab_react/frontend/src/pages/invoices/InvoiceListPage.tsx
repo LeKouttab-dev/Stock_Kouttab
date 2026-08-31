@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Archive,
   ChevronDown,
@@ -31,7 +31,9 @@ import {
   useResendComptaEmail,
   useRestaurerFacture,
   useUpdateInvoiceStatus,
+  useMarquerFacturesLues,
 } from '@/api/endpoints/invoices';
+import { usePendingSummary } from '@/api/endpoints/notifications';
 import { INVOICE_STATUS, type InvoiceStatus } from '@/lib/constants';
 import type { Invoice } from '@/types/api';
 import { useAuth } from '@/hooks/useAuth';
@@ -90,6 +92,18 @@ export function InvoiceListPage() {
     date: date || undefined,
     search: search || undefined,
   });
+
+  // Ouvrir cette page EST le geste de lecture des pastilles factures — même
+  // règle que l'onglet « Mes demandes » des notes de frais : le GET de la
+  // liste n'éteint plus rien, on le déclare ici, fenêtre visible seulement.
+  const { data: aTraiter } = usePendingSummary();
+  const marquerLues = useMarquerFacturesLues();
+  useEffect(() => {
+    if ((aTraiter?.factures_suivies ?? 0) === 0) return;
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+    marquerLues.mutate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aTraiter?.factures_suivies]);
 
   const comptes = useMemo(
     () =>

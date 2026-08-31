@@ -45,6 +45,7 @@ vi.mock('@/api/endpoints/invoices', () => ({
   useRestaurerFacture: () => ({ mutate: vi.fn(), isPending: false }),
   useResendComptaEmail: () => ({ mutate: vi.fn(), isPending: false }),
   invoiceQueryKeys: { all: ['invoices'] },
+  useMarquerFacturesLues: () => ({ mutate: () => {}, isPending: false }),
 }));
 vi.mock('@/api/endpoints/tickets', () => ({
   useTickets: () => ({ data: [], isLoading: false }),
