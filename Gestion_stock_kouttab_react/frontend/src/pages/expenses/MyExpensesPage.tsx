@@ -35,6 +35,7 @@ import {
   useCreateExpense,
   useMyExpenses,
   useUpdateExpense,
+  useMarquerNotesLues,
 } from '@/api/endpoints/expenses';
 import { reimbursementDocumentPath, useRemboursementParNote } from '@/api/endpoints/reimbursements';
 import { useDownloadAttachment } from '@/hooks/useDownloadAttachment';
@@ -77,6 +78,18 @@ export function MyExpensesPage() {
   // Posé par la page /sso quand le passage part de la page d'un événement.
   const ndfPrefill = ((useLocation().state ?? {}) as { ndfPrefill?: SsoPrefill }).ndfPrefill;
 
+  // La lecture se DÉCLARE : onglet « Mes demandes » réellement affiché, fenêtre
+  // visible, et quelque chose à lire. Jamais par un refetch d'arrière-plan —
+  // c'est lui qui consommait la pastille avant qu'elle soit vue.
+  const marquerLues = useMarquerNotesLues();
+  useEffect(() => {
+    if (onglet !== 'mine') return;
+    if ((aTraiter?.notes_suivies ?? 0) === 0) return;
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+    marquerLues.mutate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onglet, aTraiter?.notes_suivies]);
+
   return (
     <div className="space-y-4">
       <div>
@@ -97,7 +110,16 @@ export function MyExpensesPage() {
           )}
         >
           <TabsTrigger value="submit">{fr.expenses.submitTab}</TabsTrigger>
-          <TabsTrigger value="mine">{fr.expenses.myDemandsTab}</TabsTrigger>
+          <TabsTrigger value="mine" className="gap-1.5">
+            {fr.expenses.myDemandsTab}
+            {/* Mes pièces qui ont bougé : visible ici même, pas seulement dans
+                la barre latérale. S'éteint quand l'onglet est ouvert. */}
+            {Boolean(aTraiter?.notes_suivies) && (
+              <span className="rounded-full bg-terracotta px-1.5 py-0.5 text-[11px] font-semibold leading-none text-cream-50">
+                {aTraiter?.notes_suivies}
+              </span>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="remboursements">{fr.expenses.remboursementsTab}</TabsTrigger>
           {peutValider && (
             <TabsTrigger value="valider" className="gap-1.5">

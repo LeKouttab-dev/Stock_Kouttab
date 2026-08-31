@@ -579,9 +579,14 @@ se traite dans la journée, pas à la seconde.
 
 `Expense.non_lu_demandeur` et `Invoice.non_lu_demandeur` (migration
 `e1a8c3d6f0b2`) reprennent le patron de `Conversation.non_lu_demandeur` :
-dénormalisés, allumés par **toute décision de la comptabilité — statut ou
-commentaire** —, éteints quand le déposant ouvre sa liste (`crud.*.marquer_lues`,
-appelé par l'endpoint qui sert un écran, jamais par la lecture elle-même).
+dénormalisés, allumés par **toute décision de la comptabilité — statut,
+commentaire ou justificatif écarté** —, éteints par un **geste explicite** :
+`POST /expenses/me/lues` et `POST /invoices/me/lues`, appelés par le front
+quand l'onglet est réellement affiché. Jamais par le GET de la liste : le
+marquage à la lecture traitait le premier affichage mais pas les rechargements
+d'arrière-plan (refetch, retour de focus), qui consommaient la pastille avant
+qu'elle soit vue. Même patron que les conversations : ouvrir UN fil est un
+geste de lecture, recharger une liste n'en est pas un.
 
 Le commentaire n'allumait rien : il fallait ouvrir « Mes demandes » et repérer
 soi-même l'encart. Or c'est souvent lui qui porte la demande de correction.

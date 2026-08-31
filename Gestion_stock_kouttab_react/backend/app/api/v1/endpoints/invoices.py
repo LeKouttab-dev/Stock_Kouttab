@@ -93,10 +93,18 @@ def list_my_invoices(
     rows = invoice_crud.list_invoices_for_user(
         db, current_user.id, status=status, days=days, search=search
     )
-    # Cf. `expenses.list_my_expenses` : la pastille s'eteint APRES la
-    # serialisation, sinon l'ecran ne la montrerait jamais.
-    invoice_crud.marquer_lues(db, current_user.id)
+    # Cf. `expenses.list_my_expenses` : lire n'eteint plus rien, le front
+    # declare la lecture par POST /invoices/me/lues.
     return [InvoiceOut(**r) for r in rows]
+
+
+@router.post("/me/lues", response_model=MessageOut)
+def marquer_mes_factures_lues(
+    db: Session = Depends(get_db), current_user: Admin = Depends(get_current_user)
+) -> Any:
+    """Le deposant declare avoir vu ses factures : ses pastilles s'eteignent."""
+    invoice_crud.marquer_lues(db, current_user.id)
+    return MessageOut(message="Factures marquees comme lues.")
 
 
 @router.get(

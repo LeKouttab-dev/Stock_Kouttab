@@ -163,9 +163,13 @@ def test_la_recherche_porte_aussi_sur_le_fournisseur(
     assert len(trouvees) == 1
 
 
-def test_ouvrir_ses_factures_eteint_la_pastille(
+def test_lire_ses_factures_n_eteint_plus_la_pastille(
     client_authenticated_as, benevole_user, compta_user, db_session, local_pole, first_category
 ):
+    """Le marquage au GET consommait la pastille sur un simple refetch
+    d'arrière-plan. Seul le geste explicite (POST /invoices/me/lues) vaut
+    lecture — cf. test_suivi_deposant.py, la règle est commune aux deux
+    moitiés du circuit."""
     facture = _facture(db_session, benevole_user, local_pole, first_category)
     client_authenticated_as(compta_user).patch(
         f"/api/v1/invoices/{facture.id}/status",
@@ -174,8 +178,9 @@ def test_ouvrir_ses_factures_eteint_la_pastille(
 
     benevole = client_authenticated_as(benevole_user)
     miennes = benevole.get("/api/v1/invoices/me").json()
-    # La liste montre encore le signal, puis il s'éteint.
     assert next(f for f in miennes if f["id"] == facture.id)["non_lu_demandeur"] is True
 
-    resume = benevole.get("/api/v1/notifications/summary").json()
-    assert resume["factures_suivies"] == 0
+    # Lire ne change rien ; déclarer la lecture éteint.
+    assert benevole.get("/api/v1/notifications/summary").json()["factures_suivies"] == 1
+    benevole.post("/api/v1/invoices/me/lues")
+    assert benevole.get("/api/v1/notifications/summary").json()["factures_suivies"] == 0

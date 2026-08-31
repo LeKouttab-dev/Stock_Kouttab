@@ -123,12 +123,23 @@ def _parse_date(value: str | None, *, field: str) -> date_type:
 def list_my_expenses(
     db: Session = Depends(get_db), current_user: Admin = Depends(get_current_user)
 ) -> Any:
+    # Lire la liste N'ETEINT PLUS la pastille. Le marquage au GET traitait le
+    # premier affichage mais pas les rechargements d'arriere-plan (retour de
+    # focus, refetch TanStack) : la pastille etait consommee avant d'etre vue.
+    # Recharger une liste n'est pas un geste de lecture ; le front declare la
+    # lecture par POST /expenses/me/lues quand l'onglet est reellement affiche
+    # — le patron des conversations, qui eteignent a l'ouverture d'UN fil.
     rows = expense_crud.list_expenses_for_user(db, current_user.id)
-    # Ouvrir sa liste vaut lecture : la pastille s'eteint ici, APRES que les
-    # lignes ont ete serialisees — sinon l'ecran qui vient de l'allumer ne la
-    # montrerait jamais.
-    expense_crud.marquer_lues(db, current_user.id)
     return [_to_out(r, requester=current_user) for r in rows]
+
+
+@router.post("/me/lues", response_model=MessageOut)
+def marquer_mes_notes_lues(
+    db: Session = Depends(get_db), current_user: Admin = Depends(get_current_user)
+) -> Any:
+    """Le deposant declare avoir vu sa liste : ses pastilles s'eteignent."""
+    expense_crud.marquer_lues(db, current_user.id)
+    return MessageOut(message="Notes marquees comme lues.")
 
 
 @router.get(
@@ -501,13 +512,47 @@ def ecarter_justificatif(
     expense_id: int,
     file_id: int,
     payload: EcartFichierIn,
+    background: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: Admin = Depends(get_current_user),
 ) -> Any:
     """Ecarte une piece du dossier — reversible, comme l'archivage d'une note."""
-    expense_crud.ecarter_fichier(
+    fichier = expense_crud.ecarter_fichier(
         db, expense_id, file_id, user=current_user, motif=payload.motif
     )
+
+    # Ecarter est une demande d'action — redeposer une piece — et seule la
+    # pastille l'annoncait. Le motif part desormais aussi par courriel, via la
+    # file comme les statuts : un SMTP couche ne le fait pas disparaitre.
+    out = expense_crud.get_expense_dict(db, expense_id) or {}
+    destinataire = out.get("user_email")
+    if destinataire and email_service.doit_notifier_du_statut(
+        destinataire, current_user.email
+    ):
+        envoi = outbox.enqueue(
+            db,
+            kind="piece_ecartee",
+            entity_type="expense",
+            entity_id=expense_id,
+            recipients=[destinataire],
+            subject=f"Votre note de frais #{expense_id} — justificatif ecarte",
+            body=email_layout.composer(
+                prenom=out.get("user_prenom"),
+                introduction=(
+                    "La comptabilite a ecarte un justificatif de votre note de "
+                    "frais. Merci de deposer une piece corrigee depuis "
+                    "l'application, onglet « Mes demandes »."
+                ),
+                blocs=[
+                    ("Note de frais", f"#{expense_id}"),
+                    ("Piece ecartee", fichier.nom_fichier),
+                    ("Motif", payload.motif),
+                ],
+            ),
+            triggered_by=current_user.id,
+        )
+        background.add_task(outbox.try_send_now, envoi.id)
+
     return MessageOut(message="Justificatif ecarte.")
 
 

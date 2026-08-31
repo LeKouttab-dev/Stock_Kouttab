@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useApiMutation } from '@/hooks/useApiMutation';
+import { notificationQueryKeys } from './notifications';
 import { api } from '../client';
 import type { Invoice, InvoiceStatus } from '@/types/api';
 
@@ -102,6 +103,23 @@ async function updateInvoiceStatus(params: {
 
 export function useMyInvoices() {
   return useQuery({ queryKey: invoiceQueryKeys.mine(), queryFn: fetchMyInvoices });
+}
+
+async function marquerMesFacturesLues(): Promise<{ message: string }> {
+  const { data } = await api.post<{ message: string }>('/invoices/me/lues');
+  return data;
+}
+
+/** Cf. useMarquerNotesLues : le geste explicite de lecture, côté factures. */
+export function useMarquerFacturesLues() {
+  const queryClient = useQueryClient();
+  return useApiMutation({
+    mutationFn: marquerMesFacturesLues,
+    silentToast: true,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: notificationQueryKeys.summary() });
+    },
+  });
 }
 
 export function useInvoices(filters?: { status?: string; date?: string; search?: string }) {
