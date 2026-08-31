@@ -33,7 +33,7 @@ from app.db.session import SessionLocal  # noqa: E402
 from app.crud import event as event_crud  # noqa: E402
 from app.crud import ticket as ticket_crud  # noqa: E402
 from app.services.helloasso import get_helloasso_client  # noqa: E402
-from app.services import email as email_service  # noqa: E402
+from app.services import relance_tickets, email as email_service  # noqa: E402
 from app.services import outbox  # noqa: E402
 
 
@@ -93,23 +93,11 @@ async def relancer_les_tickets() -> int:
                     ticket.id,
                 )
                 continue
-            await email_service.send_justificatif_reminder(
-                recipient=destinataire,
-                prenom=ticket.user.prenom if ticket.user else None,
-                libelle=ticket.libelle,
-                description=ticket.description,
-                montant=(
-                    f"{ticket.montant_attendu:.2f} EUR"
-                    if ticket.montant_attendu is not None
-                    else None
-                ),
-                date_achat=(
-                    ticket.date_achat.strftime("%d/%m/%Y") if ticket.date_achat else None
-                ),
-                fournisseur=ticket.fournisseur,
-                rappel_numero=ticket.rappels_envoyes + 1,
-                rappels_max=ticket_crud.RAPPELS_MAX,
-            )
+            # Meme point d'assemblage que l'endpoint : la copie a huit
+            # arguments avait deja diverge (le role manquait ici, et un
+            # BenevoleFrais recevait un lien vers un ecran de connexion
+            # sans mot de passe — cf. services/relance_tickets.py).
+            await relance_tickets.envoyer(ticket)
             ticket_crud.marquer_relance(db, ticket)
             envoyes += 1
     finally:
