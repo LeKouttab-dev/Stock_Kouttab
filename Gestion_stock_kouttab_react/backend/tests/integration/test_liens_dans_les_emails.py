@@ -138,3 +138,46 @@ def test_les_liens_sont_absolus(
 
     envoi = _dernier_envoi(db_session)
     assert "http" in envoi.body
+
+
+async def test_les_relances_du_worker_portent_aussi_le_bon_lien(
+    db_session, benevole_frais_user, captured_emails, monkeypatch
+):
+    """La relance n°1 part de l'endpoint ; les n°2 à 5, du worker. Les deux
+    chemins recopiaient le même appel — et seul le premier passait le rôle :
+    un BenevoleFrais recevait quatre relances sur cinq avec un lien vers un
+    écran de connexion où il n'a pas de mot de passe."""
+    import sys
+    from datetime import datetime, timedelta, timezone
+    from pathlib import Path
+
+    from sqlalchemy.orm import sessionmaker
+
+    from app.db.models import JustificatifTicket
+
+    racine = Path(__file__).resolve().parents[2]
+    if str(racine) not in sys.path:
+        sys.path.insert(0, str(racine))
+    from scripts import process_outbound_emails as worker
+
+    # Le worker ouvre sa propre session : on la branche sur la base de test.
+    fabrique = sessionmaker(autocommit=False, autoflush=False, bind=db_session.get_bind())
+    monkeypatch.setattr(worker, "SessionLocal", fabrique)
+
+    db_session.add(
+        JustificatifTicket(
+            id_user=benevole_frais_user.id,
+            libelle="Ticket de caisse Action",
+            rappels_envoyes=1,
+            dernier_rappel_at=datetime.now(timezone.utc).replace(tzinfo=None)
+            - timedelta(days=4),
+        )
+    )
+    db_session.commit()
+
+    envoyes = await worker.relancer_les_tickets()
+
+    assert envoyes == 1
+    dernier = captured_emails[-1]
+    assert LIEN_GESTION in dernier.body
+    assert f"{settings.frontend_url.rstrip('/')}/invoices/upload" not in dernier.body

@@ -23,7 +23,7 @@ from app.schemas.ticket import (
     TicketRecipientOut,
     TicketUpdate,
 )
-from app.services import email as email_service
+from app.services import relance_tickets, email as email_service
 
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
@@ -202,24 +202,9 @@ async def _relancer_en_arriere_plan(ticket_id: int, *, compter: bool = True) -> 
         ticket = ticket_crud.get_ticket(db, ticket_id)
         if ticket is None or not (ticket.user and ticket.user.email):
             return
-        await email_service.send_justificatif_reminder(
-            recipient=ticket.user.email,
-            prenom=ticket.user.prenom,
-            role=ticket.user.role,
-            libelle=ticket.libelle,
-            description=ticket.description,
-            montant=(
-                f"{ticket.montant_attendu:.2f} EUR"
-                if ticket.montant_attendu is not None
-                else None
-            ),
-            date_achat=(
-                ticket.date_achat.strftime("%d/%m/%Y") if ticket.date_achat else None
-            ),
-            fournisseur=ticket.fournisseur,
-            rappel_numero=ticket.rappels_envoyes + 1,
-            rappels_max=ticket_crud.RAPPELS_MAX,
-        )
+        # Un seul point d'assemblage avec le worker : les deux chemins avaient
+        # deja diverge une fois (cf. services/relance_tickets.py).
+        await relance_tickets.envoyer(ticket)
         if compter:
             ticket_crud.marquer_relance(db, ticket)
     except Exception as exc:  # noqa: BLE001
