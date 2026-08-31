@@ -140,7 +140,25 @@ jobs:
           # signale.
           docker compose run --rm -T api alembic upgrade head </dev/null
 
-          docker compose up -d
+          # Vestiges d'une recréation interrompue. Compose renomme l'ancien
+          # conteneur en `<id>_<nom>` avant de créer le nouveau ; si l'opération
+          # casse entre les deux, ce vestige garde le nom réservé et fait
+          # échouer toutes les recréations suivantes par « No such container ».
+          # C'est ce qui a coupé la production le 2026-08-31.
+          orphelins=$(docker ps -a --format '{{.Names}}' | grep -E '^[0-9a-f]{12}_kouttab-stock-' || true)
+          if [ -n "$orphelins" ]; then
+            echo "Nettoyage des conteneurs orphelins :"
+            echo "$orphelins"
+            echo "$orphelins" | xargs -r docker rm -f
+          fi
+
+          # `up -d` ne doit PAS emporter l'étape. Le 2026-08-31, il est mort sur
+          # le worker après avoir recréé l'API et le site : ceux-ci sont restés
+          # `Created`, donc éteints, et `set -e` a coupé le script avant la
+          # boucle de vérification — celle qui sait justement les relancer. Le
+          # site est tombé pour un incident sur un conteneur qui ne sert aucune
+          # requête. On note l'échec, la vérification tranche.
+          docker compose up -d || echo "AVERTISSEMENT : 'up -d' a échoué, la vérification va reprendre les services." >&2
 
           # Vérifier que les conteneurs tournent RÉELLEMENT sur l'image
           # attendue. Deux déploiements successifs ont laissé les anciens
@@ -160,21 +178,43 @@ jobs:
           for couple in api:api web:web outbox-worker:outbox; do
             service="${couple%%:*}"
             nom="kouttab-stock-${couple##*:}"
-            en_place=$(docker inspect --format '{{.Config.Image}}' "$nom" 2>/dev/null || echo absent)
-            case "$en_place" in
-              *"${IMAGE_TAG}") echo "OK  $nom -> ${IMAGE_TAG}" ;;
+            # L'ÉTAT autant que l'image. Ce contrôle ne portait que sur
+            # `.Config.Image` : un conteneur créé puis jamais démarré le
+            # passait haut la main, puisqu'il porte bien la bonne image. C'est
+            # exactement l'état dans lequel la production s'est retrouvée le
+            # 2026-08-31 — bonne version, éteinte — et le garde-fou censé
+            # attraper les déploiements incomplets ne voyait rien.
+            etat=$(docker inspect --format '{{.Config.Image}} {{.State.Running}}' "$nom" 2>/dev/null || echo "absent false")
+            case "$etat" in
+              *"${IMAGE_TAG} true") echo "OK  $nom -> ${IMAGE_TAG}, en marche" ;;
               *)
-                echo "ECHEC $nom tourne sur '$en_place', attendu '${IMAGE_TAG}'" >&2
+                echo "ECHEC $nom : '$etat', attendu '${IMAGE_TAG} true'" >&2
                 echo "Nouvelle tentative en forçant la recréation." >&2
-                docker compose up -d --force-recreate "$service"
-                en_place=$(docker inspect --format '{{.Config.Image}}' "$nom" 2>/dev/null || echo absent)
-                case "$en_place" in
-                  *"${IMAGE_TAG}") echo "OK après recréation : $nom" ;;
-                  *) echo "ECHEC définitif sur $nom ($en_place)" >&2; exit 1 ;;
+                docker compose up -d --force-recreate "$service" || true
+                etat=$(docker inspect --format '{{.Config.Image}} {{.State.Running}}' "$nom" 2>/dev/null || echo "absent false")
+                case "$etat" in
+                  *"${IMAGE_TAG} true") echo "OK après recréation : $nom" ;;
+                  *) echo "ECHEC définitif sur $nom ($etat)" >&2; exit 1 ;;
                 esac
                 ;;
             esac
           done
+
+          # Dernier mot : le site répond-il ? Tout le reste peut être vert et la
+          # production injoignable — un conteneur « en marche » sur la bonne
+          # image peut très bien refuser les requêtes. C'est la seule assertion
+          # qui parle le langage du bénévole qui ouvre l'application.
+          code=000
+          for _ in 1 2 3 4 5 6; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 https://stock.lekouttab.fr/api/v1/health || echo 000)
+            [ "$code" = "200" ] && break
+            sleep 5
+          done
+          if [ "$code" != "200" ]; then
+            echo "ECHEC : l'API répond $code, le déploiement laisse la production injoignable." >&2
+            exit 1
+          fi
+          echo "OK  https://stock.lekouttab.fr/api/v1/health -> 200"
 
           # Pas de `docker image prune` : il agit sur TOUTE la machine, qui
           # héberge d'autres projets. Même filtré sur l'ancienneté, il
