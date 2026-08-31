@@ -32,7 +32,7 @@ from app.schemas.expense import (
     ExpenseValidate,
     SuppressionDefinitiveIn,
 )
-from app.services import compta_dispatch, email_layout, outbox
+from app.services import compta_dispatch, email_layout, liens, outbox
 from app.services import email as email_service
 from app.services.files import contenu_du_fichier, save_upload_file
 
@@ -361,6 +361,13 @@ def validate_expense(
             )
             conclusion = "Retrouvez votre note dans l'application, onglet « Mes demandes »."
 
+        # Le lien depend du COMPTE : un BenevoleFrais n'a pas de mot de passe
+        # stock, l'ecran de connexion serait une impasse (cf. services/liens).
+        deposant = db.get(Admin, out.get("id_user")) if out.get("id_user") else None
+        conclusion = liens.avec_lien(
+            conclusion, liens.lien_espace(getattr(deposant, "role", None), "expenses")
+        )
+
         # Par la file, et non plus en envoi tolerant : c'est le seul avis que
         # recoit le deposant, et un echec SMTP le faisait disparaitre sans
         # laisser de trace nulle part.
@@ -548,6 +555,17 @@ def ecarter_justificatif(
                     ("Piece ecartee", fichier.nom_fichier),
                     ("Motif", payload.motif),
                 ],
+                conclusion=liens.avec_lien(
+                    None,
+                    liens.lien_espace(
+                        getattr(
+                            db.get(Admin, out.get("id_user")) if out.get("id_user") else None,
+                            "role",
+                            None,
+                        ),
+                        "expenses",
+                    ),
+                ),
             ),
             triggered_by=current_user.id,
         )

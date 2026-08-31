@@ -74,6 +74,11 @@ class Settings(BaseSettings):
 
     # URLs
     frontend_url: str = Field(default="http://localhost:5173", alias="FRONTEND_URL")
+    # URL de l'outil de gestion (gestion.lekouttab.fr) : les courriels y
+    # renvoient les comptes « BenevoleFrais », qui n'ont pas de mot de passe
+    # stock. Defaut = la production, pour ne JAMAIS empecher un demarrage
+    # faute de variable posee a la main sur le VPS.
+    gestion_url: str = Field(default="https://gestion.lekouttab.fr", alias="GESTION_URL")
     backend_url: str = Field(default="http://localhost:8000/api", alias="BACKEND_URL")
     cors_origins_raw: str = Field(
         default="http://localhost:5173,https://stock.lekouttab.fr",

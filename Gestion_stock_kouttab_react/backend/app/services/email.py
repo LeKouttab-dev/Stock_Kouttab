@@ -17,6 +17,7 @@ from app.core.exceptions import AppException
 from app.core.logger import get_logger
 from app.crud.user import get_emails_by_roles
 from app.services import email_layout
+from app.services import liens
 
 
 logger = get_logger("email")
@@ -497,6 +498,7 @@ async def send_justificatif_reminder(
     fournisseur: str | None = None,
     rappel_numero: int,
     rappels_max: int,
+    role: str | None = None,
 ) -> None:
     """Relance un benevole pour un justificatif manquant.
 
@@ -531,6 +533,7 @@ async def send_justificatif_reminder(
         f"{salutation}\n\n"
         "Un justificatif d'achat manque a la comptabilite de l'association.\n\n"
         + "\n".join(details)
+        + f"\n\nAcceder a votre espace : {liens.lien_espace(role, 'invoices/upload')}"
         + "\n\nMerci de le deposer dans l'application, rubrique « Depot de "
         "factures ». Si vous l'avez deja transmis, ignorez ce message."
         + cloture
