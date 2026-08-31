@@ -71,6 +71,11 @@ export function DocumentScanner({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
+  // Fichier déjà préparé. Sans ce garde, un rendu de plus relancerait la
+  // conversion et la détection sur la même image. Déclarée ici, avec les
+  // autres refs : elle est lue par l'effet de fermeture, bien plus haut que
+  // l'effet qui la renseigne.
+  const fichierPrepare = useRef<File | null>(null);
 
   // Un fichier fourni saute la prise de vue : il n'y a rien à photographier.
   const [etape, setEtape] = useState<Etape>(fichierInitial ? 'cadrage' : 'camera');
@@ -159,6 +164,7 @@ export function DocumentScanner({
       setApercu(null);
       setCoins([]);
       setErreur(null);
+      fichierPrepare.current = null;
     }
   }, [open, arreterCamera, fichierInitial]);
 
@@ -178,6 +184,8 @@ export function DocumentScanner({
    * les deux entrées — le repli à 10 % en particulier, qui n'existait que du
    * côté caméra.
    */
+  const detecter = detect.mutate;
+
   const preparerCadrage = useCallback(
     (blob: Blob, largeur: number, hauteur: number) => {
       setPhoto(blob);
@@ -185,26 +193,40 @@ export function DocumentScanner({
       setTaille({ w: largeur, h: hauteur });
       setEtape('cadrage');
 
-      detect.mutate(blob, {
+      // Le cadre de repli est posé TOUT DE SUITE, avant l'aller-retour serveur.
+      // La détection porte sur une image de plusieurs mégapixels et prend une
+      // à deux secondes : l'écran restait vide pendant ce temps, sans poignées
+      // ni rien à saisir, et on ne savait pas si quelque chose se passait.
+      // Elles apparaissent maintenant à l'ouverture, et la détection ne fait
+      // que les affiner.
+      const repli = [
+        { x: largeur * 0.1, y: hauteur * 0.1 },
+        { x: largeur * 0.9, y: hauteur * 0.1 },
+        { x: largeur * 0.9, y: hauteur * 0.9 },
+        { x: largeur * 0.1, y: hauteur * 0.9 },
+      ];
+      setCoins(repli);
+
+      detecter(blob, {
         onSuccess: (res) => {
-          setCoins(
-            res.corners ?? [
-              // Repli : un cadre en retrait de 10 %, que le déposant ajuste.
-              { x: largeur * 0.1, y: hauteur * 0.1 },
-              { x: largeur * 0.9, y: hauteur * 0.1 },
-              { x: largeur * 0.9, y: hauteur * 0.9 },
-              { x: largeur * 0.1, y: hauteur * 0.9 },
-            ],
-          );
+          if (res.corners) setCoins(res.corners);
         },
       });
     },
-    [detect],
+    // `detect.mutate` et non `detect` : l'objet rendu par TanStack Query change
+    // d'identité à CHAQUE changement d'état, `isPending` compris. En dépendre
+    // recréait cette fonction dès le premier appel, ce qui relançait l'effet du
+    // fichier déposé, qui rappelait la détection — une boucle infinie qui
+    // noyait le serveur et laissait `isPending` bloqué à `true`, donc le bouton
+    // « Valider » à tourner dans le vide. `mutate` est stable, lui.
+    [detecter],
   );
 
   /* ---------- Fichier déposé : on ouvre directement sur le cadrage ---------- */
   useEffect(() => {
     if (!open || !fichierInitial) return;
+    if (fichierPrepare.current === fichierInitial) return;
+    fichierPrepare.current = fichierInitial;
     let annule = false;
 
     void versImageScannable(fichierInitial).then((image) => {
