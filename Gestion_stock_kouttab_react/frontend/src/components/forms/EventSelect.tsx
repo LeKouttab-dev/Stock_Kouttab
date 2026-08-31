@@ -9,9 +9,13 @@ import {
 import { Input } from '@/components/ui/input';
 import { useEvents } from '@/api/endpoints/referentials';
 import { fr } from '@/lib/i18n/fr';
+import type { AppEvent } from '@/types/api';
 
 /** Valeur sentinelle : l'événement n'est pas dans la liste. */
 export const FREE_EVENT = '__autre__';
+
+/** Valeur sentinelle : la dépense n'est liée à aucun événement. */
+export const NO_EVENT = '__aucun__';
 
 interface EventSelectProps {
   /** Identifiant de l'événement choisi dans le référentiel, sinon `null`. */
@@ -29,6 +33,25 @@ interface EventSelectProps {
    * événements de EV(G) n'a pas de sens. `undefined` ou `null` = aucun filtre.
    */
   typeEvenement?: string | null;
+  /**
+   * Propose « Aucun événement » en tête, et le sélectionne quand rien n'est
+   * choisi.
+   *
+   * C'est ce qui permet à l'événement d'ouvrir le formulaire : sans cette
+   * option, une dépense de local n'aurait aucun moyen de dire qu'elle n'a pas
+   * d'événement, et le déposant en inventerait un — le défaut que le
+   * référentiel des pôles avait précisément corrigé.
+   */
+  avecAucunEvenement?: boolean;
+  /** Appelé quand l'utilisateur déclare que la dépense n'a aucun événement. */
+  onAucunEvenement?: () => void;
+  /**
+   * Remonte l'événement complet, et non son seul identifiant.
+   *
+   * L'appelant a besoin de `type_ev` pour en déduire le pôle : le lui faire
+   * rechercher dans la liste dupliquerait ici la connaissance du référentiel.
+   */
+  onEventSelected?: (event: AppEvent | null) => void;
   disabled?: boolean;
 }
 
@@ -47,6 +70,9 @@ export function EventSelect({
   onFreeTextChange,
   onEventDate,
   typeEvenement,
+  avecAucunEvenement = false,
+  onAucunEvenement,
+  onEventSelected,
   disabled,
 }: EventSelectProps) {
   const { data: events, isLoading, isError } = useEvents();
@@ -71,7 +97,14 @@ export function EventSelect({
   }, [eventId, freeText]);
 
   const enSaisieLibre = modeLibre || isError;
-  const value = eventId !== null ? String(eventId) : enSaisieLibre ? FREE_EVENT : '';
+  const value =
+    eventId !== null
+      ? String(eventId)
+      : enSaisieLibre
+        ? FREE_EVENT
+        : avecAucunEvenement && !freeText
+          ? NO_EVENT
+          : '';
 
   /**
    * Événements proposés : ceux de la famille demandée, **et ceux qui n'en ont
@@ -96,7 +129,20 @@ export function EventSelect({
     if (selected && onEventDate) onEventDate(selected.date_evenement ?? null);
   }, [selected, onEventDate]);
 
+  // Remontée séparée de la date : l'appelant en déduit le pôle, et doit donc
+  // aussi être prévenu quand la sélection retombe à rien.
+  useEffect(() => {
+    onEventSelected?.(selected);
+  }, [selected, onEventSelected]);
+
   const handleChange = (next: string) => {
+    if (next === NO_EVENT) {
+      setModeLibre(false);
+      onEventIdChange(null);
+      onFreeTextChange('');
+      onAucunEvenement?.();
+      return;
+    }
     if (next === FREE_EVENT) {
       setModeLibre(true);
       onEventIdChange(null);
@@ -119,6 +165,9 @@ export function EventSelect({
               était invisible dès que le référentiel comptait quelques
               événements, et les déposants concluaient que le leur ne pouvait
               pas être saisi. C'est pourtant le cas le plus courant. */}
+          {avecAucunEvenement && (
+            <SelectItem value={NO_EVENT}>{fr.events.aucunEvenement}</SelectItem>
+          )}
           <SelectItem value={FREE_EVENT}>{fr.events.notListed}</SelectItem>
           {proposes.map((event) => (
             <SelectItem key={event.id} value={String(event.id)}>

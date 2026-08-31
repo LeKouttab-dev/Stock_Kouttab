@@ -1,8 +1,10 @@
-import { useId, useRef, useState, type ChangeEvent, type DragEvent } from 'react';
-import { Upload, X, FileText } from 'lucide-react';
+import { useCallback, useId, useRef, useState, type ChangeEvent, type DragEvent } from 'react';
+import { Upload, X, FileText, Crop } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { formatFileSize } from '@/lib/format';
+import { DocumentScanner } from '@/components/scanner/DocumentScanner';
+import { fr } from '@/lib/i18n/fr';
 
 interface FileUploaderProps {
   accept?: string;
@@ -13,6 +15,18 @@ interface FileUploaderProps {
   label?: string;
   helperText?: string;
   disabled?: boolean;
+  /**
+   * Propose le recadrage des images déposées, avec les poignées du scanner.
+   *
+   * Une photo de ticket glissée depuis l'ordinateur ou la photothèque partait
+   * **entière** : le ticket occupe un dixième de l'image, le reste est la
+   * table. Le comptable recevait un PDF lourd où il fallait chercher la pièce,
+   * alors que le même besoin était déjà résolu côté scanner.
+   *
+   * Hors des dépôts de justificatifs — import CSV, RIB — l'option reste fermée :
+   * recadrer un fichier de données n'a aucun sens.
+   */
+  recadrage?: boolean;
 }
 
 export function FileUploader({
@@ -24,11 +38,28 @@ export function FileUploader({
   label = 'Glissez vos fichiers ici ou cliquez pour sélectionner',
   helperText,
   disabled,
+  recadrage = false,
 }: FileUploaderProps) {
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragActive, setDragActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  /**
+   * Fichier en cours de recadrage.
+   *
+   * Un seul à la fois, et le dialogue s'ouvre sur celui-ci : enchaîner
+   * automatiquement les cinq pièces d'un dépôt enfermerait le déposant dans une
+   * suite de fenêtres sans savoir combien il en reste. Le recadrage se demande
+   * donc pièce par pièce, depuis la liste.
+   */
+  const [aRecadrer, setARecadrer] = useState<{ file: File; index: number } | null>(null);
+
+  /** Une image que ce navigateur sait afficher — donc recadrer. */
+  const estRecadrable = useCallback(
+    (f: File) => recadrage && f.type.startsWith('image/'),
+    [recadrage],
+  );
 
   const handleAdd = (newFiles: FileList | File[]) => {
     setError(null);
@@ -38,7 +69,23 @@ export function FileUploader({
       setError(`Le fichier "${oversized.name}" dépasse ${maxSizeMb} Mo.`);
       return;
     }
-    onChange(multiple ? [...files, ...arr] : arr.slice(0, 1));
+    const suivants = multiple ? [...files, ...arr] : arr.slice(0, 1);
+    onChange(suivants);
+
+    // Ouverture directe sur la première image ajoutée : c'est le geste attendu
+    // après un dépôt, et le proposer sans l'imposer ferait manquer l'essentiel
+    // du gain — personne ne pense à recadrer une image déjà déposée.
+    const premiere = arr.find(estRecadrable);
+    if (premiere) {
+      setARecadrer({ file: premiere, index: suivants.indexOf(premiere) });
+    }
+  };
+
+  /** Remplace la pièce d'origine par sa version recadrée, à sa place. */
+  const remplacer = (recadre: File) => {
+    if (!aRecadrer) return;
+    onChange(files.map((f, i) => (i === aRecadrer.index ? recadre : f)));
+    setARecadrer(null);
   };
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -110,22 +157,56 @@ export function FileUploader({
                   {formatFileSize(f.size)}
                 </span>
               </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  remove(i);
-                }}
-                aria-label={`Retirer ${f.name}`}
-                disabled={disabled}
-              >
-                <X className="h-4 w-4" />
-              </Button>
+              <div className="flex flex-shrink-0 items-center">
+                {/* Reproposé sur chaque image : le cadrage se rejuge une fois la
+                    pièce vue dans la liste, et une image ajoutée après coup
+                    n'aurait sinon aucun moyen d'être recadrée. */}
+                {estRecadrable(f) && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setARecadrer({ file: f, index: i });
+                    }}
+                    aria-label={`${fr.scanner.recadrer} ${f.name}`}
+                    disabled={disabled}
+                  >
+                    <Crop className="h-4 w-4" />
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    remove(i);
+                  }}
+                  aria-label={`Retirer ${f.name}`}
+                  disabled={disabled}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
             </li>
           ))}
         </ul>
+      )}
+
+      {/* Monté seulement quand un recadrage est demandé : le scanner ouvre la
+          caméra à l'affichage, et le laisser monté allumerait l'objectif à
+          chaque dépôt de fichier. La clé force un remontage propre d'une pièce
+          à l'autre, sinon la seconde s'ouvrirait sur le cadre de la première. */}
+      {aRecadrer && (
+        <DocumentScanner
+          key={`${aRecadrer.index}-${aRecadrer.file.name}`}
+          open
+          fichierInitial={aRecadrer.file}
+          onClose={() => setARecadrer(null)}
+          onScanned={remplacer}
+        />
       )}
     </div>
   );

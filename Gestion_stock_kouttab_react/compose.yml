@@ -77,6 +77,13 @@ services:
                python scripts/process_outbound_emails.py || true;
                sleep ${OUTBOX_INTERVAL_SECONDS:-600};
              done'
+    # L'image porte le `HEALTHCHECK` de l'API : une requete HTTP sur son port.
+    # Le worker ne sert rien, la sonde echoue donc a chaque passage — 46 000
+    # echecs d'affilee, et un `docker ps` rouge en permanence. Un signal toujours
+    # rouge ne signale plus rien : il masquera le jour ou ce conteneur tombera
+    # vraiment. On le desarme plutot que de le laisser mentir.
+    healthcheck:
+      disable: true
     networks: [web]
     mem_limit: 512m
     security_opt:

@@ -24,11 +24,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from sqlalchemy import func, select  # noqa: E402
+
 from app.core.config import settings  # noqa: E402
 from app.core.logger import get_logger  # noqa: E402
-from app.db.models import OutboundEmail  # noqa: E402
+from app.db.models import Event, OutboundEmail  # noqa: E402
 from app.db.session import SessionLocal  # noqa: E402
+from app.crud import event as event_crud  # noqa: E402
 from app.crud import ticket as ticket_crud  # noqa: E402
+from app.services.helloasso import get_helloasso_client  # noqa: E402
 from app.services import email as email_service  # noqa: E402
 from app.services import outbox  # noqa: E402
 
@@ -115,6 +119,48 @@ async def relancer_les_tickets() -> int:
     return envoyes
 
 
+# 20 heures, et non 24 : a 24 la synchronisation glisse un peu plus tard chaque
+# jour — le worker ne passe que toutes les dix minutes — et finit par sauter une
+# journee entiere. A 20, elle se cale toujours dans les premieres heures ouvrees.
+INTERVALLE_SYNC_EVENEMENTS = timedelta(hours=20)
+
+
+def synchroniser_les_evenements() -> dict | None:
+    """Rapatrie les evenements HelloAsso, une fois par jour.
+
+    Greffe sur ce script pour la meme raison que les relances : un service dedie
+    aurait impose de recopier `compose.yml` a la main sur le VPS, etape hors du
+    deploiement automatique (cf. DEPLOIEMENT-VPS.md §13).
+
+    L'ordonnancement ne s'appuie sur aucune table : ``last_synced_at`` porte deja
+    la date du dernier passage. Une colonne de plus aurait demande une migration
+    pour une information deja presente.
+
+    Rend ``None`` quand il est trop tot, le bilan de la synchronisation sinon.
+    """
+    db = SessionLocal()
+    try:
+        dernier = db.execute(select(func.max(Event.last_synced_at))).scalar_one()
+        maintenant = datetime.now(timezone.utc).replace(tzinfo=None)
+        if dernier is not None and maintenant - dernier < INTERVALLE_SYNC_EVENEMENTS:
+            return None
+
+        client = get_helloasso_client()
+        forms = client.list_organization_forms(
+            settings.helloasso_org_slug, form_types=("Event",), states=("Public",)
+        )
+        resultat = event_crud.sync_events_from_helloasso(db, forms)
+        logger.info(
+            "Evenements HelloAsso : %d cree(s), %d mis a jour, %d ignore(s).",
+            resultat["created"],
+            resultat["updated"],
+            resultat["skipped"],
+        )
+        return resultat
+    finally:
+        db.close()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -125,6 +171,11 @@ def main() -> int:
         type=int,
         default=30,
         help="Supprimer les PDF des envois aboutis depuis N jours (0 = desactive)",
+    )
+    parser.add_argument(
+        "--skip-events",
+        action="store_true",
+        help="Ne pas synchroniser les evenements HelloAsso lors de ce passage",
     )
     args = parser.parse_args()
 
@@ -143,6 +194,16 @@ def main() -> int:
         asyncio.run(relancer_les_tickets())
     except Exception as exc:  # noqa: BLE001
         logger.exception("Traitement de la file comptable interrompu : %s", exc)
+
+    # Bloc separe, et non greffe sur le precedent : HelloAsso est un tiers, il
+    # tombe et il change ses reponses. Une panne de leur cote ne doit pas
+    # empecher un courriel comptable de partir — c'est exactement ce qui
+    # arriverait sous le meme `try`, la file etant traitee en premier.
+    if not args.skip_events:
+        try:
+            synchroniser_les_evenements()
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Synchronisation des evenements interrompue : %s", exc)
     return 0
 
 

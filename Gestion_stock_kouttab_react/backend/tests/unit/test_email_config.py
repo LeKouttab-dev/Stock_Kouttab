@@ -168,3 +168,89 @@ def test_status_change_skips_self_validation() -> None:
     assert doit_notifier_du_statut("Omar@Example.COM", "omar@example.com") is False
     assert doit_notifier_du_statut("benevole@example.com", "omar@example.com") is True
     assert doit_notifier_du_statut("benevole@example.com", None) is True
+
+
+# ---- L'avis de depot trouve toujours un destinataire -------------------------
+#
+# L'exclusion de l'auteur (2026-08-12) pouvait vider entierement la liste : le
+# seul compte portant un role comptable etant celui qui depose, plus aucun avis
+# ne partait a la comptabilite, et la fonction sortait sans un mot. Le defaut
+# ressemblait a une panne SMTP — il a ete cherche la pendant des semaines.
+
+
+def test_le_depot_bascule_sur_la_boite_compta_quand_l_auteur_est_seul(
+    db_session, monkeypatch
+) -> None:
+    """`COMPTA_EMAIL` est une boite, pas une personne.
+
+    Elle recoit deja les pieces comptables et peut etre lue par un tresorier
+    sans compte dans l'application : l'ecarter parce que le deposant porte le
+    role `Compta` privait de l'avis quelqu'un qui n'avait rien depose.
+    """
+    from app.core.config import settings
+    from app.services import email as email_service
+
+    monkeypatch.setattr(
+        email_service, "get_emails_by_roles", lambda db, roles: ["omar@example.com"]
+    )
+    monkeypatch.setattr(settings, "compta_email_raw", "comptabilite@example.test")
+
+    destinataires = email_service._destinataires_du_depot(
+        db_session, "omar@example.com", quoi="note de frais", deposant="Omar"
+    )
+    assert destinataires == ["comptabilite@example.test"]
+
+
+def test_les_comptes_comptables_priment_sur_le_repli(db_session, monkeypatch) -> None:
+    """Le repli ne se declenche que si l'exclusion n'a laisse personne.
+
+    Sinon la boite comptable recevrait un doublon de chaque avis deja adresse
+    nominativement.
+    """
+    from app.core.config import settings
+    from app.services import email as email_service
+
+    monkeypatch.setattr(
+        email_service,
+        "get_emails_by_roles",
+        lambda db, roles: ["omar@example.com", "tresorier@example.com"],
+    )
+    monkeypatch.setattr(settings, "compta_email_raw", "comptabilite@example.test")
+
+    destinataires = email_service._destinataires_du_depot(
+        db_session, "omar@example.com", quoi="facture", deposant="Omar"
+    )
+    assert destinataires == ["tresorier@example.com"]
+
+
+def test_sans_compte_ni_boite_l_avis_perdu_est_journalise(db_session, monkeypatch) -> None:
+    """La seule branche ou l'avis se perd vraiment doit se dire.
+
+    C'est la sortie muette d'origine qui a fait chercher la panne du cote du
+    serveur SMTP, qui n'y etait pour rien.
+
+    On intercepte le logger du module plutot que d'utiliser `caplog` : celui de
+    l'application ne propage pas vers la racine (cf.
+    `test_suppression_definitive_note`), et le test passerait en n'observant rien.
+    """
+    from app.core.config import settings
+    from app.services import email as email_service
+
+    monkeypatch.setattr(
+        email_service, "get_emails_by_roles", lambda db, roles: ["omar@example.com"]
+    )
+    monkeypatch.setattr(settings, "compta_email_raw", "")
+
+    traces: list[str] = []
+    monkeypatch.setattr(
+        email_service.logger,
+        "warning",
+        lambda message, *args, **_: traces.append(message % args if args else message),
+    )
+
+    destinataires = email_service._destinataires_du_depot(
+        db_session, "omar@example.com", quoi="note de frais", deposant="Omar"
+    )
+
+    assert destinataires == []
+    assert "COMPTA_EMAIL" in " ".join(traces)

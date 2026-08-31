@@ -57,6 +57,12 @@ class EtatEnvoisOut(BaseModel):
 
     email_enabled: bool
     smtp_configure: bool
+    # `smtp_configure` ne dit que « les variables sont remplies ». La liaison
+    # peut etre morte avec une configuration complete — c'est le cas qui a laisse
+    # la production muette. `smtp_joignable` est le resultat d'une vraie
+    # connexion, authentification comprise.
+    smtp_joignable: bool
+    smtp_erreur: str | None = None
     destinataires_compta: list[str]
     en_attente: int
     en_echec: int

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Download, Pencil, ReceiptText, ScanLine, Upload } from 'lucide-react';
 import { useForm } from 'react-hook-form';
@@ -26,7 +26,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useExpenseCategories, usePoles } from '@/api/endpoints/referentials';
+import { useEvents, useExpenseCategories, usePoles } from '@/api/endpoints/referentials';
+import { evenementParTitre, polePourEvenement, polesSansEvenement } from '@/lib/rattachement';
+import type { AppEvent } from '@/types/api';
 import { buildAttachmentFilename, deduplicateFilenames } from '@/lib/naming';
 import {
   useAjouterJustificatif,
@@ -34,10 +36,7 @@ import {
   useMyExpenses,
   useUpdateExpense,
 } from '@/api/endpoints/expenses';
-import {
-  reimbursementDocumentPath,
-  useRemboursementParNote,
-} from '@/api/endpoints/reimbursements';
+import { reimbursementDocumentPath, useRemboursementParNote } from '@/api/endpoints/reimbursements';
 import { useDownloadAttachment } from '@/hooks/useDownloadAttachment';
 import {
   expenseEditSchema,
@@ -141,6 +140,7 @@ function SubmitExpenseTab({ prefill }: { prefill?: SsoPrefill } = {}) {
   const create = useCreateExpense();
   const toast = useToast();
   const { data: poles } = usePoles();
+  const { data: events } = useEvents();
   const [files, setFiles] = useState<File[]>([]);
   const [scanOpen, setScanOpen] = useState(false);
 
@@ -201,6 +201,94 @@ function SubmitExpenseTab({ prefill }: { prefill?: SsoPrefill } = {}) {
     form.setValue('evenement_libre', requiert ? (prefill?.evenement ?? '') : '');
     form.setValue('date_evenement', requiert ? (prefill?.date_evenement ?? '') : '');
   };
+
+  /**
+   * L'événement ouvre le formulaire, le pôle en découle.
+   *
+   * Avant, on choisissait le pôle puis la liste d'événements était filtrée par
+   * sa famille — trois gestes, et rien n'empêchait de poser une dépense
+   * « ... (J) » sous EV(T). La famille est désormais déduite du titre HelloAsso
+   * à la synchronisation, donc fiable : elle peut désigner le pôle seule.
+   *
+   * `sansEvenement` est un état à part, il ne se déduit pas des champs. Un
+   * événement en saisie libre laisse `id_event` à `null` et le libellé encore
+   * vide le temps de la frappe : le déduire ferait clignoter le formulaire
+   * entre ses deux modes à chaque caractère.
+   */
+  const [sansEvenement, setSansEvenement] = useState(!prefill?.evenement);
+  const [poleDeduit, setPoleDeduit] = useState(false);
+
+  const polesProposes = useMemo(
+    () =>
+      sansEvenement
+        ? polesSansEvenement(poles)
+        : (poles ?? []).filter((p) => p.is_active && p.requiert_evenement),
+    [poles, sansEvenement],
+  );
+
+  const choisirEvenement = useCallback(
+    (event: AppEvent | null) => {
+      if (!event) return;
+      setSansEvenement(false);
+      const pole = polePourEvenement(poles, event.type_ev);
+      setPoleDeduit(Boolean(pole));
+      if (pole) {
+        form.setValue('id_pole', pole.id, { shouldValidate: true });
+        form.setValue('requiert_evenement', true);
+      }
+    },
+    [form, poles],
+  );
+
+  /**
+   * Passage signé depuis la page d'un événement : on ouvre directement en mode
+   * « avec événement », nom et date déjà posés.
+   *
+   * Ce préremplissage attendait auparavant qu'un pôle événementiel soit choisi
+   * (cf. `changerPole`). L'événement étant maintenant la première question, il
+   * n'y a plus rien à attendre — et laisser le formulaire sur « Aucun
+   * événement » aurait fait perdre l'événement que le passage transportait.
+   */
+  const prefillApplique = useRef(false);
+  useEffect(() => {
+    // Une seule fois. Sans ce garde, un remontage rétablirait l'événement que
+    // le déposant venait d'écarter en choisissant « Aucun événement » — et il
+    // n'aurait aucun moyen de comprendre pourquoi le champ se remplit seul.
+    if (prefillApplique.current || !prefill?.evenement) return;
+    if (!events) return; // on attend le référentiel pour tenter la reconnaissance
+    prefillApplique.current = true;
+
+    // Le passage transporte un TITRE, pas un identifiant. S'il désigne un
+    // événement déjà synchronisé, on rattache la pièce à la vraie ligne du
+    // référentiel : le pôle suit alors de lui-même, par `type_ev`. Sinon le
+    // titre part en saisie libre, comme avant.
+    const connu = evenementParTitre(events, prefill.evenement);
+    if (connu) {
+      form.setValue('id_event', connu.id, { shouldValidate: true });
+      choisirEvenement(connu);
+    } else {
+      form.setValue('evenement_libre', prefill.evenement, { shouldValidate: true });
+      setSansEvenement(false);
+    }
+
+    // La date du référentiel prime sur celle du passage : elle vient de la même
+    // source, et elle est à jour si l'événement a été reporté.
+    const date = connu?.date_evenement ?? prefill.date_evenement;
+    if (date) form.setValue('date_evenement', date);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [events, prefill?.evenement, prefill?.date_evenement, choisirEvenement]);
+
+  const declarerAucunEvenement = useCallback(() => {
+    setSansEvenement(true);
+    setPoleDeduit(false);
+    // Le pôle EV retenu jusque-là n'a plus de sens sans événement, et l'API le
+    // refuserait avec un message que rien à l'écran n'expliquerait.
+    if (selectedPole?.requiert_evenement) {
+      form.setValue('id_pole', undefined as never, { shouldValidate: true });
+      form.setValue('requiert_evenement', false);
+    }
+    form.setValue('date_evenement', '');
+  }, [form, selectedPole]);
 
   /**
    * Aperçu du nom transmis à la comptabilité.
@@ -341,23 +429,60 @@ function SubmitExpenseTab({ prefill }: { prefill?: SsoPrefill } = {}) {
               description partout ailleurs. Une dépense du local n'a pas
               d'événement — en exiger un obligeait à en inventer. */}
           <div className="grid gap-4 md:grid-cols-3">
+            {/* L'ÉVÉNEMENT D'ABORD : « ... (J) » désigne EV(J). */}
+            <div className="space-y-1.5 md:col-span-2">
+              <Label required>{fr.invoices.evenement}</Label>
+              <EventSelect
+                eventId={eventId ?? null}
+                freeText={eventLibre ?? ''}
+                avecAucunEvenement
+                onAucunEvenement={declarerAucunEvenement}
+                onEventSelected={choisirEvenement}
+                onEventIdChange={(id) => form.setValue('id_event', id, { shouldValidate: true })}
+                onFreeTextChange={(v) => {
+                  form.setValue('evenement_libre', v, { shouldValidate: true });
+                  if (v) setSansEvenement(false);
+                }}
+                onEventDate={(d) => {
+                  if (d && !form.getValues('date_evenement')) {
+                    form.setValue('date_evenement', d, { shouldValidate: true });
+                  }
+                }}
+              />
+              {form.formState.errors.id_event && (
+                <p className="text-xs text-destructive">{form.formState.errors.id_event.message}</p>
+              )}
+            </div>
+
             <div className="space-y-1.5">
               <Label required>{fr.invoices.pole}</Label>
               <Select
                 value={poleId ? String(poleId) : ''}
-                onValueChange={(v) => changerPole(Number(v))}
+                onValueChange={(v) => {
+                  // Correction manuelle : la déduction est une proposition, pas
+                  // une contrainte. Un titre HelloAsso mal étiqueté ne doit pas
+                  // bloquer un dépôt le temps qu'on le corrige là-bas.
+                  setPoleDeduit(false);
+                  changerPole(Number(v));
+                }}
               >
                 <SelectTrigger>
                   <SelectValue placeholder={fr.invoices.polePlaceholder} />
                 </SelectTrigger>
                 <SelectContent>
-                  {(poles ?? []).map((pole) => (
+                  {polesProposes.map((pole) => (
                     <SelectItem key={pole.id} value={String(pole.id)}>
                       {pole.nom}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {poleDeduit && (
+                <p className="text-xs text-muted-foreground">{fr.events.poleDeduit}</p>
+              )}
+              {!sansEvenement && !poleDeduit && (
+                <p className="text-xs text-muted-foreground">{fr.events.poleNonDeduit}</p>
+              )}
               {form.formState.errors.id_pole && (
                 <p className="text-xs text-destructive">{form.formState.errors.id_pole.message}</p>
               )}
@@ -380,44 +505,21 @@ function SubmitExpenseTab({ prefill }: { prefill?: SsoPrefill } = {}) {
               )}
             </div>
 
+            {/* La DATE seule reste conditionnelle : l'événement lui-même est
+                demandé en tête du bloc, puisque c'est lui qui désigne le pôle —
+                il ne peut donc pas dépendre de ce pôle. */}
             {requiertEvenement && (
-              <>
-                <div className="space-y-1.5">
-                  <Label required>{fr.invoices.evenement}</Label>
-                  <EventSelect
-                    eventId={eventId ?? null}
-                    freeText={eventLibre ?? ''}
-                    onEventIdChange={(id) =>
-                      form.setValue('id_event', id, { shouldValidate: true })
-                    }
-                    onFreeTextChange={(v) =>
-                      form.setValue('evenement_libre', v, { shouldValidate: true })
-                    }
-                    typeEvenement={selectedPole?.type_evenement}
-                    onEventDate={(d) => {
-                      if (d && !form.getValues('date_evenement')) {
-                        form.setValue('date_evenement', d, { shouldValidate: true });
-                      }
-                    }}
-                  />
-                  {form.formState.errors.id_event && (
-                    <p className="text-xs text-destructive">
-                      {form.formState.errors.id_event.message}
-                    </p>
-                  )}
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="date_evenement" required>
-                    {fr.invoices.dateEvenement}
-                  </Label>
-                  <Input id="date_evenement" type="date" {...form.register('date_evenement')} />
-                  {form.formState.errors.date_evenement && (
-                    <p className="text-xs text-destructive">
-                      {form.formState.errors.date_evenement.message}
-                    </p>
-                  )}
-                </div>
-              </>
+              <div className="space-y-1.5">
+                <Label htmlFor="date_evenement" required>
+                  {fr.invoices.dateEvenement}
+                </Label>
+                <Input id="date_evenement" type="date" {...form.register('date_evenement')} />
+                {form.formState.errors.date_evenement && (
+                  <p className="text-xs text-destructive">
+                    {form.formState.errors.date_evenement.message}
+                  </p>
+                )}
+              </div>
             )}
           </div>
 
@@ -453,6 +555,7 @@ function SubmitExpenseTab({ prefill }: { prefill?: SsoPrefill } = {}) {
               files={files}
               onChange={setFiles}
               helperText={fr.expenses.formatsAcceptes}
+              recadrage
             />
           </div>
 
@@ -684,7 +787,6 @@ function MyExpensesList() {
     </div>
   );
 }
-
 
 /**
  * Les pièces écartées d'une note, et de quoi en redéposer une.

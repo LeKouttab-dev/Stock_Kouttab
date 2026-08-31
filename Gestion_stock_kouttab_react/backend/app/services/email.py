@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import smtplib
+import ssl
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Iterable
@@ -78,6 +80,67 @@ def _build_config() -> ConnectionConfig | None:
 
 _config = _build_config()
 _mailer = FastMail(_config) if _config else None
+
+
+def verifier_smtp(timeout: float = 10.0) -> tuple[bool, str | None]:
+    """Ouvre une connexion SMTP et s'authentifie, **sans rien envoyer**.
+
+    Repond a la seule question qui compte avant un depot : est-ce qu'un courriel
+    partirait, la ? `EMAIL_ENABLED` et la presence des variables ne le disent
+    pas — la configuration peut etre complete et la liaison morte.
+
+    C'est exactement ce qui est arrive : O2Switch a cesse de servir un
+    certificat couvrant `mail.lekouttab.fr` et presente celui du cluster
+    (`*.sauterelle.o2switch.net`). La poignee de main TLS echoue, chaque envoi
+    se solde par une exception avalee par :func:`_send`, et l'application n'a
+    plus emis un seul message pendant des semaines en affichant tout en vert.
+
+    Un `login` et rien de plus : un message de test irait dans une vraie boite,
+    et une sonde qui derange finit par etre debranchee.
+    """
+    # Meme coupe-circuit que `_send_raw`, et place au meme endroit : AVANT le
+    # moindre acces reseau. La suite de tests tourne avec le `.env` du poste,
+    # qui pointe sur la messagerie reelle de l'association — une sonde qui
+    # ouvrirait une connexion a chaque test la joindrait des centaines de fois
+    # par jour. Rien ne peut partir quand le drapeau est baisse, de toute
+    # facon : la sonde n'aurait rien a apprendre.
+    if not settings.email_enabled:
+        return False, "EMAIL_ENABLED=false : aucun envoi n'est tente."
+    if not settings.smtp_host or not settings.smtp_user:
+        return False, "SMTP_HOST ou SMTP_USER non renseigne."
+    if not settings.smtp_password:
+        return False, "SMTP_PASSWORD vide."
+
+    starttls, ssl_implicit = _resolve_tls_mode()
+    contexte = ssl.create_default_context()
+    try:
+        if ssl_implicit:
+            serveur = smtplib.SMTP_SSL(
+                settings.smtp_host, settings.smtp_port, timeout=timeout, context=contexte
+            )
+        else:
+            serveur = smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=timeout)
+        with serveur:
+            if starttls:
+                serveur.starttls(context=contexte)
+            serveur.login(settings.smtp_user, settings.smtp_password)
+    except ssl.SSLCertVerificationError as exc:
+        # Distinguee des autres echecs : le remede n'est pas le meme. Ce n'est ni
+        # le mot de passe ni le reseau, c'est le nom d'hote qui ne correspond
+        # plus au certificat — il faut corriger SMTP_HOST, pas les identifiants.
+        logger.error("Certificat SMTP invalide pour %s : %s", settings.smtp_host, exc)
+        return False, (
+            f"Le certificat presente par {settings.smtp_host} ne couvre pas ce nom "
+            # `verify_message` n'existe que sur les instances levees par le module
+            # ssl lui-meme ; on retombe sur le texte de l'exception sinon.
+            f"d'hote ({getattr(exc, 'verify_message', None) or exc}). Chez O2Switch, "
+            "utiliser le nom du cluster (mail.sauterelle.o2switch.net) plutot "
+            "que celui du domaine."
+        )
+    except Exception as exc:  # noqa: BLE001 — smtplib et ssl levent des types varies
+        logger.error("Sonde SMTP en echec (%s:%d) : %s", settings.smtp_host, settings.smtp_port, exc)
+        return False, str(exc)[:300]
+    return True, None
 
 
 async def _send_raw(
@@ -199,6 +262,55 @@ def _destinataires_sauf_auteur(
     return [e for e in destinataires if e.strip().lower() != reference]
 
 
+def _destinataires_du_depot(
+    db: Session, auteur_email: str | None, *, quoi: str, deposant: str
+) -> list[str]:
+    """Qui prevenir d'un depot : les comptes comptables, sinon la boite compta.
+
+    L'exclusion de l'auteur, introduite le 2026-08-12 pour supprimer les avis
+    qu'on s'envoie a soi-meme, pouvait vider **entierement** la liste : le seul
+    compte portant un role comptable etant aussi celui qui depose, la fonction
+    sortait en silence, sans un mot dans le journal. Cote comptabilite, plus un
+    avis de depot ne partait — et le defaut ressemblait a une panne SMTP, ce
+    qu'il n'etait pas.
+
+    Le repli corrige la confusion de fond : `COMPTA_EMAIL` est une **boite**, pas
+    une personne. Elle recoit deja les pieces comptables, et elle peut etre lue
+    par un tresorier qui n'a aucun compte dans l'application. L'ecarter parce
+    que le deposant porte par ailleurs le role `Compta` privait de l'avis
+    quelqu'un qui n'avait rien depose.
+
+    L'exclusion garde donc son sens d'origine — elle ne vaut que pour les
+    **comptes personnels**, ceux dont l'adresse est celle d'un utilisateur.
+    """
+    destinataires = _destinataires_sauf_auteur(db, ["Compta", "Super Admin"], auteur_email)
+    if destinataires:
+        return destinataires
+
+    repli = list(settings.compta_emails)
+    if repli:
+        logger.info(
+            "Depot de %s par %s : aucun compte comptable a prevenir hors l'auteur, "
+            "avis route vers la boite comptable (%s).",
+            quoi,
+            deposant,
+            ", ".join(repli),
+        )
+        return repli
+
+    # Ni compte ni boite : la seule branche ou l'avis se perd vraiment. Elle se
+    # dit, au lieu de la sortie muette d'avant — un envoi qui n'a pas lieu se
+    # cherche sinon du cote du serveur SMTP, qui n'y est pour rien.
+    logger.warning(
+        "Depot de %s par %s : personne a prevenir. L'auteur (%s) est le seul "
+        "compte portant un role comptable, et COMPTA_EMAIL n'est pas renseigne.",
+        quoi,
+        deposant,
+        auteur_email or "adresse inconnue",
+    )
+    return []
+
+
 async def send_stock_alert(
     db: Session,
     *,
@@ -258,7 +370,9 @@ async def send_new_expense_notification(
     chez qui, quand, a quel titre. Les champs non renseignes disparaissent
     plutot que d'afficher un tiret.
     """
-    recipients = _destinataires_sauf_auteur(db, ["Compta", "Super Admin"], auteur_email)
+    recipients = _destinataires_du_depot(
+        db, auteur_email, quoi="note de frais", deposant=user_full_name
+    )
     if not recipients:
         return
     subject = f"Nouvelle note de frais soumise par {user_full_name}"
@@ -285,7 +399,9 @@ async def send_invoice_notification(
     rattachement: str | None = None,
 ) -> None:
     """Previent la comptabilite d'un depot de facture."""
-    recipients = _destinataires_sauf_auteur(db, ["Compta", "Super Admin"], auteur_email)
+    recipients = _destinataires_du_depot(
+        db, auteur_email, quoi="facture", deposant=user_full_name
+    )
     if not recipients:
         return
     subject = f"Nouveau depot de facture par {user_full_name}"

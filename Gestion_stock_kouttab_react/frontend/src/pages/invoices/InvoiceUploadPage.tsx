@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { FileText, ScanLine } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -23,6 +23,8 @@ import { DocumentScanner } from '@/components/scanner/DocumentScanner';
 import { MesJustificatifsDemandes } from '@/components/tickets/MesJustificatifsDemandes';
 import { useCreateInvoice } from '@/api/endpoints/invoices';
 import { useExpenseCategories, usePoles } from '@/api/endpoints/referentials';
+import { polePourEvenement, polesSansEvenement } from '@/lib/rattachement';
+import type { AppEvent } from '@/types/api';
 import { invoiceUploadSchema, type InvoiceUploadFormValues } from '@/lib/schemas/invoice';
 import { buildAttachmentFilename, deduplicateFilenames } from '@/lib/naming';
 import { useToast } from '@/hooks/useToast';
@@ -58,6 +60,50 @@ export function InvoiceUploadPage() {
 
   const selectedPole = poles?.find((p) => p.id === poleId) ?? null;
   const requiertEvenement = Boolean(selectedPole?.requiert_evenement);
+
+  /**
+   * L'événement ouvre le formulaire, le pôle en découle — même règle que sur
+   * les notes de frais, et pour la même raison : les deux écrans alimentent le
+   * même circuit comptable, et les faire diverger finit par produire deux
+   * imputations différentes pour une même dépense.
+   *
+   * `sansEvenement` est un état à part : un événement en saisie libre laisse
+   * `eventId` à `null` et le libellé vide le temps de la frappe.
+   */
+  const [sansEvenement, setSansEvenement] = useState(true);
+  const [poleDeduit, setPoleDeduit] = useState(false);
+
+  const polesProposes = useMemo(
+    () =>
+      sansEvenement
+        ? polesSansEvenement(poles)
+        : (poles ?? []).filter((p) => p.is_active && p.requiert_evenement),
+    [poles, sansEvenement],
+  );
+
+  const choisirEvenement = useCallback(
+    (event: AppEvent | null) => {
+      if (!event) return;
+      setSansEvenement(false);
+      const pole = polePourEvenement(poles, event.type_ev);
+      setPoleDeduit(Boolean(pole));
+      if (pole) {
+        form.setValue('poleId', pole.id, { shouldValidate: true });
+        form.setValue('requiertEvenement', true);
+      }
+    },
+    [form, poles],
+  );
+
+  const declarerAucunEvenement = useCallback(() => {
+    setSansEvenement(true);
+    setPoleDeduit(false);
+    if (selectedPole?.requiert_evenement) {
+      form.setValue('poleId', undefined as never, { shouldValidate: true });
+      form.setValue('requiertEvenement', false);
+    }
+    form.setValue('dateEvenement', '');
+  }, [form, selectedPole]);
   const selectedEventName = useMemo(() => eventLibre || null, [eventLibre]);
   const { data: categories } = useExpenseCategories();
   const selectedCategorie = categories?.find((c) => c.id === categorieId) ?? null;
@@ -171,6 +217,33 @@ export function InvoiceUploadPage() {
         <CardContent>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
+              {/* L'ÉVÉNEMENT D'ABORD : « ... (J) » désigne EV(J). */}
+              <div className="space-y-1.5 md:col-span-2">
+                <Label required>{fr.invoices.evenement}</Label>
+                <EventSelect
+                  eventId={eventId ?? null}
+                  freeText={eventLibre ?? ''}
+                  avecAucunEvenement
+                  onAucunEvenement={declarerAucunEvenement}
+                  onEventSelected={choisirEvenement}
+                  onEventIdChange={(id) => form.setValue('eventId', id, { shouldValidate: true })}
+                  onFreeTextChange={(v) => {
+                    form.setValue('eventLibre', v, { shouldValidate: true });
+                    if (v) setSansEvenement(false);
+                  }}
+                  onEventDate={(d) => {
+                    if (d && !form.getValues('dateEvenement')) {
+                      form.setValue('dateEvenement', d, { shouldValidate: true });
+                    }
+                  }}
+                />
+                {form.formState.errors.eventId && (
+                  <p className="text-xs text-destructive">
+                    {form.formState.errors.eventId.message}
+                  </p>
+                )}
+              </div>
+
               <div className="space-y-1.5">
                 <Label required>{fr.invoices.pole}</Label>
                 <Select
@@ -181,13 +254,19 @@ export function InvoiceUploadPage() {
                     <SelectValue placeholder={fr.invoices.polePlaceholder} />
                   </SelectTrigger>
                   <SelectContent>
-                    {(poles ?? []).map((pole) => (
+                    {polesProposes.map((pole) => (
                       <SelectItem key={pole.id} value={String(pole.id)}>
                         {pole.nom}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {poleDeduit && (
+                  <p className="text-xs text-muted-foreground">{fr.events.poleDeduit}</p>
+                )}
+                {!sansEvenement && !poleDeduit && (
+                  <p className="text-xs text-muted-foreground">{fr.events.poleNonDeduit}</p>
+                )}
                 {form.formState.errors.poleId && (
                   <p className="text-xs text-destructive">{form.formState.errors.poleId.message}</p>
                 )}
@@ -208,36 +287,11 @@ export function InvoiceUploadPage() {
                 )}
               </div>
 
-              {/* L'événement et sa date, seulement sous un pôle qui en attend
-                  un. Une facture du local n'en a pas — la ligne disparaît
-                  plutôt que d'obliger à en inventer un. */}
+              {/* La date de l'événement, seulement sous un pôle qui en attend
+                  un. L'événement lui-même est demandé plus haut : c'est lui qui
+                  désigne le pôle, il ne peut donc pas en dépendre. */}
               {requiertEvenement && (
                 <>
-                  <div className="space-y-1.5">
-                    <Label required>{fr.invoices.evenement}</Label>
-                    <EventSelect
-                      eventId={eventId ?? null}
-                      freeText={eventLibre ?? ''}
-                      onEventIdChange={(id) =>
-                        form.setValue('eventId', id, { shouldValidate: true })
-                      }
-                      onFreeTextChange={(v) =>
-                        form.setValue('eventLibre', v, { shouldValidate: true })
-                      }
-                      typeEvenement={selectedPole?.type_evenement}
-                      onEventDate={(d) => {
-                        if (d && !form.getValues('dateEvenement')) {
-                          form.setValue('dateEvenement', d, { shouldValidate: true });
-                        }
-                      }}
-                    />
-                    {form.formState.errors.eventId && (
-                      <p className="text-xs text-destructive">
-                        {form.formState.errors.eventId.message}
-                      </p>
-                    )}
-                  </div>
-
                   <div className="space-y-1.5">
                     <Label htmlFor="dateEvenement" required>
                       {fr.invoices.dateEvenement}
@@ -282,6 +336,7 @@ export function InvoiceUploadPage() {
                 files={files}
                 onChange={setFiles}
                 helperText={fr.invoices.uploadHelper}
+                recadrage
               />
             </div>
 

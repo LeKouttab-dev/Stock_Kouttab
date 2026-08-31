@@ -322,7 +322,8 @@ Points de vigilance :
   `python3 -c "import secrets; print(secrets.token_urlsafe(64))"`.
   L'application **refuse de démarrer** en production avec la valeur par défaut.
 - `CORS_ORIGINS` n'accepte que du `https://` en production (même garde-fou).
-- `DB_HOST=db-tunnel` et `DB_PORT=3306` : c'est le tunnel, pas O2Switch en direct.
+- `DB_HOST` : le nom du cluster O2Switch relevé dans cPanel, jamais `localhost`.
+  La connexion est directe ; `db-tunnel` ne concerne que la variante tunnel (§5.4).
 - `GHCR_OWNER` : ton compte GitHub, **en minuscules**.
 - `RIB_ENCRYPTION_KEY` : voir juste en dessous. **Même garde-fou** — sans elle,
   l'application refuse de démarrer en production.

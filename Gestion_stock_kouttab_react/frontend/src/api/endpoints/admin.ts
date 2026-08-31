@@ -1,11 +1,12 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useApiMutation } from '@/hooks/useApiMutation';
 import { api } from '../client';
-import type { DatabaseStatus, OutboundEmail } from '@/types/api';
+import type { DatabaseStatus, EtatEnvois, OutboundEmail } from '@/types/api';
 
 export const adminQueryKeys = {
   databaseStatus: ['admin', 'database', 'status'] as const,
   outboundEmails: ['admin', 'outbound-emails'] as const,
+  etatEnvois: ['admin', 'outbound-emails', 'etat'] as const,
 };
 
 /** Les envois anciens n'apprennent plus rien : seule la file récente compte. */
@@ -77,6 +78,25 @@ async function retryOutboundEmail(id: number): Promise<void> {
 
 export function useOutboundEmails() {
   return useQuery({ queryKey: adminQueryKeys.outboundEmails, queryFn: fetchOutboundEmails });
+}
+
+async function fetchEtatEnvois(): Promise<EtatEnvois> {
+  const { data } = await api.get<EtatEnvois>('/admin/outbound-emails/etat');
+  return data;
+}
+
+/**
+ * L'endpoint ouvre une vraie connexion SMTP : on ne le rejoue pas au moindre
+ * retour sur l'onglet, et on le laisse périmer vite pour qu'une correction du
+ * `.env` se voie au rafraîchissement suivant.
+ */
+export function useEtatEnvois() {
+  return useQuery({
+    queryKey: adminQueryKeys.etatEnvois,
+    queryFn: fetchEtatEnvois,
+    refetchOnWindowFocus: false,
+    staleTime: 30_000,
+  });
 }
 
 export function useRetryOutboundEmail() {

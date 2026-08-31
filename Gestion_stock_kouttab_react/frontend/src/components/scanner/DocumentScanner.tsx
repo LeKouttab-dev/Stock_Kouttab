@@ -11,6 +11,7 @@ import {
   rememberCamera,
   type CameraDisponible,
 } from '@/lib/camera';
+import { versImageScannable } from '@/lib/image';
 import { fr } from '@/lib/i18n/fr';
 import type { ScanCorner } from '@/types/api';
 
@@ -19,6 +20,18 @@ export interface DocumentScannerProps {
   onClose: () => void;
   /** Reçoit le justificatif redressé en PDF, prêt à joindre au dépôt. */
   onScanned: (file: File) => void;
+  /**
+   * Fichier déjà en main : la caméra est court-circuitée, on ouvre directement
+   * sur le cadrage.
+   *
+   * Un justificatif glissé depuis l'ordinateur ou choisi dans la photothèque
+   * partait auparavant **entier** — la photo d'un ticket de caisse tient sur un
+   * dixième de l'image, le reste étant la table. Le comptable recevait un PDF
+   * lourd où il fallait chercher le ticket. Les mêmes poignées que le scanner
+   * servent maintenant aux deux chemins : c'est le même besoin, il n'y avait
+   * aucune raison de le traiter deux fois différemment.
+   */
+  fichierInitial?: File | null;
 }
 
 type Etape = 'camera' | 'cadrage';
@@ -49,12 +62,18 @@ function isSecureContextOk(): boolean {
  * (`app/services/document_scan.py`) : un document photographié de biais est
  * redressé à partir de ses quatre coins, quel que soit l'angle de prise de vue.
  */
-export function DocumentScanner({ open, onClose, onScanned }: DocumentScannerProps) {
+export function DocumentScanner({
+  open,
+  onClose,
+  onScanned,
+  fichierInitial = null,
+}: DocumentScannerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
 
-  const [etape, setEtape] = useState<Etape>('camera');
+  // Un fichier fourni saute la prise de vue : il n'y a rien à photographier.
+  const [etape, setEtape] = useState<Etape>(fichierInitial ? 'cadrage' : 'camera');
   const [erreur, setErreur] = useState<string | null>(null);
   const [photo, setPhoto] = useState<Blob | null>(null);
   const [apercu, setApercu] = useState<string | null>(null);
@@ -135,13 +154,13 @@ export function DocumentScanner({ open, onClose, onScanned }: DocumentScannerPro
   useEffect(() => {
     if (!open) {
       arreterCamera();
-      setEtape('camera');
+      setEtape(fichierInitial ? 'cadrage' : 'camera');
       setPhoto(null);
       setApercu(null);
       setCoins([]);
       setErreur(null);
     }
-  }, [open, arreterCamera]);
+  }, [open, arreterCamera, fichierInitial]);
 
   // Object URL : sans révocation, chaque photo laisse fuir plusieurs
   // mégaoctets tant que l'onglet reste ouvert.
@@ -149,6 +168,62 @@ export function DocumentScanner({ open, onClose, onScanned }: DocumentScannerPro
     if (!apercu) return;
     return () => URL.revokeObjectURL(apercu);
   }, [apercu]);
+
+  /* ---------- Passage au cadrage ---------- */
+  /**
+   * Chemin commun à la photo prise et au fichier déposé.
+   *
+   * Les deux arrivent au même point : une image, ses dimensions, et quatre
+   * coins proposés. Les garder séparés aurait fait diverger la détection entre
+   * les deux entrées — le repli à 10 % en particulier, qui n'existait que du
+   * côté caméra.
+   */
+  const preparerCadrage = useCallback(
+    (blob: Blob, largeur: number, hauteur: number) => {
+      setPhoto(blob);
+      setApercu(URL.createObjectURL(blob));
+      setTaille({ w: largeur, h: hauteur });
+      setEtape('cadrage');
+
+      detect.mutate(blob, {
+        onSuccess: (res) => {
+          setCoins(
+            res.corners ?? [
+              // Repli : un cadre en retrait de 10 %, que le déposant ajuste.
+              { x: largeur * 0.1, y: hauteur * 0.1 },
+              { x: largeur * 0.9, y: hauteur * 0.1 },
+              { x: largeur * 0.9, y: hauteur * 0.9 },
+              { x: largeur * 0.1, y: hauteur * 0.9 },
+            ],
+          );
+        },
+      });
+    },
+    [detect],
+  );
+
+  /* ---------- Fichier déposé : on ouvre directement sur le cadrage ---------- */
+  useEffect(() => {
+    if (!open || !fichierInitial) return;
+    let annule = false;
+
+    void versImageScannable(fichierInitial).then((image) => {
+      if (annule) return;
+      if (!image) {
+        // Format non décodable ici. L'appelant a déjà décidé de ne proposer le
+        // recadrage qu'aux images qu'il sait lire ; ce cas reste possible si le
+        // décodage échoue en cours de route, et on rend la main plutôt que
+        // d'afficher un cadre vide.
+        setErreur(fr.scanner.fichierIllisible);
+        return;
+      }
+      preparerCadrage(image.blob, image.largeur, image.hauteur);
+    });
+
+    return () => {
+      annule = true;
+    };
+  }, [open, fichierInitial, preparerCadrage]);
 
   /* ---------- Capture ---------- */
   const capturer = useCallback(() => {
@@ -164,29 +239,12 @@ export function DocumentScanner({ open, onClose, onScanned }: DocumentScannerPro
       (blob) => {
         if (!blob) return;
         arreterCamera();
-        setPhoto(blob);
-        setApercu(URL.createObjectURL(blob));
-        setTaille({ w: canvas.width, h: canvas.height });
-        setEtape('cadrage');
-
-        detect.mutate(blob, {
-          onSuccess: (res) => {
-            setCoins(
-              res.corners ?? [
-                // Repli : un cadre en retrait de 10 %, que le déposant ajuste.
-                { x: canvas.width * 0.1, y: canvas.height * 0.1 },
-                { x: canvas.width * 0.9, y: canvas.height * 0.1 },
-                { x: canvas.width * 0.9, y: canvas.height * 0.9 },
-                { x: canvas.width * 0.1, y: canvas.height * 0.9 },
-              ],
-            );
-          },
-        });
+        preparerCadrage(blob, canvas.width, canvas.height);
       },
       'image/jpeg',
       1.0,
     );
-  }, [arreterCamera, detect]);
+  }, [arreterCamera, preparerCadrage]);
 
   /* ---------- Manipulation du cadrage ---------- */
   const versImage = useCallback(
@@ -273,6 +331,11 @@ export function DocumentScanner({ open, onClose, onScanned }: DocumentScannerPro
     setEtape('camera');
   }, []);
 
+  // Reprendre la photo suppose une caméra. Sur un fichier déposé, le geste
+  // équivalent est d'annuler et d'en choisir un autre — proposer « Reprendre »
+  // ouvrirait la caméra sur un dépôt fait depuis un ordinateur de bureau.
+  const peutReprendre = !fichierInitial;
+
   /* ---------- Rendu ---------- */
   const pct = useCallback(
     (c: ScanCorner) => ({ left: `${(c.x / taille.w) * 100}%`, top: `${(c.y / taille.h) * 100}%` }),
@@ -314,9 +377,15 @@ export function DocumentScanner({ open, onClose, onScanned }: DocumentScannerPro
             ce coin, et recouvrait le sélecteur d'objectif sur écran étroit. */}
         <div className="flex shrink-0 items-start justify-between gap-3 border-b py-3 pl-4 pr-12">
           <div>
-            <DialogTitle className="text-base">{fr.scanner.documentTitle}</DialogTitle>
+            <DialogTitle className="text-base">
+              {fichierInitial ? fr.scanner.recadrerTitre : fr.scanner.documentTitle}
+            </DialogTitle>
             <p className="text-xs text-muted-foreground">
-              {etape === 'camera' ? fr.scanner.documentHelp : fr.scanner.documentAdjust}
+              {fichierInitial
+                ? fr.scanner.recadrerAide
+                : etape === 'camera'
+                  ? fr.scanner.documentHelp
+                  : fr.scanner.documentAdjust}
             </p>
           </div>
           {/* Sélecteur d'objectif : n'apparaît que s'il y a un choix à faire.
@@ -454,10 +523,12 @@ export function DocumentScanner({ open, onClose, onScanned }: DocumentScannerPro
             </Button>
           ) : (
             <>
-              <Button type="button" variant="outline" onClick={reprendre}>
-                <RotateCcw className="h-4 w-4" />
-                {fr.scanner.retake}
-              </Button>
+              {peutReprendre && (
+                <Button type="button" variant="outline" onClick={reprendre}>
+                  <RotateCcw className="h-4 w-4" />
+                  {fr.scanner.retake}
+                </Button>
+              )}
               <Button type="button" onClick={valider} loading={apply.isPending || detect.isPending}>
                 <Check className="h-4 w-4" />
                 {fr.scanner.validate}

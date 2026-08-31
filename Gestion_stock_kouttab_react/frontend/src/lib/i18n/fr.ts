@@ -305,6 +305,11 @@ export const fr = {
     noRecipient: 'Aucun destinataire configuré (COMPTA_EMAIL)',
     attachments: 'pièce(s) jointe(s)',
     sentOn: 'envoyé le',
+    etatOk: 'Le serveur d’envoi répond. Les courriels partent.',
+    etatCoupe: 'Aucun courriel ne peut partir',
+    etatDesactive:
+      'Les envois sont désactivés (EMAIL_ENABLED=false). Rien ne part, y compris ce qui s’affiche en attente.',
+    etatSansDestinataire: 'Aucun destinataire comptable configuré (COMPTA_EMAIL).',
   },
 
   poles: {
@@ -328,7 +333,11 @@ export const fr = {
     subtitle:
       'Liste proposée au dépôt des factures et notes de frais. Synchronisable depuis HelloAsso.',
     selectPlaceholder: 'Sélectionnez un événement',
+    aucunEvenement: 'Aucun événement — dépense courante',
     notListed: "Mon événement n'est pas dans la liste",
+    poleDeduit: 'Pôle déduit de l’événement',
+    poleNonDeduit:
+      "Cet événement n'indique pas sa famille (T, G ou J) : choisissez le pôle.",
     freeTextPlaceholder: "Saisissez le nom de l'événement",
     selected: 'Événement sélectionné',
     unavailable:
@@ -559,6 +568,12 @@ export const fr = {
     pageOf: (curr: number, total: number) => `Page ${curr} / ${total}`,
   },
   scanner: {
+    fichierIllisible:
+      "Ce fichier ne peut pas être recadré ici. Il sera déposé tel quel.",
+    recadrerTitre: 'Recadrer le justificatif',
+    recadrerAide:
+      'Ajustez le cadre sur le ticket : le PDF envoyé à la comptabilité ne gardera que cette zone.',
+    recadrer: 'Recadrer',
     title: 'Scanner un code-barres',
     scan: 'Scanner',
     hint: 'Pointez la caméra sur le code-barres.',

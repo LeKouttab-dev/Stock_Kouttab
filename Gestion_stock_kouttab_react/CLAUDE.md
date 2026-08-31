@@ -393,11 +393,25 @@ nature de la dépense que sur la moitié des pièces. Quand les deux coexistent,
 **l'événement l'emporte pour nommer le fichier** : sinon les pièces d'un même
 événement cesseraient de se ranger ensemble dans sa boîte.
 
-Les pôles EV portent une **famille** (`Poles.type_evenement` : `T`, `G`, `J`)
-et ne proposent que les événements de la leur (`Events.type_ev`). Cette famille
-se renseigne à la main — HelloAsso ne la connaît pas — et un événement **non
-classé reste proposé sous tous les pôles EV** : filtrer strictement viderait
-les listes au lendemain de chaque synchronisation.
+**L'événement est demandé en premier, et il désigne le pôle.** Les pôles EV
+portent une **famille** (`Poles.type_evenement` : `T`, `G`, `J`) ; l'événement
+porte la sienne (`Events.type_ev`), et `lib/rattachement.ts` les rapproche :
+« Sortie pédagogique à la ferme (J) » → EV(J), sans que le déposant ait à le
+savoir. Le rapprochement passe par `type_evenement`, **jamais par le nom du
+pôle** — les pôles sont un référentiel administrable, fait pour être renommé.
+
+On choisissait auparavant le pôle, puis la liste d'événements était filtrée par
+sa famille : trois gestes, et rien n'empêchait de poser une dépense « ... (J) »
+sous EV(T). Le sélecteur propose « Aucun événement — dépense courante », qui
+fait apparaître les pôles sans événement (Frais généraux, Institut, Halaqa...).
+Le pôle déduit **reste corrigeable** : un titre mal étiqueté chez HelloAsso ne
+doit pas bloquer un dépôt le temps qu'on le corrige là-bas.
+
+`Events.type_ev` est **déduite du titre HelloAsso** (`crud/event.deduire_type_ev`),
+qui se termine par la lettre entre parenthèses. Le titre fait autorité quand il
+la porte ; un titre sans lettre n'efface rien, pour ne pas emporter une
+étiquette posée à la main. Un événement **non classé reste proposé** et le
+formulaire redemande alors le pôle.
 
 Une dépense du local — courses, goûter, matériel — n'a pas d'événement : en
 exiger un obligeait le déposant à en inventer, et le comptable recevait des
@@ -579,6 +593,14 @@ disparaître sans trace, alors que c'est le seul avis que reçoit le déposant.
 Ils ne mentent plus non plus : un commentaire seul ne s'annonce plus
 « votre note a été approuvée » avec un objet rejouant le statut inchangé.
 
+**Deux mécanismes de destinataires, à ne pas confondre.** L'avis « une pièce a
+été déposée » va aux comptes portant un rôle comptable (table `Admins`), auteur
+exclu ; la **pièce** elle-même va à `COMPTA_EMAIL`. Quand l'exclusion de l'auteur
+ne laisse personne — un seul compte porte les rôles, et c'est le déposant —
+`_destinataires_du_depot` retombe sur `COMPTA_EMAIL` : c'est une boîte, pas une
+personne, et elle peut être relevée par quelqu'un sans compte. Auparavant l'avis
+se perdait en silence (cf. `docs/08` §13).
+
 ### Notifications
 - `GET /notifications/summary` — dossiers en attente pour l'utilisateur
   connecté, **déjà filtrés par ses droits** (un compteur à 0 ne distingue pas
@@ -595,7 +617,14 @@ Ils ne mentent plus non plus : un commentaire seul ne s'annonce plus
 - `POST|PATCH|DELETE /poles[/{id}]` — Super Admin. Un pôle `is_default` ou
   référencé par une facture n'est pas supprimable, seulement désactivable.
 - `GET /events` — liste (tout authentifié), servie depuis le cache local
-- `POST /events/sync` — synchronisation HelloAsso (AdminBenevoles+)
+- `POST /events/sync` — synchronisation HelloAsso (AdminBenevoles+), **manuelle**.
+  Une synchronisation **automatique quotidienne** tourne en plus, portée par
+  `scripts/process_outbound_emails.py` (même raison que les relances : un
+  service dédié imposerait de recopier `compose.yml` à la main). Cadence de
+  20 h et non 24 h — à 24 h le passage glisse un peu plus tard chaque jour et
+  finit par sauter une journée. L'ordonnancement lit `Events.last_synced_at`,
+  sans table dédiée. Le bloc a **son propre garde-fou** : HelloAsso est un
+  tiers, sa panne ne doit pas empêcher un courriel comptable de partir.
 - `POST|PATCH|DELETE /events[/{id}]` — AdminBenevoles+
 
 ### Admin
@@ -659,6 +688,15 @@ Ils ne mentent plus non plus : un commentaire seul ne s'annonce plus
   Sa signature est une boîte ISO-BMFF (`ftyp` en 4-8, la marque en 8-12), pas
   une entrée de plus dans la table des signatures — idem WEBP (`RIFF` **et**
   `WEBP`, sinon un WAV passerait).
+- **Un justificatif déposé se recadre**, avec les poignées du scanner
+  (`FileUploader recadrage` → `DocumentScanner fichierInitial`). Le cadrage
+  n'existait qu'après une prise de vue ; une photo glissée depuis l'ordinateur
+  ou la photothèque — le geste le plus courant — partait **entière**, le ticket
+  occupant un dixième de l'image. Le dialogue s'ouvre sur la première image
+  ajoutée, et un bouton le repropose sur chaque ligne. Un **PDF passe intact**
+  (le redécouper le dégraderait), un HEIC aussi là où le navigateur ne sait pas
+  le décoder — `lib/image.versImageScannable` rend `null`, ce qui est un cas
+  normal et non une erreur.
 - **Tout justificatif est converti en PDF à l'enregistrement**
   (`save_upload_file(..., convertir_en_pdf=True)`). Le PDF n'existait
   auparavant que dans `OUTBOX_DIR` pour la pièce jointe, purgé à 30 jours :
@@ -730,11 +768,14 @@ JWT_ACCESS_TOKEN_MINUTES=30
 JWT_REFRESH_TOKEN_DAYS=7
 
 # Email SMTP O2Switch
-SMTP_HOST=mail.lekouttab.fr
+# Le nom du CLUSTER, pas celui du domaine : le certificat servi par O2Switch ne
+# couvre que *.sauterelle.o2switch.net (cf. docs/08 §14).
+SMTP_HOST=mail.sauterelle.o2switch.net
 SMTP_PORT=465
 SMTP_USER=no-reply@lekouttab.fr
 SMTP_PASSWORD=
-SMTP_USE_TLS=true
+SMTP_USE_TLS=false
+SMTP_USE_SSL=true
 EMAIL_FROM=no-reply@lekouttab.fr
 
 # CORS / URLs

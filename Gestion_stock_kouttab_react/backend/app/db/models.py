@@ -386,13 +386,18 @@ class Event(Base):
     # 'helloasso' | 'manuel' — la synchronisation ne touche jamais au manuel.
     source: Mapped[str] = mapped_column(String(20), default="helloasso", nullable=False)
     # Famille de l'evenement : « T », « G », « J ». Elle determine sous quel
-    # pole EV il apparait au depot.
+    # pole EV la piece est rattachee au depot.
     #
-    # Renseignee a la main : HelloAsso ne connait pas cette classification, et la
-    # synchronisation n'y touche donc jamais. Un evenement non classe (`NULL`)
-    # reste propose sous TOUS les poles EV — sans quoi la premiere
-    # synchronisation viderait les listes, chaque evenement importe arrivant
-    # sans famille.
+    # **Deduite du titre HelloAsso**, qui se termine par la lettre entre
+    # parentheses — « Sortie pedagogique a la ferme (J) ». C'est une convention
+    # d'ecriture de l'association, pas un champ de l'API ; `deduire_type_ev` la
+    # lit a chaque synchronisation. Elle etait auparavant saisie a la main, ce
+    # qui laissait tout evenement importe sans famille jusqu'a ce que quelqu'un
+    # y pense.
+    #
+    # Reste modifiable a la main pour les evenements manuels et ceux dont le
+    # titre ne porte pas la lettre. Un evenement non classe (`NULL`) reste
+    # propose sous TOUS les poles EV — mieux vaut trop large qu'invisible.
     type_ev: Mapped[str | None] = mapped_column(String(10), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

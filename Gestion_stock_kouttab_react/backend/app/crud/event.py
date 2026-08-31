@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import date, datetime, timezone
 from typing import Any
 
@@ -23,6 +24,30 @@ SOURCE_MANUAL = "manuel"
 
 # Etats HelloAsso qui retirent un formulaire de la circulation.
 _INACTIVE_STATES = {"Deleted", "Disabled", "Draft"}
+
+
+# Famille d'evenement portee par le titre HelloAsso : « ... (T) », « ... (J) ».
+#
+# L'association ecrit la lettre entre parentheses en fin de titre. C'est une
+# convention humaine, pas un champ HelloAsso — d'ou la lecture du libelle plutot
+# qu'une API. Les huit evenements en base au 2026-08-31 la respectent tous.
+_FAMILLE_DANS_LE_TITRE = re.compile(r"\(\s*([TGJ])\s*\)", re.IGNORECASE)
+
+
+def deduire_type_ev(nom: str | None) -> str | None:
+    """Lit « (T) », « (G) » ou « (J) » dans un titre d'evenement.
+
+    Rend ``None`` quand le titre n'en porte pas : l'evenement reste alors non
+    classe, donc propose sous tous les poles EV — un evenement invisible partout
+    serait pire qu'un evenement propose trop largement.
+
+    **La derniere occurrence l'emporte.** La lettre est une etiquette de fin de
+    titre, et un intitule peut contenir d'autres parentheses avant elle.
+    """
+    if not nom:
+        return None
+    trouvees = _FAMILLE_DANS_LE_TITRE.findall(nom)
+    return trouvees[-1].upper() if trouvees else None
 
 
 def _now() -> datetime:
@@ -267,6 +292,7 @@ def sync_events_from_helloasso(db: Session, forms: list[dict[str, Any]]) -> dict
                         date_fin=end,
                         url=str(url)[:500] if url else None,
                         helloasso_state=str(state)[:20] if state else None,
+                        type_ev=deduire_type_ev(str(nom)),
                         source=SOURCE_HELLOASSO,
                         is_active=str(state) not in _INACTIVE_STATES,
                         last_synced_at=_now(),
@@ -284,6 +310,14 @@ def sync_events_from_helloasso(db: Session, forms: list[dict[str, Any]]) -> dict
                 existing.url = str(url)[:500] if url else None
                 existing.helloasso_state = str(state)[:20] if state else None
                 existing.is_active = str(state) not in _INACTIVE_STATES
+                # Le titre fait autorite quand il porte la lettre : c'est la
+                # source que l'association tient a jour, et une famille corrigee
+                # la-bas doit redescendre ici sans intervention. Un titre sans
+                # lettre ne touche a rien — sinon une etiquette posee a la main
+                # sur un evenement non conforme serait effacee chaque nuit.
+                famille = deduire_type_ev(str(nom))
+                if famille:
+                    existing.type_ev = famille
                 existing.last_synced_at = _now()
                 updated += 1
         except Exception as exc:  # noqa: BLE001 — un formulaire malforme ne doit

@@ -220,8 +220,9 @@ contredit l'écran l'ayant déclenchée.
 
 ## 9. La base est distante
 
-MySQL/MariaDB chez O2Switch, jointe par tunnel depuis le VPS. **Chaque requête
-coûte un aller-retour réseau.** Cela dicte plusieurs choix qu'on prendrait
+MySQL/MariaDB chez O2Switch, jointe en direct depuis le VPS (« MySQL distant »
+dans cPanel, l'IP du VPS y étant autorisée). **Chaque requête coûte un
+aller-retour réseau.** Cela dicte plusieurs choix qu'on prendrait
 autrement en local :
 
 - se méfier des endpoints qui enchaînent les requêtes, et du chargement paresseux
@@ -277,7 +278,85 @@ Les points à vérifier à la main sont listés dans `docs/07-TESTS.md`.
 
 ---
 
-## 12. Conventions d'écriture
+## 12. Un nom d'hôte qui n'est pas celui du certificat
+
+`SMTP_HOST` doit porter le nom du **cluster O2Switch**
+(`mail.sauterelle.o2switch.net`), jamais celui du domaine
+(`mail.lekouttab.fr`). Les deux résolvent vers la même machine, et l'un des deux
+ne fonctionne pas : le certificat servi ne couvre que
+`*.sauterelle.o2switch.net`.
+
+Sur le nom du domaine, la poignée de main TLS échoue —
+`CERTIFICATE_VERIFY_FAILED: Hostname mismatch` — avant toute authentification.
+`fastapi-mail` est configuré avec `VALIDATE_CERTS=True`, et c'est bien : ne pas
+valider le certificat d'un serveur qui reçoit des identifiants serait pire que
+la panne.
+
+**Ce que ça a coûté.** La configuration a fonctionné tant qu'O2Switch a émis un
+certificat AutoSSL couvrant le sous-domaine de messagerie. Le jour où il a cessé
+de le faire, plus un seul courriel n'est parti — ni les notifications de dépôt à
+la comptabilité, ni les avis aux déposants. Rien ne l'a signalé : ces envois
+passent par `_send`, best-effort par conception, qui journalise et n'interrompt
+pas la requête du bénévole. L'écran des envois restait vert, les boîtes étaient
+vides.
+
+**La protection.** `email.verifier_smtp()` ouvre une vraie connexion et
+s'authentifie — sans rien envoyer — et l'écran *Administration → Envois au
+service comptable* affiche le résultat en tête de liste. « Les variables sont
+remplies » et « un courriel partirait » sont deux questions différentes ; seule
+la seconde a de la valeur, et elle n'était posée nulle part.
+
+**Le réflexe.** Devant « aucun mail ne part », ne pas commencer par le code : le
+câblage est stable et couvert par les tests. Ouvrir l'écran d'état, ou tenter la
+connexion en une commande —
+`python -c "import smtplib,ssl;smtplib.SMTP_SSL('<hôte>',465,context=ssl.create_default_context())"`.
+Un échec de certificat s'y lit en une seconde.
+
+---
+
+## 13. Une exclusion qui vide entièrement la liste
+
+Le 2026-08-12, l'auteur d'un dépôt a été **écarté des destinataires de sa propre
+notification** : le seul compte disposant d'une adresse cumulant les rôles,
+déposer une facture déclenchait un courriel annonçant à son auteur qu'une
+facture venait d'être déposée. Le motif était bon.
+
+Ce que la règle n'avait pas prévu : quand ce compte est le **seul** à porter un
+rôle comptable, l'exclusion ne laisse personne. Le code sortait alors ainsi :
+
+```python
+recipients = _destinataires_sauf_auteur(db, ["Compta", "Super Admin"], auteur_email)
+if not recipients:
+    return          # sans un mot dans le journal
+```
+
+Plus aucun avis de dépôt ne partait à la comptabilité, et rien ne le disait. Le
+défaut ressemblait exactement à une panne SMTP — il a été cherché là.
+
+**Deux mécanismes de destinataires coexistent, et on les confondait.**
+
+| Envoi | Destinataires | D'où ils viennent |
+|---|---|---|
+| Avis « une note a été déposée » | comptes `Compta` / `Super Admin` | table `Admins`, auteur exclu |
+| Pièce comptable (le PDF) | `COMPTA_EMAIL` | le `.env` |
+
+La pièce arrivait donc à bon port pendant que l'avis n'existait plus. C'est
+`COMPTA_EMAIL` qui tranche : **c'est une boîte, pas une personne.** Elle peut
+être relevée par un trésorier qui n'a aucun compte dans l'application ;
+l'écarter parce que le déposant porte par ailleurs le rôle `Compta` privait de
+l'avis quelqu'un qui n'avait rien déposé.
+
+`_destinataires_du_depot` retombe donc sur elle quand l'exclusion n'a laissé
+personne. L'exclusion garde son sens d'origine : elle ne vaut que pour les
+**comptes personnels**.
+
+> **La règle.** Un filtre qui retire des destinataires doit répondre du cas où
+> il les retire tous. Et une branche qui n'envoie rien se journalise — sinon
+> l'absence de courriel se cherche du côté du serveur, qui n'y est pour rien.
+
+---
+
+## 14. Conventions d'écriture
 
 ### Commentaires
 

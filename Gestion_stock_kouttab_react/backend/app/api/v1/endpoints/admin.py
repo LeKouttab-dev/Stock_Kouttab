@@ -34,7 +34,7 @@ from app.db.models import (
 from app.db.session import get_db
 from app.schemas.auth import MessageOut
 from app.schemas.outbox import EtatEnvoisOut, OutboundEmailOut
-from app.services import outbox
+from app.services import email as email_service, outbox
 
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -232,9 +232,14 @@ def etat_des_envois(db: Session = Depends(get_db)) -> Any:
     les chemins ne se recouvrent pas — mais le reste du module range les GET
     ensemble.
     """
+    # Endpoint synchrone : FastAPI l'execute dans son threadpool, la sonde
+    # bloquante n'immobilise donc pas la boucle d'evenements.
+    joignable, erreur = email_service.verifier_smtp()
     return EtatEnvoisOut(
         email_enabled=settings.email_enabled,
         smtp_configure=bool(settings.smtp_host and settings.smtp_user),
+        smtp_joignable=joignable,
+        smtp_erreur=erreur,
         destinataires_compta=list(settings.compta_emails),
         en_attente=outbox.compter(db, outbox.STATUS_PENDING),
         en_echec=outbox.compter(db, outbox.STATUS_FAILED),

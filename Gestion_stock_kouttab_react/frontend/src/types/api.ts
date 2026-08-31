@@ -315,7 +315,14 @@ export interface AppEvent {
   date_fin?: string | null;
   url?: string | null;
   source: 'helloasso' | 'manuel';
-  /** Famille de l'événement (« T », « G », « J »), saisie à la main. */
+  /**
+   * Famille de l'événement (« T », « G », « J »).
+   *
+   * **Déduite du titre HelloAsso**, qui se termine par la lettre entre
+   * parenthèses — « Sortie pédagogique à la ferme (J) ». C'est elle qui
+   * désigne le pôle de rattachement au dépôt (`lib/rattachement.ts`).
+   * `null` = non classé : le formulaire redemande alors le pôle.
+   */
   type_ev?: string | null;
   is_active: boolean;
   helloasso_state?: string | null;
@@ -346,6 +353,23 @@ export interface OutboundEmail {
   created_at?: string | null;
   recipient_list: string[];
   attachment_names: string[];
+}
+
+/**
+ * Santé du circuit d'envoi, interrogée avant tout dépôt.
+ *
+ * `smtp_configure` ne dit que « les variables sont remplies ». `smtp_joignable`
+ * est le résultat d'une vraie connexion : c'est le seul des deux qui aurait
+ * signalé le certificat TLS devenu invalide.
+ */
+export interface EtatEnvois {
+  email_enabled: boolean;
+  smtp_configure: boolean;
+  smtp_joignable: boolean;
+  smtp_erreur?: string | null;
+  destinataires_compta: string[];
+  en_attente: number;
+  en_echec: number;
 }
 
 /* Invitations */
