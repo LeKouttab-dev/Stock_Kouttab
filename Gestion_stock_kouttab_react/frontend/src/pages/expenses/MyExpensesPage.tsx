@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Download, Pencil, ReceiptText, ScanLine, Upload } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -48,6 +49,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePendingSummary } from '@/api/endpoints/notifications';
 import { ACTIONS } from '@/lib/auth';
 import { cn } from '@/lib/utils';
+import type { SsoPrefill } from '@/lib/sso';
 import { ValidateExpensesPage } from './ValidateExpensesPage';
 import { ReimbursementsList } from './ReimbursementsList';
 import { useToast } from '@/hooks/useToast';
@@ -73,6 +75,8 @@ export function MyExpensesPage() {
   const [onglet, setOnglet] = useState(() =>
     window.location.hash === '#valider' ? 'valider' : 'submit',
   );
+  // Posé par la page /sso quand le passage part de la page d'un événement.
+  const ndfPrefill = ((useLocation().state ?? {}) as { ndfPrefill?: SsoPrefill }).ndfPrefill;
 
   return (
     <div className="space-y-4">
@@ -112,7 +116,7 @@ export function MyExpensesPage() {
         </TabsList>
 
         <TabsContent value="submit">
-          <SubmitExpenseTab />
+          <SubmitExpenseTab prefill={ndfPrefill} />
         </TabsContent>
         <TabsContent value="mine">
           <MyExpensesList />
@@ -133,7 +137,7 @@ export function MyExpensesPage() {
   );
 }
 
-function SubmitExpenseTab() {
+function SubmitExpenseTab({ prefill }: { prefill?: SsoPrefill } = {}) {
   const create = useCreateExpense();
   const toast = useToast();
   const { data: poles } = usePoles();
@@ -190,8 +194,12 @@ function SubmitExpenseTab() {
     form.setValue('id_pole', id, { shouldValidate: true });
     form.setValue('requiert_evenement', Boolean(pole?.requiert_evenement));
     form.setValue('id_event', null);
-    form.setValue('evenement_libre', '');
-    form.setValue('date_evenement', '');
+    // Arrivée par le passage signé depuis la page d'un événement : le nom et
+    // la date attendent le premier pôle événementiel choisi. Simples valeurs,
+    // pas des contraintes — l'utilisateur reste libre de tout modifier.
+    const requiert = Boolean(pole?.requiert_evenement);
+    form.setValue('evenement_libre', requiert ? (prefill?.evenement ?? '') : '');
+    form.setValue('date_evenement', requiert ? (prefill?.date_evenement ?? '') : '');
   };
 
   /**

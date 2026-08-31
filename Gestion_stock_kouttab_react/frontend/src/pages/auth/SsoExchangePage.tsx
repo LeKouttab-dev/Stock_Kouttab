@@ -5,7 +5,7 @@ import { ErrorAlert } from '@/components/shared/ErrorAlert';
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
 import { Logo } from '@/components/shared/Logo';
 import { useSsoExchange } from '@/api/endpoints/auth';
-import { jetonDepuisFragment } from '@/lib/sso';
+import { jetonDepuisFragment, prefillDepuisFragment } from '@/lib/sso';
 import { pageParDefaut } from '@/lib/auth';
 
 /**
@@ -30,6 +30,7 @@ export function SsoExchangePage() {
     dejaLance.current = true;
 
     const jeton = jetonDepuisFragment(window.location.hash);
+    const prefill = prefillDepuisFragment(window.location.hash);
     window.history.replaceState(null, '', window.location.pathname);
     if (!jeton) {
       navigate('/login', { replace: true });
@@ -37,7 +38,13 @@ export function SsoExchangePage() {
     }
     exchange
       .mutateAsync({ token: jeton })
-      .then((data) => navigate(pageParDefaut(data.user.role), { replace: true }))
+      .then((data) =>
+        navigate(pageParDefaut(data.user.role), {
+          replace: true,
+          // La page des notes de frais lit ce state pour préremplir le dépôt.
+          state: Object.keys(prefill).length ? { ndfPrefill: prefill } : undefined,
+        }),
+      )
       .catch(() => {
         /* rendu ci-dessous */
       });
