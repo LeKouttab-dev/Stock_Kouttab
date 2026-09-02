@@ -127,3 +127,45 @@ def test_validate_expense_by_compta_changes_status(
     body = resp.json()
     assert body["status"] == "Approuvée"
     assert body["commentaires_compta"] == "OK"
+
+
+def test_un_depot_sans_rib_est_refuse_et_ne_cree_rien(
+    client: TestClient, benevole_sans_rib, auth_headers, db_session
+) -> None:
+    """La comptabilite rembourse par virement : sans RIB, elle ne peut pas payer.
+
+    Elle le reclamait par messages prives, exactement le travers que le RIB en
+    document devait supprimer. Le refus tombe **avant toute ecriture** : une note
+    creee puis abandonnee laisserait une ligne que personne ne traite.
+    """
+    reponse = client.post(
+        "/api/v1/expenses",
+        data=_create_expense_payload(),
+        headers=auth_headers(benevole_sans_rib),
+    )
+
+    assert reponse.status_code == 422
+    assert reponse.json()["code"] == "VAL_5012"
+    assert expense_crud.list_expenses_for_user(db_session, benevole_sans_rib.id) == []
+
+
+def test_un_rib_encore_en_image_ne_vaut_pas_depot(
+    client: TestClient, benevole_user, auth_headers, db_session
+) -> None:
+    """Le controle porte sur le format, pas seulement sur la presence.
+
+    Un compte dont le RIB serait reste une photo — migration non passee, depot
+    anterieur — doit s'entendre dire de le redeposer, plutot que d'envoyer a la
+    comptabilite une piece qu'elle refuse.
+    """
+    benevole_user.rib_document_type = "image/png"
+    db_session.commit()
+
+    reponse = client.post(
+        "/api/v1/expenses",
+        data=_create_expense_payload(),
+        headers=auth_headers(benevole_user),
+    )
+
+    assert reponse.status_code == 422
+    assert reponse.json()["code"] == "VAL_5012"

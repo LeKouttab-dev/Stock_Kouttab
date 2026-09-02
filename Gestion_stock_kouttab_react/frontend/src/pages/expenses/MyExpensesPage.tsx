@@ -46,6 +46,8 @@ import {
   type ExpenseFormValues,
 } from '@/lib/schemas/expense';
 import { useAuth } from '@/hooks/useAuth';
+import { useProfile } from '@/api/endpoints/auth';
+import { useBrouillonNoteDeFrais } from '@/hooks/useBrouillonNoteDeFrais';
 import { usePendingSummary } from '@/api/endpoints/notifications';
 import { ACTIONS } from '@/lib/auth';
 import { cn } from '@/lib/utils';
@@ -77,6 +79,34 @@ export function MyExpensesPage() {
   );
   // Posé par la page /sso quand le passage part de la page d'un événement.
   const ndfPrefill = ((useLocation().state ?? {}) as { ndfPrefill?: SsoPrefill }).ndfPrefill;
+
+  /**
+   * Les tickets du dépôt en cours, gardés ici et non dans l'onglet.
+   *
+   * Radix démonte l'onglet inactif : un bénévole envoyé déposer son RIB revenait
+   * avec une liste de justificatifs vide, sans rien avoir fait de mal.
+   */
+  const [ticketsEnCours, setTicketsEnCours] = useState<File[]>([]);
+
+  /**
+   * Retour automatique après le dépôt du RIB.
+   *
+   * Le voyage vers le profil est imposé par le formulaire ; le retour doit l'être
+   * aussi, sinon le déposant reste sur son profil, persuadé d'avoir perdu sa note.
+   */
+  const { data: profil } = useProfile();
+  const toast = useToast();
+  const [retourApresRib, setRetourApresRib] = useState(false);
+  // Meme critere que le bandeau et que l'API : un document depose mais illisible
+  // ne debloque rien, et renvoyer sur le formulaire ferait croire le contraire.
+  const ribDepose = profil?.rib_document_type === 'application/pdf';
+  useEffect(() => {
+    if (!retourApresRib || !ribDepose) return;
+    setRetourApresRib(false);
+    setOnglet('submit');
+    toast.success(fr.expenses.ribRequisRetour);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [retourApresRib, ribDepose]);
 
   // La lecture se DÉCLARE : onglet « Mes demandes » réellement affiché, fenêtre
   // visible, et quelque chose à lire. Jamais par un refetch d'arrière-plan —
@@ -137,7 +167,15 @@ export function MyExpensesPage() {
         </TabsList>
 
         <TabsContent value="submit">
-          <SubmitExpenseTab prefill={ndfPrefill} />
+          <SubmitExpenseTab
+            prefill={ndfPrefill}
+            files={ticketsEnCours}
+            onFilesChange={setTicketsEnCours}
+            onAllerAuProfil={() => {
+              setRetourApresRib(true);
+              setOnglet('profile');
+            }}
+          />
         </TabsContent>
         <TabsContent value="mine">
           <MyExpensesList />
@@ -158,13 +196,34 @@ export function MyExpensesPage() {
   );
 }
 
-function SubmitExpenseTab({ prefill }: { prefill?: SsoPrefill } = {}) {
+interface SubmitExpenseTabProps {
+  prefill?: SsoPrefill;
+  /** Les tickets vivent chez le parent : cet onglet-ci est démonté quand on le
+      quitte, et aller déposer son RIB perdrait la sélection. */
+  files: File[];
+  onFilesChange: (files: File[]) => void;
+  /** Ouvre l'onglet du profil, seul endroit où le RIB se dépose. */
+  onAllerAuProfil: () => void;
+}
+
+function SubmitExpenseTab({
+  prefill,
+  files,
+  onFilesChange: setFiles,
+  onAllerAuProfil,
+}: SubmitExpenseTabProps) {
   const create = useCreateExpense();
   const toast = useToast();
   const { data: poles } = usePoles();
   const { data: events } = useEvents();
-  const [files, setFiles] = useState<File[]>([]);
+  const { data: profil } = useProfile();
   const [scanOpen, setScanOpen] = useState(false);
+
+  // Le RIB conditionne le dépôt : la comptabilité rembourse par virement, et
+  // l'API refuse la note sans lui (VAL_5012). On le dit **avant** la saisie
+  // plutôt qu'après, et le brouillon ci-dessous fait le reste.
+  const ribManquant =
+    Boolean(profil) && profil?.rib_document_type !== 'application/pdf';
 
   const form = useForm<ExpenseFormValues>({
     resolver: zodResolver(expenseSchema),
@@ -187,6 +246,22 @@ function SubmitExpenseTab({ prefill }: { prefill?: SsoPrefill } = {}) {
       id_categorie: null,
     },
   });
+
+  /**
+   * La saisie est conservée d'un passage à l'autre.
+   *
+   * Le dépôt du RIB se fait sur un autre onglet, que Radix démonte : sans ce
+   * brouillon, la contrainte posée sur le RIB coûterait une ressaisie complète à
+   * ceux-là mêmes qu'elle envoie sur leur profil.
+   */
+  const brouillon = useBrouillonNoteDeFrais(form, { userId: profil?.id });
+  const brouillonAnnonce = useRef(false);
+  useEffect(() => {
+    if (!brouillon.restaure || brouillonAnnonce.current) return;
+    brouillonAnnonce.current = true;
+    toast.info(fr.expenses.brouillonRestaure);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [brouillon.restaure]);
 
   const poleId = form.watch('id_pole');
   const eventId = form.watch('id_event');
@@ -345,6 +420,12 @@ function SubmitExpenseTab({ prefill }: { prefill?: SsoPrefill } = {}) {
   ]);
 
   const onSubmit = (values: ExpenseFormValues) => {
+    // L'API refuse de toute façon (VAL_5012) : ce raccourci évite un aller-retour
+    // et surtout un message qui arriverait après coup, sous forme de toast rouge.
+    if (ribManquant) {
+      toast.error(fr.expenses.ribRequisTexte);
+      return;
+    }
     create.mutate(
       { payload: values, files },
       {
@@ -352,6 +433,7 @@ function SubmitExpenseTab({ prefill }: { prefill?: SsoPrefill } = {}) {
           toast.success(fr.expenses.soumissionOK);
           form.reset();
           setFiles([]);
+          brouillon.effacer();
         },
       },
     );
@@ -363,6 +445,22 @@ function SubmitExpenseTab({ prefill }: { prefill?: SsoPrefill } = {}) {
         <CardTitle className="text-lg">{fr.expenses.nouvelleNote}</CardTitle>
       </CardHeader>
       <CardContent>
+        {/* Prévenu avant la saisie, pas après : la note ne partira pas sans RIB,
+            et l'apprendre au moment de cliquer « Soumettre » est le pire moment. */}
+        {ribManquant && (
+          <Alert variant="warning" className="mb-4" data-testid="rib-requis">
+            <AlertDescription className="flex flex-wrap items-center gap-2">
+              <span>
+                <strong>{fr.expenses.ribRequisTitre}</strong> — {fr.expenses.ribRequisTexte}
+              </span>
+              <Button type="button" variant="outline" size="sm" onClick={onAllerAuProfil}>
+                <Upload className="mr-1 h-3.5 w-3.5" />
+                {fr.expenses.ribRequisAction}
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-1.5">
@@ -584,14 +682,30 @@ function SubmitExpenseTab({ prefill }: { prefill?: SsoPrefill } = {}) {
           <DocumentScanner
             open={scanOpen}
             onClose={() => setScanOpen(false)}
-            onScanned={(scanned) => setFiles((prev) => [...prev, scanned])}
+            onScanned={(scanned) => setFiles([...files, scanned])}
           />
 
           <AttachmentNamesPreview names={previewNames} />
 
-          <Button type="submit" loading={create.isPending}>
-            {fr.expenses.soumettre}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="submit" loading={create.isPending}>
+              {fr.expenses.soumettre}
+            </Button>
+            {/* Contrepartie du brouillon : ce qui se garde tout seul doit pouvoir
+                se jeter d'un geste, sinon une saisie abandonnée revient sans fin. */}
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                form.reset();
+                setFiles([]);
+                brouillon.effacer();
+              }}
+            >
+              {fr.expenses.viderFormulaire}
+            </Button>
+          </div>
         </form>
       </CardContent>
     </Card>

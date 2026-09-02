@@ -256,7 +256,9 @@ async def save_upload_file(
     }
 
 
-async def lire_en_memoire(upload: UploadFile, subdir: str) -> dict[str, object]:
+async def lire_en_memoire(
+    upload: UploadFile, subdir: str, *, convertir_en_pdf: bool = False
+) -> dict[str, object]:
     """Valide un fichier et rend son contenu, **sans jamais l'ecrire sur disque**.
 
     Pour ce qui ne vit qu'en base et n'a pas besoin de cache local : le releve
@@ -267,6 +269,10 @@ async def lire_en_memoire(upload: UploadFile, subdir: str) -> dict[str, object]:
 
     Meme validation que les autres depots : signature du contenu, extension
     autorisee, taille bornee par ``MAX_UPLOAD_MB``.
+
+    ``convertir_en_pdf`` normalise le contenu comme le fait `save_upload_file`
+    pour les justificatifs, **sans son volet disque** : rien n'est ecrit ici, et
+    c'est tout l'interet de cette fonction.
     """
     if subdir not in EXTENSIONS_ALLOWED:
         raise AppException(ErrorCode.VALIDATION_ERROR, detail="Sous-dossier d'upload inconnu.")
@@ -287,8 +293,16 @@ async def lire_en_memoire(upload: UploadFile, subdir: str) -> dict[str, object]:
         contenu[:1024],
         allowed_subdir=subdir,
     )
+
+    nom_affiche = upload.filename or "document"
+    if convertir_en_pdf:
+        contenu, converti = pdf.octets_en_pdf(contenu)
+        if converti:
+            mime = "application/pdf"
+            nom_affiche = f"{Path(nom_affiche).stem}.pdf"
+
     return {
-        "filename": upload.filename or "document",
+        "filename": nom_affiche,
         "mime": mime,
         "size": len(contenu),
         "contenu": contenu,

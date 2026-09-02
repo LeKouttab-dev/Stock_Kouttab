@@ -71,6 +71,17 @@ formulaire.
   définitivement illisibles.
 - L'IBAN du profil sert au virement, le **RIB en document** sert de preuve : ce
   sont deux champs distincts, les deux protégés par la même règle d'accès.
+- **Le RIB en document est converti en PDF au dépôt.** Tous les formats restent
+  acceptés en entrée — refuser la photo aurait bloqué ceux qui n'ont que leur
+  téléphone — mais la comptabilité ne reçoit plus de captures d'écran. Un PDF
+  déposé n'est pas ré-encapsulé : il perdrait son texte sélectionnable.
+- **Sans RIB au format PDF, aucune note de frais ne se dépose** (`VAL_5012`).
+  La comptabilité rembourse par virement ; elle réclamait les coordonnées
+  manquantes par messages privés, au moment de payer. L'écran prévient dès
+  l'ouverture du formulaire, mène au profil, et **conserve la saisie** — champs
+  en brouillon (`useBrouillonNoteDeFrais`), tickets tenus par la page parente,
+  que Radix ne démonte pas. Les factures ne sont pas concernées : elles
+  n'engagent aucun versement au déposant.
 - `GET /users/{id}/rib-document` est bien appelé par l'écran comptable
   (`ValidateExpensesPage.tsx:499`), pas par l'écran de profil.
 

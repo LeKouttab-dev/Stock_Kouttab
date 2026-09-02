@@ -115,7 +115,11 @@ async def upload_my_rib_document(
     db: Session = Depends(get_db),
     current_user: Admin = Depends(get_current_user),
 ) -> Any:
-    depot = await lire_en_memoire(file, "rib")
+    # Converti en PDF quel qu'ait ete le format depose : la comptabilite
+    # attend une piece bancaire, et le depot d'une note de frais exige
+    # desormais un RIB en PDF. Refuser la photo aurait bloque ceux qui n'ont
+    # que leur telephone ; on convertit, comme pour les justificatifs.
+    depot = await lire_en_memoire(file, "rib", convertir_en_pdf=True)
     current_user.rib_document = depot["contenu"]
     current_user.rib_document_nom = str(depot["filename"])[:255]
     current_user.rib_document_type = str(depot["mime"])[:100]

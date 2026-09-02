@@ -192,6 +192,18 @@ async def create_expense(
         raise AppException(
             ErrorCode.VALIDATION_ERROR, detail="Le fournisseur est obligatoire."
         )
+
+    # Pas de RIB, pas de note de frais : la comptabilite rembourse par virement
+    # et reclamait les coordonnees manquantes par messages prives, au moment de
+    # payer. Le refus tombe **avant toute ecriture** — une note creee puis
+    # abandonnee laisserait une ligne que personne ne traite.
+    #
+    # Le controle porte sur `rib_document_type`, jamais sur `rib_document` :
+    # cette derniere colonne est `deferred`, la lire rapatrierait le document
+    # entier depuis une base distante a chaque depot.
+    if (current_user.rib_document_type or "") != "application/pdf":
+        raise AppException(ErrorCode.RIB_MANQUANT)
+
     rattachement_resolu = rattachement_crud.resoudre(
         db,
         id_pole=id_pole,

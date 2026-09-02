@@ -123,7 +123,9 @@ function RibDocument({ nom }: { nom: string | null }) {
       <input
         ref={champ}
         type="file"
-        accept="application/pdf,image/png,image/jpeg"
+        // Memes formats que les justificatifs, HEIC compris : c'est le format
+        // par defaut d'iOS depuis « Fichiers », et le depot le convertit en PDF.
+        accept=".pdf,.png,.jpg,.jpeg,.heic,.heif,.webp,application/pdf,image/*"
         className="hidden"
         onChange={onChoisir}
         data-testid="rib-document-input"

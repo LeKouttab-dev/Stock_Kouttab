@@ -24,6 +24,8 @@ export interface User {
   rib?: string | null;
   /** Nom du RIB déposé, ou `null`. Le contenu s'obtient par son endpoint. */
   rib_document_nom?: string | null;
+  /** Type du RIB déposé. Toujours `application/pdf` depuis la conversion à l'enregistrement. */
+  rib_document_type?: string | null;
   password_must_change?: boolean;
   created_at?: string;
 }

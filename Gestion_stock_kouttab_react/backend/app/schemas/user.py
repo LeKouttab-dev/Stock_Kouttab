@@ -39,6 +39,10 @@ class UserDetailOut(UserOut):
     # s'il y a une piece et laquelle, pas de recevoir les octets a chaque
     # affichage du profil. Le telechargement a son propre endpoint.
     rib_document_nom: str | None = None
+    # Le format compte autant que la presence : le depot d'une note de frais
+    # exige un PDF, et l'ecran doit pouvoir le dire avant la saisie plutot que
+    # de laisser l'API refuser apres coup.
+    rib_document_type: str | None = None
 
 
 class UserCreate(BaseModel):

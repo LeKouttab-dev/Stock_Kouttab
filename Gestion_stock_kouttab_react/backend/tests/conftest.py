@@ -242,12 +242,19 @@ def _unique_username(prefix: str) -> str:
     return f"{prefix}{uuid.uuid4().hex[:8]}"
 
 
+# Un PDF minimal mais reel : le depot d'une note de frais exige desormais un RIB
+# au format PDF, et c'est l'etat normal d'un compte qui depose. Les tests qui
+# verifient le refus prennent la fixture `benevole_sans_rib`.
+_RIB_PDF = b"%PDF-1.4 fixture de test"
+
+
 def _make_user(
     db: Session,
     *,
     role: str,
     validation_status: str = "active",
     prefix: str | None = None,
+    avec_rib: bool = True,
 ):
     username = _unique_username(prefix or role.lower().replace(" ", "_"))
     user = user_crud.create_user(
@@ -258,6 +265,12 @@ def _make_user(
         email=f"{username}@example.com",
         validation_status=validation_status,
     )
+    if avec_rib:
+        user.rib_document = _RIB_PDF
+        user.rib_document_nom = "rib.pdf"
+        user.rib_document_type = "application/pdf"
+        db.commit()
+        db.refresh(user)
     # Stash the plaintext password on the instance so tests can log in with it.
     user._plain_password = _DEFAULT_PASSWORD  # type: ignore[attr-defined]
     return user
@@ -285,6 +298,12 @@ def compta_user(db_session: Session):
 def benevole_user(db_session: Session):
     """Active Benevole user."""
     return _make_user(db_session, role="Benevole", prefix="be")
+
+
+@pytest.fixture()
+def benevole_sans_rib(db_session: Session):
+    """Benevole qui n'a jamais depose son RIB — le cas que le depot doit refuser."""
+    return _make_user(db_session, role="Benevole", prefix="sr", avec_rib=False)
 
 
 @pytest.fixture()
