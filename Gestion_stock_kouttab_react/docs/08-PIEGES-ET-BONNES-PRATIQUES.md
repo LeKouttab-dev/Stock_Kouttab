@@ -356,7 +356,32 @@ personne. L'exclusion garde son sens d'origine : elle ne vaut que pour les
 
 ---
 
-## 14. Conventions d'écriture
+## 14. Une contrainte nouvelle sur un dépôt qui existait déjà
+
+Le dépôt d'une note de frais exige désormais un RIB **au format PDF**. Posée
+seule, la règle aurait bloqué deux populations d'un coup, sans recours et sans
+qu'elles comprennent pourquoi : ceux qui n'avaient jamais déposé de RIB, et ceux
+qui en avaient déposé un **en photo**, quand c'était encore accepté.
+
+Trois pièces ont donc été livrées ensemble :
+
+| Pièce | Ce qu'elle évite |
+|---|---|
+| la conversion en PDF **au dépôt** | que la règle interdise ce que le geste courant produit — une photo prise au téléphone |
+| la **migration de données** (`e8b2f4a7c1d5`) | que les RIB déjà en base, restés des images, bloquent leur propriétaire au prochain dépôt |
+| le **brouillon** du formulaire | que le détour imposé vers l'écran du profil fasse perdre une saisie en cours |
+
+> **La règle.** Avant de rendre obligatoire ce qui ne l'était pas, regarder
+> l'état du stock existant et le chemin qu'on impose. Une contrainte se livre
+> avec la mise en conformité de ce qui la précède, et avec le moyen de s'y
+> conformer sans rien perdre. Sinon elle ne filtre pas : elle bloque.
+
+C'est le même raisonnement qu'au §5 (« les fonctionnalités qui vont par
+paire »), appliqué au temps plutôt qu'aux gestes.
+
+---
+
+## 15. Conventions d'écriture
 
 ### Commentaires
 

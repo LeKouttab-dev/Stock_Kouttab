@@ -241,7 +241,7 @@ le démarrage en production. Les valeurs en clair héritées restent lisibles
 | Justificatifs — demander, relancer, clore | — | — | ✅ | ✅ |
 | Justificatifs — voir ce qu'on me demande | ✅ | ✅ | ✅ | ✅ |
 | Notes de frais — voir RIB utilisateur | — | — | ✅ | ✅ |
-| RIB en document — déposer le sien | ✅ | ✅ | ✅ | ✅ |
+| RIB en document — déposer le sien (converti en PDF) | ✅ | ✅ | ✅ | ✅ |
 | RIB en document — télécharger celui d'un autre | — | — | ✅ | ✅ |
 | Contact — ouvrir un fil, répondre au sien | ✅ | ✅ | ✅ | ✅ |
 | Contact — boîte de l'équipe, statuts | — | — | ✅ (compta) | ✅ (les deux) |
@@ -282,7 +282,13 @@ Préfixe : `/api/v1`. Auth : header `Authorization: Bearer <jwt>` (sauf `/auth/*
 - `GET /users/me/profile` — profil + RIB
 - `PATCH /users/me/profile` — modifier profil + RIB
 - `GET /users/annuaire` — bénévoles inscrits, **lecture seule** (Compta+), sans RIB
-- `POST|GET|DELETE /users/me/rib-document` — le RIB en document (PDF ou image)
+- `POST|GET|DELETE /users/me/rib-document` — le RIB en document. **Tout dépôt est
+  converti en PDF à l'enregistrement** (`lire_en_memoire(..., convertir_en_pdf=True)`) :
+  les formats d'entrée restent tous acceptés — refuser la photo aurait bloqué ceux
+  qui n'ont que leur téléphone —, mais la comptabilité reçoit une pièce et non une
+  capture d'écran. Un PDF déposé reste identique octet pour octet. Le profil expose
+  `rib_document_nom` **et** `rib_document_type`, pour que l'écran puisse prévenir
+  avant la saisie d'une note.
 - `GET /users/{id}/rib-document` — téléchargement par le propriétaire, la
   Compta ou le Super Admin. Le contrôle porte sur le rôle **et** sur la
   propriété : les identifiants se devinent, ils se suivent.
@@ -315,7 +321,12 @@ Préfixe : `/api/v1`. Auth : header `Authorization: Bearer <jwt>` (sauf `/auth/*
 
 ### Expenses (Notes de frais)
 - `GET /expenses/me` — mes notes
-- `POST /expenses` — créer (multipart : tickets en pièces jointes)
+- `POST /expenses` — créer (multipart : tickets en pièces jointes). **Exige un RIB
+  au format PDF** sur le compte déposant, sinon `VAL_5012`, avant toute écriture :
+  la comptabilité rembourse par virement, et sans RIB elle réclamait les
+  coordonnées par messages privés au moment de payer. Le contrôle lit
+  `rib_document_type`, jamais `rib_document` (colonne `deferred`, base distante).
+  Les factures n'y sont pas soumises : elles n'engagent aucun versement au déposant.
 - `PATCH /expenses/{id}` — éditer (si "En attente" et propriétaire)
 - `DELETE /expenses/{id}` — **archiver**, non supprimer (Compta+, note "Remboursée")
 - `DELETE /expenses/{id}/definitif` — **effacer pour de bon** (Super Admin seul,
@@ -774,7 +785,7 @@ JWT_REFRESH_TOKEN_DAYS=7
 
 # Email SMTP O2Switch
 # Le nom du CLUSTER, pas celui du domaine : le certificat servi par O2Switch ne
-# couvre que *.sauterelle.o2switch.net (cf. docs/08 §14).
+# couvre que *.sauterelle.o2switch.net (cf. docs/08 §12).
 SMTP_HOST=mail.sauterelle.o2switch.net
 SMTP_PORT=465
 SMTP_USER=no-reply@lekouttab.fr
@@ -1020,8 +1031,11 @@ objet ici, l'application existe et tourne.
   **sans copie disque**, contrairement aux justificatifs : rien ne l'envoie par
   courriel, donc rien n'a besoin d'un chemin, et une copie de plus d'une donnée
   bancaire serait une surface de fuite de plus. `files.lire_en_memoire` valide
-  sans écrire. Le contenu n'est pas chiffré — `ChampChiffre` travaille sur du
-  texte, et la protection utile ici est le contrôle d'accès.
+  **et convertit en PDF** sans écrire : la conversion des justificatifs, elle,
+  passe par le disque, et recopier ce chemin ici aurait posé le fichier
+  intermédiaire que tout le reste s'applique à éviter. Le contenu n'est pas
+  chiffré — `ChampChiffre` travaille sur du texte, et la protection utile ici est
+  le contrôle d'accès.
 - **Les justificatifs sont stockés EN BASE** (`FichiersNotesDeFrais.contenu`,
   `FichiersFactures.contenu`, `LONGBLOB`), et non plus seulement sur le disque
   du VPS : la base est sauvegardée par O2Switch, pas le disque. Décision prise

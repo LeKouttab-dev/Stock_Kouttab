@@ -325,8 +325,13 @@ affiché à la comptabilité ».
 Trois éléments complètent ce choix :
 
 1. **Aucune copie disque.** Le dépôt passe par `lire_en_memoire`
-   (`users.py:118`, `services/files.py:259-295`), qui valide sans jamais écrire —
-   « une copie de plus d'une donnée bancaire est une surface de fuite de plus ».
+   (`users.py`, `services/files.py`), qui valide, **convertit en PDF** et rend le
+   contenu sans jamais écrire — « une copie de plus d'une donnée bancaire est une
+   surface de fuite de plus ». La conversion des justificatifs, elle, passe par le
+   disque (`save_upload_file`) : recopier ce chemin ici aurait posé le fichier
+   intermédiaire que tout le reste s'applique à éviter. Un test le vérifie
+   (`test_aucune_copie_sur_le_disque`), sur le dépôt d'un PDF **et** sur celui
+   d'une image, qui est le cas tentant.
 2. **Rien ne l'envoie par courriel**, donc rien n'a besoin d'un chemin sur
    disque, contrairement aux justificatifs comptables.
 3. **L'accès est le même que celui de l'IBAN** : propriétaire, Compta, Super

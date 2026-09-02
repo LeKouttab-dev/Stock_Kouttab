@@ -174,7 +174,8 @@ export const fr = {
     iban: 'IBAN (RIB)',
     ribDocument: 'Votre RIB en document',
     ribDocumentAide:
-      'Le PDF de votre banque, ou une photo nette. L’IBAN ci-dessus sert au virement, ce document sert de preuve.',
+      'Le PDF de votre banque, ou une photo nette : tout dépôt est converti en PDF à ' +
+      'l’enregistrement. L’IBAN ci-dessus sert au virement, ce document sert de preuve.',
     ribDocumentDepose: 'Document déposé',
     ribDocumentAucun: 'Aucun document déposé pour l’instant.',
     ribDocumentDeposer: 'Déposer mon RIB',
@@ -183,6 +184,16 @@ export const fr = {
     ribDocumentEnvoye: 'RIB enregistré.',
     ribDocumentSupprime: 'RIB supprimé.',
     ribDocumentTelecharger: 'Télécharger le RIB',
+    ribRequisTitre: 'Votre RIB est indispensable',
+    ribRequisTexte:
+      'Veuillez déposer votre RIB au format PDF dans votre espace : la comptabilité ' +
+      'rembourse par virement et ne peut pas traiter une note sans lui. Votre saisie est ' +
+      'conservée pendant ce temps.',
+    ribRequisAction: 'Déposer mon RIB',
+    ribRequisRetour: 'RIB enregistré : vous pouvez envoyer votre note.',
+    brouillonRestaure:
+      'Votre saisie précédente a été restaurée. Les justificatifs sont à joindre à nouveau.',
+    viderFormulaire: 'Vider le formulaire',
     profilUpdated: 'Votre profil a été mis à jour.',
     dashboardCompta: 'Dashboard de validation des notes de frais',
     aucuneATraiter: 'Aucune note de frais à traiter pour le moment.',

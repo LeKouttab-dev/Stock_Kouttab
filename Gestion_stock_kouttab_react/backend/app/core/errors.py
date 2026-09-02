@@ -94,6 +94,7 @@ class ErrorCode(str, Enum):
     CSV_FORMAT_INVALID = "VAL_5009"
     FILE_PHYSICALLY_MISSING = "VAL_5010"
     BARCODE_INVALID = "VAL_5011"
+    RIB_MANQUANT = "VAL_5012"
 
     # ---- External services (6xxx) -----------------------------------------
     HELLOASSO_AUTH_FAILED = "EXT_6001"
@@ -256,7 +257,11 @@ ERROR_MESSAGES: dict[ErrorCode, tuple[int, str]] = {
         422,
         "Code-barres invalide (8 a 14 chiffres attendus).",
     ),
-
+    ErrorCode.RIB_MANQUANT: (
+        422,
+        "Veuillez deposer votre RIB au format PDF dans votre espace avant de "
+        "soumettre une note de frais.",
+    ),
     # External
     ErrorCode.HELLOASSO_AUTH_FAILED: (
         502,

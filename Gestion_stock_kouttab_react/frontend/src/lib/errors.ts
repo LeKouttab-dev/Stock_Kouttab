@@ -76,6 +76,10 @@ export const ERROR_MESSAGES: Record<string, string> = {
   VAL_5008: 'Trop de fichiers (5 maximum par envoi).',
   VAL_5009: 'Format CSV invalide. Vérifiez les colonnes attendues.',
   VAL_5010: "Le fichier n'est plus disponible sur le serveur.",
+  VAL_5011: 'Code-barres invalide (8 à 14 chiffres attendus).',
+  VAL_5012:
+    'Veuillez déposer votre RIB au format PDF dans votre espace avant de soumettre une ' +
+    'note de frais.',
 
   // ---------------- External services (6xxx) ----------------
   EXT_6001: 'Authentification HelloAsso échouée. Vérifiez les credentials dans les paramètres.',
