@@ -29,18 +29,21 @@ from app.core.security import (
 )
 from app.crud import auth_security
 from app.crud import sso as sso_crud
+from app.crud import event as event_crud
+from app.crud import expense as expense_crud
 from app.crud import invitation as invitation_crud
 from app.crud import password_reset as password_reset_crud
 from app.crud import user as user_crud
 from sqlalchemy import func, select
 
-from app.db.models import Admin, Expense, Invoice
+from app.db.models import Admin, Event, Expense, Invoice
 from app.db.session import SessionLocal, get_db
 from app.schemas.auth import (
     AdminSetupIn,
     ForgotPasswordIn,
     InvitationValidateOut,
     LoginIn,
+    SsoDepensesOut,
     SsoExchangeIn,
     LogoutIn,
     MessageOut,
@@ -174,6 +177,89 @@ def sso_pastille(
         )
     ).scalar_one()
     return {"notes_suivies": int(notes), "factures_suivies": int(factures)}
+
+
+@router.post("/sso/depenses", response_model=SsoDepensesOut)
+# Meme client unique que la pastille : l'IP du VPS de gestion, une requete par
+# evenement consulte, memoisee 60 s la-bas. Une limite « par visiteur » comme
+# celle du login etranglerait ce client-la.
+@limiter.limit("120/minute")
+def sso_depenses(
+    request: Request,
+    payload: SsoExchangeIn,
+    db: Session = Depends(get_db),
+) -> Any:
+    """Les notes de frais rattachees a un evenement, pour son bilan cote gestion.
+
+    Jeton dedie (typ 'sso-depenses', 60 s) signe du secret partage. Lecture
+    seule, pas d'anti-rejeu : relire deux fois les memes lignes n'ouvre rien.
+
+    **L'evenement demande est dans le jeton signe**, pas dans le corps. C'est
+    volontaire : le corps ne porte que le jeton, il n'y a donc rien a substituer
+    pour balayer les evenements les uns apres les autres, meme pour qui
+    tiendrait le secret. Le droit de consulter ce bilan est verifie cote
+    gestion, ou vivent le role et le perimetre de pole du demandeur ; ici on
+    verifie seulement que la question vient bien de l'outil de gestion.
+
+    La cle de jointure est le **slug du formulaire HelloAsso**, que les deux
+    applications stockent. Le titre sert de repli — evenement cree a la main
+    d'un cote, note rattachee en saisie libre de l'autre.
+    """
+    secret = settings.sso_shared_secret.strip()
+    if not secret:
+        raise AppException(ErrorCode.NOT_FOUND)
+
+    charge = sso_crud.verifier_jeton(
+        payload.token, secret, typ_attendu="sso-depenses", exiger_jti=False
+    )
+    slug = (charge.get("slug") or "").strip() or None
+    titre = (charge.get("titre") or "").strip() or None
+
+    evenement: Event | None = None
+    if slug:
+        evenement = db.execute(
+            select(Event).where(
+                Event.helloasso_form_slug == slug,
+                Event.helloasso_form_type == "Event",
+            )
+        ).scalars().first()
+    if evenement is None and titre:
+        evenement = event_crud.find_by_name(db, titre)
+
+    notes = expense_crud.lister_par_evenement(
+        db, event_id=evenement.id if evenement else None, nom_evenement=titre
+    )
+
+    # Evenement inconnu ET aucune note en saisie libre : liste vide, jamais une
+    # erreur — distinguer ferait de l'endpoint un test d'existence.
+    return {
+        "evenement_trouve": evenement is not None,
+        "lignes": [
+            {
+                "id": n.id,
+                # Le libelle utile est la nature de la charge ; `rattachement`
+                # est le classement comptable, et il vaut « Frais » partout.
+                "libelle": n.nature_charge or n.rattachement or "Note de frais",
+                "montant": f"{n.montant:.2f}",
+                "remise": f"{n.remise:.2f}",
+                "statut": n.status,
+                "date_depense": n.date_depense,
+                "fournisseur": n.fournisseur,
+                "categorie": n.categorie,
+                # Le nom, jamais l'email : le bilan dit qui a engage la depense,
+                # il n'a pas besoin de savoir comment le joindre.
+                "demandeur": _nom_affichable(n.user),
+            }
+            for n in notes
+        ],
+    }
+
+
+def _nom_affichable(user: Admin | None) -> str | None:
+    if user is None:
+        return None
+    complet = " ".join(p for p in (user.prenom, user.nom) if p).strip()
+    return complet or user.username
 
 
 # ---- Signup ----------------------------------------------------------------
