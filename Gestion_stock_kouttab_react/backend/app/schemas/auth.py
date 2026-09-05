@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field
@@ -34,6 +35,42 @@ class SsoExchangeIn(BaseModel):
     """Jeton de passage émis par gestion.lekouttab.fr (transmis en fragment #)."""
 
     token: str = Field(min_length=20, max_length=2048)
+
+
+class SsoDepenseOut(BaseModel):
+    """Une note de frais telle que l'outil de gestion la lit pour son bilan.
+
+    Volontairement pauvre : l'identifiant, de quoi afficher la ligne, et de quoi
+    la totaliser. Ni email, ni commentaire, ni justificatif — le bilan d'un
+    événement n'en a pas besoin, et ce qui ne traverse pas la frontière ne peut
+    pas fuir.
+
+    Les montants sont des **chaînes** et non des flottants : ce sont des
+    `DECIMAL(10,2)` des deux côtés, et un passage par `float` perdrait des
+    centimes sur des sommes de plusieurs dizaines de lignes.
+    """
+
+    id: int
+    libelle: str
+    montant: str
+    remise: str
+    statut: str
+    date_depense: date | None = None
+    fournisseur: str | None = None
+    categorie: str | None = None
+    demandeur: str | None = None
+
+
+class SsoDepensesOut(BaseModel):
+    """`evenement_trouve` distingue « aucune dépense » de « événement inconnu ».
+
+    Les deux rendent une liste vide — jamais une erreur, qui ferait de
+    l'endpoint un test d'existence pour qui tient le secret partagé — mais
+    l'outil de gestion peut ainsi le signaler différemment.
+    """
+
+    evenement_trouve: bool
+    lignes: list[SsoDepenseOut]
 
 
 class ResetPasswordIn(BaseModel):

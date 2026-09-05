@@ -6,7 +6,7 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.errors import ErrorCode
@@ -506,3 +506,57 @@ def list_files(db: Session, expense_id: int) -> list[ExpenseFile]:
 
 def get_file(db: Session, file_id: int) -> ExpenseFile | None:
     return db.get(ExpenseFile, file_id)
+
+
+# ---- Bilan d'un evenement pour l'outil de gestion ---------------------------
+
+# Une note refusee n'est pas une depense de l'association, et une note archivee
+# est sortie des comptes courants. Tout le reste — « En attente », « Approuvée »,
+# « Remboursée » — correspond a de l'argent reellement engage.
+STATUT_EXCLU_DU_BILAN = "Refusée"
+
+
+def lister_par_evenement(
+    db: Session,
+    *,
+    event_id: int | None,
+    nom_evenement: str | None,
+) -> list[Expense]:
+    """Les notes de frais rattachees a un evenement, pour son bilan.
+
+    Le rattachement est double en base, et les deux cas sont nominaux (voir
+    ``crud.event.resolve_event``) : soit ``id_event`` designe une ligne du
+    referentiel, soit il est nul et seul le libelle ``evenement`` porte le
+    rattachement — ce qui arrive des qu'une note est deposee avant que la
+    synchro HelloAsso ait cree l'evenement. Ne filtrer que sur ``id_event``
+    amputerait donc le bilan sans que personne ne s'en apercoive.
+
+    Le ``OR`` peut ramener deux fois la meme note quand les deux colonnes sont
+    renseignees : c'est ``select`` sur l'entite qui dedoublonne, une note ayant
+    une seule cle primaire.
+    """
+    rattachements = []
+    if event_id is not None:
+        rattachements.append(Expense.id_event == event_id)
+    if nom_evenement:
+        rattachements.append(func.lower(Expense.evenement) == nom_evenement.strip().lower())
+    if not rattachements:
+        return []
+
+    return list(
+        db.execute(
+            select(Expense)
+            # Le bilan affiche le nom du demandeur de chaque ligne : sans ce
+            # prechargement, une note lue vaudrait une requete de plus.
+            .options(selectinload(Expense.user))
+            .where(
+                Expense.archived_at.is_(None),
+                Expense.status != STATUT_EXCLU_DU_BILAN,
+                or_(*rattachements),
+            )
+            .order_by(Expense.date_depense.desc(), Expense.id.desc())
+        )
+        .scalars()
+        .unique()
+        .all()
+    )
