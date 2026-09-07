@@ -95,6 +95,8 @@ class ErrorCode(str, Enum):
     FILE_PHYSICALLY_MISSING = "VAL_5010"
     BARCODE_INVALID = "VAL_5011"
     RIB_MANQUANT = "VAL_5012"
+    IBAN_MANQUANT = "VAL_5013"
+    JUSTIFICATIF_MANQUANT = "VAL_5014"
 
     # ---- External services (6xxx) -----------------------------------------
     HELLOASSO_AUTH_FAILED = "EXT_6001"
@@ -259,8 +261,26 @@ ERROR_MESSAGES: dict[ErrorCode, tuple[int, str]] = {
     ),
     ErrorCode.RIB_MANQUANT: (
         422,
-        "Veuillez deposer votre RIB au format PDF dans votre espace avant de "
-        "soumettre une note de frais.",
+        # « au format PDF » disait le message d'origine — un detail
+        # d'implementation echappe dans le texte utilisateur. Le depot accepte
+        # la photo, le HEIC de l'iPhone, le PNG, et convertit lui-meme (cf.
+        # `POST /users/me/rib-document`). Reclamer un PDF envoyait chercher un
+        # convertisseur a celui qui n'a que son telephone — exactement la
+        # personne que la conversion automatique etait censee depanner.
+        "Deposez votre RIB sur votre espace avant de soumettre une note de frais.",
+    ),
+    ErrorCode.IBAN_MANQUANT: (
+        422,
+        # Distinct du document, et le message le dit : les deux se corrigent
+        # au meme endroit mais pas du tout de la meme facon. Confondus sous un
+        # seul libelle, celui qui avait deja depose sa photo redeposait la meme
+        # photo en boucle sans comprendre ce qu'on lui reclamait.
+        "Renseignez votre IBAN sur votre espace avant de soumettre une note de frais.",
+    ),
+    ErrorCode.JUSTIFICATIF_MANQUANT: (
+        422,
+        "Joignez au moins un justificatif : sans ticket ni facture, la "
+        "comptabilite ne peut pas rembourser cette depense.",
     ),
     # External
     ErrorCode.HELLOASSO_AUTH_FAILED: (

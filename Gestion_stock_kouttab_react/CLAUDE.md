@@ -326,12 +326,24 @@ Préfixe : `/api/v1`. Auth : header `Authorization: Bearer <jwt>` (sauf `/auth/*
 
 ### Expenses (Notes de frais)
 - `GET /expenses/me` — mes notes
-- `POST /expenses` — créer (multipart : tickets en pièces jointes). **Exige un RIB
-  au format PDF** sur le compte déposant, sinon `VAL_5012`, avant toute écriture :
-  la comptabilité rembourse par virement, et sans RIB elle réclamait les
-  coordonnées par messages privés au moment de payer. Le contrôle lit
-  `rib_document_type`, jamais `rib_document` (colonne `deferred`, base distante).
-  Les factures n'y sont pas soumises : elles n'engagent aucun versement au déposant.
+- `POST /expenses` — créer (multipart : tickets en pièces jointes). **Trois
+  conditions, toutes vérifiées avant la moindre écriture** — une note refusée ne
+  doit pas laisser de ligne derrière elle :
+
+  | Condition | Code | Pourquoi |
+  |---|---|---|
+  | Au moins un justificatif | `VAL_5014` | `compta_dispatch` ne part **que** s'il y a des pièces : sans ticket, la note créait une ligne, envoyait un courriel « nouvelle note de frais », et s'arrêtait là. Le comptable se voyait annoncer une dépense dont il ne verrait jamais la preuve. |
+  | RIB en document PDF | `VAL_5012` | La comptabilité rembourse par virement et réclamait les coordonnées par messages privés au moment de payer. Le contrôle lit `rib_document_type`, jamais `rib_document` (colonne `deferred`, base distante). |
+  | IBAN renseigné | `VAL_5013` | **Autre chose que le document.** Le contrôle ne portait que sur ce dernier, alors que l'écran comptable lit `user_rib` — l'IBAN. Un compte ayant déposé sa photo sans saisir son IBAN passait, et sa note s'affichait sous « L'utilisateur n'a pas encore renseigné son RIB », qui masquait jusqu'au bouton de téléchargement du document. |
+
+  **Le format n'est pas l'affaire du déposant** : `POST /users/me/rib-document`
+  accepte photo, HEIC, PNG, WEBP, PDF et convertit. Les messages ne réclament
+  donc jamais « un PDF » — ils demandent le relevé, en disant qu'une photo
+  suffit. Aucune migration ne peut rattraper un IBAN manquant, contrairement au
+  document (`e8b2f4a7c1d5`) : il ne se déduit pas d'un PDF scanné.
+
+  Les factures ne sont soumises à aucune des trois : elles n'engagent aucun
+  versement au déposant.
 - `PATCH /expenses/{id}` — éditer (si "En attente" et propriétaire)
 - `DELETE /expenses/{id}` — **archiver**, non supprimer (Compta+, note "Remboursée")
 - `DELETE /expenses/{id}/definitif` — **effacer pour de bon** (Super Admin seul,

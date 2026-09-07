@@ -185,10 +185,19 @@ export const fr = {
     ribDocumentSupprime: 'RIB supprimé.',
     ribDocumentTelecharger: 'Télécharger le RIB',
     ribRequisTitre: 'Votre RIB est indispensable',
-    ribRequisTexte:
-      'Veuillez déposer votre RIB au format PDF dans votre espace : la comptabilité ' +
-      'rembourse par virement et ne peut pas traiter une note sans lui. Votre saisie est ' +
-      'conservée pendant ce temps.',
+    // La consigne, et rien de plus. Le format est l'affaire du serveur, qui
+    // convertit tout dépôt en PDF, et l'écran de profil le dit déjà là où c'est
+    // utile (`ribDocumentAide`) : le répéter ici alourdissait un encart dont on
+    // attend qu'il se lise d'un coup d'œil.
+    ribRequisTexte: 'Déposez votre RIB sur votre espace.',
+    // L'IBAN est une autre chose que le document, et manque souvent seul : le
+    // dépôt de la photo se voit, la saisie de l'IBAN s'oublie. Le message doit
+    // donc nommer précisément celui qui manque.
+    ibanRequisTexte: 'Renseignez votre IBAN sur votre espace.',
+    ribRequisTexteLesDeux: 'Renseignez votre IBAN et déposez votre RIB sur votre espace.',
+    ticketRequisTexte:
+      'Joignez au moins un justificatif : sans ticket ni facture, la comptabilité ne ' +
+      'peut pas rembourser cette dépense.',
     ribRequisAction: 'Déposer mon RIB',
     ribRequisRetour: 'RIB enregistré : vous pouvez envoyer votre note.',
     brouillonRestaure:

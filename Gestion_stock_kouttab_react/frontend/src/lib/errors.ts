@@ -77,9 +77,17 @@ export const ERROR_MESSAGES: Record<string, string> = {
   VAL_5009: 'Format CSV invalide. Vérifiez les colonnes attendues.',
   VAL_5010: "Le fichier n'est plus disponible sur le serveur.",
   VAL_5011: 'Code-barres invalide (8 à 14 chiffres attendus).',
-  VAL_5012:
-    'Veuillez déposer votre RIB au format PDF dans votre espace avant de soumettre une ' +
-    'note de frais.',
+  // Le format ne regarde pas le déposant : le serveur convertit ce qu'il reçoit
+  // (photo, HEIC, PNG, PDF). Réclamer un PDF envoyait chercher un convertisseur
+  // à celui qui n'a que son téléphone — et le préciser ici n'apporte rien de
+  // plus que la consigne elle-même.
+  VAL_5012: 'Déposez votre RIB sur votre espace avant de soumettre une note de frais.',
+  // Distinct du document : celui qui a déjà déposé sa photo doit comprendre que
+  // c'est l'IBAN qu'on lui demande, sans quoi il redépose la même photo.
+  VAL_5013: 'Renseignez votre IBAN sur votre espace avant de soumettre une note de frais.',
+  VAL_5014:
+    'Joignez au moins un justificatif : sans ticket ni facture, la comptabilité ne ' +
+    'peut pas rembourser cette dépense.',
 
   // ---------------- External services (6xxx) ----------------
   EXT_6001: 'Authentification HelloAsso échouée. Vérifiez les credentials dans les paramètres.',

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import io
 import os
 import uuid
 from collections.abc import Callable, Generator
@@ -36,6 +37,7 @@ os.environ.setdefault(
 
 import bcrypt
 import pytest
+from PIL import Image
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -247,6 +249,26 @@ def _unique_username(prefix: str) -> str:
 # verifient le refus prennent la fixture `benevole_sans_rib`.
 _RIB_PDF = b"%PDF-1.4 fixture de test"
 
+# L'IBAN est une AUTRE condition que le document, et le depot exige les deux :
+# c'est lui qui sert au virement, le document n'en est que la preuve. Un compte
+# de test complet porte donc les deux. Voir `benevole_sans_iban` pour le refus.
+_IBAN = "FR7630001007941234567890185"
+
+
+def justificatif_jpeg(nom: str = "ticket.jpg") -> dict:
+    """Une piece jointe valide, pour un depot de note de frais.
+
+    Une VRAIE image : `save_upload_file` lit les octets et refuse net ce qu'il
+    ne sait pas convertir — un en-tete JPEG bricole ne passe pas.
+
+    Partagee ici parce que **tout** depot en a desormais besoin : une note sans
+    justificatif est refusee, et chaque fichier de test se serait sinon ecrit sa
+    propre fabrique.
+    """
+    tampon = io.BytesIO()
+    Image.new("RGB", (60, 30), (10, 90, 160)).save(tampon, format="JPEG")
+    return {"files": (nom, io.BytesIO(tampon.getvalue()), "image/jpeg")}
+
 
 def _make_user(
     db: Session,
@@ -255,6 +277,7 @@ def _make_user(
     validation_status: str = "active",
     prefix: str | None = None,
     avec_rib: bool = True,
+    avec_iban: bool = True,
 ):
     username = _unique_username(prefix or role.lower().replace(" ", "_"))
     user = user_crud.create_user(
@@ -269,6 +292,9 @@ def _make_user(
         user.rib_document = _RIB_PDF
         user.rib_document_nom = "rib.pdf"
         user.rib_document_type = "application/pdf"
+    if avec_iban:
+        user.rib = _IBAN
+    if avec_rib or avec_iban:
         db.commit()
         db.refresh(user)
     # Stash the plaintext password on the instance so tests can log in with it.
@@ -304,6 +330,18 @@ def benevole_user(db_session: Session):
 def benevole_sans_rib(db_session: Session):
     """Benevole qui n'a jamais depose son RIB — le cas que le depot doit refuser."""
     return _make_user(db_session, role="Benevole", prefix="sr", avec_rib=False)
+
+
+@pytest.fixture()
+def benevole_sans_iban(db_session: Session):
+    """Le document est la, l'IBAN manque — et c'est un refus different.
+
+    Ce compte-la passait le depot : le controle ne regardait que le document.
+    Cote comptabilite, la note s'affichait alors sous « L'utilisateur n'a pas
+    encore renseigne son RIB », qui masquait jusqu'au bouton de telechargement
+    du document. La piece etait deposee, et personne ne pouvait l'atteindre.
+    """
+    return _make_user(db_session, role="Benevole", prefix="si", avec_iban=False)
 
 
 @pytest.fixture()

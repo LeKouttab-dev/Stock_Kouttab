@@ -99,7 +99,10 @@ export function MyExpensesPage() {
   const [retourApresRib, setRetourApresRib] = useState(false);
   // Meme critere que le bandeau et que l'API : un document depose mais illisible
   // ne debloque rien, et renvoyer sur le formulaire ferait croire le contraire.
-  const ribDepose = profil?.rib_document_type === 'application/pdf';
+  // L'IBAN compte autant — c'est lui qui sert au virement —, sans quoi le retour
+  // annoncerait « vous pouvez envoyer votre note » à qui sera refusé ensuite.
+  const ribDepose =
+    profil?.rib_document_type === 'application/pdf' && Boolean(profil?.rib?.trim());
   useEffect(() => {
     if (!retourApresRib || !ribDepose) return;
     setRetourApresRib(false);
@@ -222,8 +225,21 @@ function SubmitExpenseTab({
   // Le RIB conditionne le dépôt : la comptabilité rembourse par virement, et
   // l'API refuse la note sans lui (VAL_5012). On le dit **avant** la saisie
   // plutôt qu'après, et le brouillon ci-dessous fait le reste.
-  const ribManquant =
+  //
+  // Deux conditions distinctes, et le message doit dire laquelle manque : le
+  // document est la preuve, l'IBAN est ce qui sert au virement. Confondus, celui
+  // qui avait déjà déposé sa photo redéposait la même photo sans comprendre.
+  const documentManquant =
     Boolean(profil) && profil?.rib_document_type !== 'application/pdf';
+  const ibanManquant = Boolean(profil) && !profil?.rib?.trim();
+  const ribManquant = documentManquant || ibanManquant;
+  // Ce qui manque vraiment, dit dans ces termes-là. Les deux à la fois arrive
+  // au premier dépôt d'un compte neuf : un seul message les couvre.
+  const texteRibManquant = documentManquant
+    ? ibanManquant
+      ? fr.expenses.ribRequisTexteLesDeux
+      : fr.expenses.ribRequisTexte
+    : fr.expenses.ibanRequisTexte;
 
   const form = useForm<ExpenseFormValues>({
     resolver: zodResolver(expenseSchema),
@@ -422,8 +438,17 @@ function SubmitExpenseTab({
   const onSubmit = (values: ExpenseFormValues) => {
     // L'API refuse de toute façon (VAL_5012) : ce raccourci évite un aller-retour
     // et surtout un message qui arriverait après coup, sous forme de toast rouge.
+    // Sans justificatif, la note ne documente rien — et elle n'atteignait même
+    // pas le comptable : l'envoi des pièces ne part que s'il y en a. Il se
+    // voyait annoncer une dépense dont il ne verrait jamais la moindre preuve.
+    if (files.length === 0) {
+      toast.error(fr.expenses.ticketRequisTexte);
+      return;
+    }
     if (ribManquant) {
-      toast.error(fr.expenses.ribRequisTexte);
+      // Le titre porte la consigne, le texte l'explication : hors de l'encart,
+      // le second seul ne dirait jamais ce qu'il faut faire.
+      toast.error(`${fr.expenses.ribRequisTitre} — ${texteRibManquant}`);
       return;
     }
     create.mutate(
@@ -451,7 +476,7 @@ function SubmitExpenseTab({
           <Alert variant="warning" className="mb-4" data-testid="rib-requis">
             <AlertDescription className="flex flex-wrap items-center gap-2">
               <span>
-                <strong>{fr.expenses.ribRequisTitre}</strong> — {fr.expenses.ribRequisTexte}
+                <strong>{fr.expenses.ribRequisTitre}</strong> — {texteRibManquant}
               </span>
               <Button type="button" variant="outline" size="sm" onClick={onAllerAuProfil}>
                 <Upload className="mr-1 h-3.5 w-3.5" />
@@ -665,7 +690,7 @@ function SubmitExpenseTab({
 
           <div className="space-y-1.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <Label>{fr.expenses.tickets}</Label>
+              <Label required>{fr.expenses.tickets}</Label>
               <Button type="button" variant="outline" size="sm" onClick={() => setScanOpen(true)}>
                 <ScanLine className="h-4 w-4" />
                 {fr.scanner.documentTitle}
@@ -678,6 +703,17 @@ function SubmitExpenseTab({
               helperText={fr.expenses.formatsAcceptes}
               recadrage
             />
+            {/* Après une tentative d'envoi seulement, comme les erreurs de champ
+                juste au-dessus : l'afficher dès l'ouverture du formulaire
+                reprocherait au déposant de ne pas avoir encore fait ce qu'il
+                vient à peine de commencer. `isSubmitted` passe à vrai même quand
+                Zod refuse par ailleurs, donc le manque se voit du premier coup,
+                avec les autres. */}
+            {form.formState.isSubmitted && files.length === 0 && (
+              <p className="text-xs text-destructive" data-testid="ticket-requis">
+                {fr.expenses.ticketRequisTexte}
+              </p>
+            )}
           </div>
 
           <DocumentScanner
