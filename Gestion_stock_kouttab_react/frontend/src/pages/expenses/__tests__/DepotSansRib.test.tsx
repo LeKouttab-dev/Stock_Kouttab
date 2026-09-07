@@ -67,11 +67,30 @@ describe('pages/expenses — dépôt sans RIB', () => {
     expect(screen.getByTestId('rib-requis')).toBeInTheDocument();
   });
 
-  it('ne prévient plus une fois le RIB déposé', () => {
-    profil = { id: 7, rib_document_nom: 'rib.pdf', rib_document_type: 'application/pdf' };
+  it('ne prévient plus une fois le RIB déposé ET l’IBAN saisi', () => {
+    profil = {
+      id: 7,
+      rib: 'FR7630001007941234567890185',
+      rib_document_nom: 'rib.pdf',
+      rib_document_type: 'application/pdf',
+    };
     renderWithProviders(<MyExpensesPage />);
 
     expect(screen.queryByTestId('rib-requis')).not.toBeInTheDocument();
+  });
+
+  it('prévient quand le document est là mais l’IBAN manque', () => {
+    // Le cas qui passait : le contrôle ne regardait que le document. La note
+    // partait, et l'écran comptable l'affichait sous « RIB non renseigné » —
+    // en masquant jusqu'au bouton de téléchargement de la pièce déposée.
+    profil = { id: 7, rib_document_nom: 'rib.pdf', rib_document_type: 'application/pdf' };
+    renderWithProviders(<MyExpensesPage />);
+
+    const encart = screen.getByTestId('rib-requis');
+    expect(encart).toBeInTheDocument();
+    // Et il dit ce qui manque : réclamer « déposez votre RIB » à quelqu'un qui
+    // l'a déjà déposé le fait redéposer la même photo en boucle.
+    expect(encart).toHaveTextContent(/IBAN/i);
   });
 
   it('prévient aussi quand le RIB déposé n’est pas un PDF', () => {
@@ -109,5 +128,38 @@ describe('pages/expenses — dépôt sans RIB', () => {
     await waitFor(() =>
       expect(screen.getByLabelText(/Fournisseur/)).toHaveValue('Carrefour'),
     );
+  });
+});
+
+/**
+ * Déposer une note de frais sans y joindre le moindre ticket.
+ *
+ * Elle partait : `files` est facultatif côté API, et rien ne l'exigeait ici non
+ * plus. Le comptable recevait un courriel annonçant la dépense, mais jamais les
+ * pièces — l'envoi comptable ne part que s'il y en a. Il lui restait à réclamer
+ * lui-même une preuve que le bénévole croyait avoir fournie.
+ */
+describe('pages/expenses — dépôt sans justificatif', () => {
+  beforeEach(() => {
+    creerNote.mockClear();
+    localStorage.clear();
+    // Compte complet : c'est le justificatif, et lui seul, qui doit manquer.
+    profil = {
+      id: 7,
+      rib: 'FR7630001007941234567890185',
+      rib_document_nom: 'rib.pdf',
+      rib_document_type: 'application/pdf',
+    };
+  });
+
+  it('refuse l’envoi sans appeler l’API', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<MyExpensesPage />);
+
+    await user.type(screen.getByLabelText(/Fournisseur/), 'Carrefour');
+    await user.click(screen.getByRole('button', { name: /Soumettre la demande/i }));
+
+    await waitFor(() => expect(screen.getByTestId('ticket-requis')).toBeInTheDocument());
+    expect(creerNote).not.toHaveBeenCalled();
   });
 });

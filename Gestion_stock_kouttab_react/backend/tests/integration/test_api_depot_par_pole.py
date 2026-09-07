@@ -44,6 +44,7 @@ def test_note_sur_pole_local_avec_categorie(
             "id_categorie": str(first_category.id),
             "commentaires": "Eau et gobelets pour le local",
         },
+        files=_fichier(),
         headers=auth_headers(benevole_user),
     )
     assert reponse.status_code == 201, reponse.text
@@ -68,6 +69,7 @@ def test_note_sur_pole_local_sans_categorie_refusee(
             "fournisseur": "Metro",
             "id_pole": str(local_pole.id),
         },
+        files=_fichier(),
         headers=auth_headers(benevole_user),
     )
     assert reponse.status_code == 422, reponse.text
@@ -87,6 +89,7 @@ def test_note_sur_pole_local_avec_evenement_refusee(
             "id_categorie": str(first_category.id),
             "evenement_libre": "Gala",
         },
+        files=_fichier(),
         headers=auth_headers(benevole_user),
     )
     assert reponse.status_code == 422, reponse.text
@@ -112,6 +115,7 @@ def test_note_sur_pole_evenementiel_porte_aussi_sa_categorie(
             "evenement_libre": "Gala de fin d'année",
             "date_evenement": "2026-08-20",
         },
+        files=_fichier(),
         headers=auth_headers(benevole_user),
     )
     assert reponse.status_code == 201, reponse.text

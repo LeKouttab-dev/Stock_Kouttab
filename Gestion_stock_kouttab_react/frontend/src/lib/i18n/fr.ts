@@ -191,6 +191,19 @@ export const fr = {
       'Une photo de votre relevé suffit, nous le mettons en forme. La comptabilité ' +
       'rembourse par virement et ne peut pas traiter une note sans lui. Votre saisie est ' +
       'conservée pendant ce temps.',
+    // L'IBAN est une autre chose que le document, et manque souvent seul : le
+    // dépôt de la photo se voit, la saisie de l'IBAN s'oublie.
+    ibanRequisTexte:
+      'Renseignez votre IBAN dans votre espace : c’est lui qui sert au virement, ' +
+      'le document que vous avez déposé en est la preuve. Votre saisie est conservée ' +
+      'pendant ce temps.',
+    ribRequisTexteLesDeux:
+      'Renseignez votre IBAN et déposez votre RIB — une photo de votre relevé suffit, ' +
+      'nous le mettons en forme. La comptabilité rembourse par virement et ne peut pas ' +
+      'traiter une note sans eux. Votre saisie est conservée pendant ce temps.',
+    ticketRequisTexte:
+      'Joignez au moins un justificatif : sans ticket ni facture, la comptabilité ne ' +
+      'peut pas rembourser cette dépense.',
     ribRequisAction: 'Déposer mon RIB',
     ribRequisRetour: 'RIB enregistré : vous pouvez envoyer votre note.',
     brouillonRestaure:

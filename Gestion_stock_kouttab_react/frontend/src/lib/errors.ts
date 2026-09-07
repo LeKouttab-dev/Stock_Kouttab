@@ -83,6 +83,12 @@ export const ERROR_MESSAGES: Record<string, string> = {
   VAL_5012:
     'Déposez votre RIB dans votre espace avant de soumettre une note de frais : ' +
     'une photo de votre relevé suffit, nous le mettons en forme.',
+  VAL_5013:
+    'Renseignez votre IBAN dans votre espace avant de soumettre une note de frais : ' +
+    'c’est lui qui sert au virement, le document en est la preuve.',
+  VAL_5014:
+    'Joignez au moins un justificatif : sans ticket ni facture, la comptabilité ne ' +
+    'peut pas rembourser cette dépense.',
 
   // ---------------- External services (6xxx) ----------------
   EXT_6001: 'Authentification HelloAsso échouée. Vérifiez les credentials dans les paramètres.',

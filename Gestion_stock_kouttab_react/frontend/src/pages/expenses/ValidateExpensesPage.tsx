@@ -479,38 +479,47 @@ function ValidateExpenseDetail({ expense, total }: DetailProps) {
         </p>
       </div>
 
-      {expense.user_rib ? (
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="flex-1 min-w-[200px]">
-            <Label>{fr.expenses.ribUtilisateur}</Label>
-            <Input value={expense.user_rib} disabled />
-          </div>
-          <Button variant="outline" onClick={onCopyRib}>
-            <Copy className="h-4 w-4" />
-            {fr.expenses.copierRib}
-          </Button>
-          {/* Le document de la banque, quand le bénévole l'a déposé : l'IBAN
-              ci-contre suffit au virement, celui-ci sert de preuve au dossier. */}
-          {expense.user_rib_document_nom && (
-            <Button
-              variant="outline"
-              onClick={() =>
-                download(
-                  `/users/${expense.id_user}/rib-document`,
-                  expense.user_rib_document_nom as string,
-                )
-              }
-            >
-              <Download className="h-4 w-4" />
-              {fr.expenses.ribDocumentTelecharger}
+      {/* L'IBAN et le document sont DEUX choses, et cet encart les confondait :
+          tout était accroché à `user_rib`, si bien qu'un IBAN vide masquait
+          jusqu'au bouton de téléchargement du document déposé. La pièce était
+          là, et personne ne pouvait l'atteindre — d'où des notes signalées
+          « RIB non renseigné » alors que la banque du bénévole était au dossier.
+          Le dépôt exige désormais les deux, mais les notes antérieures restent
+          à traiter. */}
+      <div className="flex flex-wrap items-end gap-2">
+        {expense.user_rib ? (
+          <>
+            <div className="flex-1 min-w-[200px]">
+              <Label>{fr.expenses.ribUtilisateur}</Label>
+              <Input value={expense.user_rib} disabled />
+            </div>
+            <Button variant="outline" onClick={onCopyRib}>
+              <Copy className="h-4 w-4" />
+              {fr.expenses.copierRib}
             </Button>
-          )}
-        </div>
-      ) : (
-        <Alert variant="warning">
-          <AlertDescription>{fr.expenses.ribAbsent}</AlertDescription>
-        </Alert>
-      )}
+          </>
+        ) : (
+          <Alert variant="warning" className="flex-1 min-w-[200px]">
+            <AlertDescription>{fr.expenses.ribAbsent}</AlertDescription>
+          </Alert>
+        )}
+        {/* Le document de la banque, dès que le bénévole l'a déposé — même sans
+            IBAN saisi : c'est alors la seule façon de retrouver ses coordonnées. */}
+        {expense.user_rib_document_nom && (
+          <Button
+            variant="outline"
+            onClick={() =>
+              download(
+                `/users/${expense.id_user}/rib-document`,
+                expense.user_rib_document_nom as string,
+              )
+            }
+          >
+            <Download className="h-4 w-4" />
+            {fr.expenses.ribDocumentTelecharger}
+          </Button>
+        )}
+      </div>
 
       {expense.files && expense.files.length > 0 ? (
         <div className="space-y-1">

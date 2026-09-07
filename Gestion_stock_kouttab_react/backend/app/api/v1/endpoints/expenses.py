@@ -193,6 +193,20 @@ async def create_expense(
             ErrorCode.VALIDATION_ERROR, detail="Le fournisseur est obligatoire."
         )
 
+    # Sans justificatif, la note ne documente rien. Elle etait pourtant
+    # acceptee : `files` est facultatif, et une note deposee sans ticket
+    # creait une ligne, prevenait la comptabilite par courriel... puis
+    # s'arretait la. `compta_dispatch` ne part en effet que s'il y a des
+    # pieces (voir plus bas, `if full_expense.files`) : le comptable recevait
+    # l'annonce d'une depense dont il ne verrait jamais la moindre preuve, et
+    # devait la reclamer lui-meme. C'est l'une des plaintes remontees le
+    # 2026-09-07.
+    #
+    # Le controle precede la creation : une note refusee ne doit pas laisser
+    # de ligne derriere elle.
+    if not any(f and f.filename for f in (files or [])):
+        raise AppException(ErrorCode.JUSTIFICATIF_MANQUANT)
+
     # Pas de RIB, pas de note de frais : la comptabilite rembourse par virement
     # et reclamait les coordonnees manquantes par messages prives, au moment de
     # payer. Le refus tombe **avant toute ecriture** — une note creee puis
@@ -203,6 +217,20 @@ async def create_expense(
     # entier depuis une base distante a chaque depot.
     if (current_user.rib_document_type or "") != "application/pdf":
         raise AppException(ErrorCode.RIB_MANQUANT)
+
+    # ... et l'IBAN, qui est une AUTRE chose que le document. Le controle ne
+    # portait que sur ce dernier, alors que l'ecran de la comptabilite lit
+    # `user_rib` — l'IBAN. Un compte ayant depose sa photo sans jamais saisir
+    # son IBAN passait donc le depot, et la note s'affichait cote comptable
+    # sous un « L'utilisateur n'a pas encore renseigne son RIB » qui masquait
+    # jusqu'au bouton de telechargement du document. La piece etait la, et
+    # personne ne pouvait l'atteindre.
+    #
+    # Aucune migration ne peut rattraper l'existant, contrairement au document
+    # (`e8b2f4a7c1d5`) : un IBAN ne se deduit pas d'un PDF scanne. Ceux a qui
+    # il manque le renseigneront au prochain depot, guides par le message.
+    if not (current_user.rib or "").strip():
+        raise AppException(ErrorCode.IBAN_MANQUANT)
 
     rattachement_resolu = rattachement_crud.resoudre(
         db,

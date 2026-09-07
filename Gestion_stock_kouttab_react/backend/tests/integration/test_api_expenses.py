@@ -6,6 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.crud import expense as expense_crud
+from tests.conftest import justificatif_jpeg
 
 
 pytestmark = pytest.mark.integration
@@ -40,8 +41,14 @@ def _create_expense_payload(montant: str = "12.50") -> dict:
 def _create_expense_via_api(client, user, headers_factory, **overrides) -> int:
     data = _create_expense_payload()
     data.update(overrides)
+    # Un justificatif, toujours : une note sans piece est refusee depuis que le
+    # comptable s'est vu annoncer des depenses dont il ne verrait jamais la
+    # moindre preuve.
     resp = client.post(
-        "/api/v1/expenses", data=data, headers=headers_factory(user)
+        "/api/v1/expenses",
+        data=data,
+        files=justificatif_jpeg(),
+        headers=headers_factory(user),
     )
     assert resp.status_code == 201, resp.text
     return resp.json()["id"]
@@ -141,6 +148,7 @@ def test_un_depot_sans_rib_est_refuse_et_ne_cree_rien(
     reponse = client.post(
         "/api/v1/expenses",
         data=_create_expense_payload(),
+        files=justificatif_jpeg(),
         headers=auth_headers(benevole_sans_rib),
     )
 
@@ -164,8 +172,52 @@ def test_un_rib_encore_en_image_ne_vaut_pas_depot(
     reponse = client.post(
         "/api/v1/expenses",
         data=_create_expense_payload(),
+        files=justificatif_jpeg(),
         headers=auth_headers(benevole_user),
     )
 
     assert reponse.status_code == 422
     assert reponse.json()["code"] == "VAL_5012"
+
+
+def test_un_depot_sans_iban_est_refuse(
+    client: TestClient, benevole_sans_iban, auth_headers, db_session
+) -> None:
+    """Le document ne remplace pas l'IBAN : c'est ce dernier qui sert au virement.
+
+    Ce compte-la passait le depot, le controle ne regardant que le document.
+    Cote comptabilite, la note s'affichait sous « L'utilisateur n'a pas encore
+    renseigne son RIB » — un message qui masquait jusqu'au bouton de
+    telechargement de la piece deposee.
+    """
+    reponse = client.post(
+        "/api/v1/expenses",
+        data=_create_expense_payload(),
+        files=justificatif_jpeg(),
+        headers=auth_headers(benevole_sans_iban),
+    )
+
+    assert reponse.status_code == 422
+    assert reponse.json()["code"] == "VAL_5013"
+    assert expense_crud.list_expenses_for_user(db_session, benevole_sans_iban.id) == []
+
+
+def test_un_depot_sans_justificatif_est_refuse_et_ne_cree_rien(
+    client: TestClient, benevole_user, auth_headers, db_session
+) -> None:
+    """Une note sans piece ne documente rien, et n'atteignait meme pas le comptable.
+
+    `compta_dispatch` ne part que s'il y a des fichiers : la note creait une
+    ligne, declenchait un courriel « nouvelle note de frais », puis s'arretait
+    la. Le comptable se voyait annoncer une depense dont il ne verrait jamais
+    la moindre preuve, et devait la reclamer lui-meme.
+    """
+    reponse = client.post(
+        "/api/v1/expenses",
+        data=_create_expense_payload(),
+        headers=auth_headers(benevole_user),
+    )
+
+    assert reponse.status_code == 422
+    assert reponse.json()["code"] == "VAL_5014"
+    assert expense_crud.list_expenses_for_user(db_session, benevole_user.id) == []
