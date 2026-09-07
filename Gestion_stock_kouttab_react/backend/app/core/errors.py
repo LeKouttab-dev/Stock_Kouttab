@@ -259,8 +259,14 @@ ERROR_MESSAGES: dict[ErrorCode, tuple[int, str]] = {
     ),
     ErrorCode.RIB_MANQUANT: (
         422,
-        "Veuillez deposer votre RIB au format PDF dans votre espace avant de "
-        "soumettre une note de frais.",
+        # « au format PDF » disait le message d'origine — un detail
+        # d'implementation echappe dans le texte utilisateur. Le depot accepte
+        # la photo, le HEIC de l'iPhone, le PNG, et convertit lui-meme (cf.
+        # `POST /users/me/rib-document`). Reclamer un PDF envoyait chercher un
+        # convertisseur a celui qui n'a que son telephone — exactement la
+        # personne que la conversion automatique etait censee depanner.
+        "Deposez votre RIB dans votre espace avant de soumettre une note de "
+        "frais : une photo de votre releve suffit, nous le mettons en forme.",
     ),
     # External
     ErrorCode.HELLOASSO_AUTH_FAILED: (

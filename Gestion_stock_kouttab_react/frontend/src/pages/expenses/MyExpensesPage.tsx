@@ -423,7 +423,9 @@ function SubmitExpenseTab({
     // L'API refuse de toute façon (VAL_5012) : ce raccourci évite un aller-retour
     // et surtout un message qui arriverait après coup, sous forme de toast rouge.
     if (ribManquant) {
-      toast.error(fr.expenses.ribRequisTexte);
+      // Le titre porte la consigne, le texte l'explication : hors de l'encart,
+      // le second seul ne dirait jamais ce qu'il faut faire.
+      toast.error(`${fr.expenses.ribRequisTitre} — ${fr.expenses.ribRequisTexte}`);
       return;
     }
     create.mutate(

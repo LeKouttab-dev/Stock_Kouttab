@@ -185,8 +185,10 @@ export const fr = {
     ribDocumentSupprime: 'RIB supprimé.',
     ribDocumentTelecharger: 'Télécharger le RIB',
     ribRequisTitre: 'Votre RIB est indispensable',
+    // Ce que le bénévole doit fournir, et rien de plus : le format est l'affaire
+    // du serveur, qui convertit tout dépôt en PDF (cf. `ribDocumentAide`).
     ribRequisTexte:
-      'Veuillez déposer votre RIB au format PDF dans votre espace : la comptabilité ' +
+      'Une photo de votre relevé suffit, nous le mettons en forme. La comptabilité ' +
       'rembourse par virement et ne peut pas traiter une note sans lui. Votre saisie est ' +
       'conservée pendant ce temps.',
     ribRequisAction: 'Déposer mon RIB',
