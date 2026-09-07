@@ -12,9 +12,11 @@ par inadvertance, et une liste de destinataires se relit avant, pas apres.
 Deux relances, cumulables :
 
 ``--rib``
-    Aux benevoles dont l'espace ne porte **aucun** releve d'identite bancaire :
-    ni IBAN saisi, ni document depose. Sans RIB, la comptabilite ne peut pas
-    virer, et la note reste approuvee sans jamais etre payee.
+    Aux benevoles a qui il manque l'IBAN **ou** le document, exactement comme
+    `POST /expenses` l'exige — et le courriel nomme celui qui manque. Le critere
+    portait auparavant sur l'absence des DEUX : le compte qui avait depose sa
+    photo sans jamais saisir son IBAN n'etait donc jamais relance, alors que
+    c'est precisement lui que le depot refuse.
 
 ``--commentaires``
     A ceux dont une note porte un commentaire de la comptabilite qu'ils n'ont
@@ -85,29 +87,88 @@ def _comptes_actifs(db: Session, noms: list[str]) -> list[Admin]:
     return retenus
 
 
-def _sans_rib(compte: Admin) -> bool:
-    return not (compte.rib or "").strip() and not compte.rib_document_nom
+def _sans_iban(compte: Admin) -> bool:
+    return not (compte.rib or "").strip()
+
+
+def _sans_document(compte: Admin) -> bool:
+    """Meme critere que le depot : le FORMAT compte, pas seulement la presence.
+
+    On lisait `rib_document_nom`, alors que `POST /expenses` exige
+    `rib_document_type == "application/pdf"`. Un document reste en image — depot
+    ancien, conversion echouee a la migration — portait bien un nom : le compte
+    passait donc la relance, et se faisait refuser au depot. Relancer sur un
+    critere plus laxiste que celui qui bloque, c'est promettre que tout va bien
+    a quelqu'un qui sera arrete cinq minutes plus tard.
+    """
+    return (compte.rib_document_type or "") != "application/pdf"
+
+
+def _manques(compte: Admin) -> list[str]:
+    """Ce qui manque a ce compte, dans les termes du depot. Vide = rien."""
+    manques = []
+    if _sans_iban(compte):
+        manques.append("iban")
+    if _sans_document(compte):
+        manques.append("document")
+    return manques
+
+
+# Ce que le courriel dit, selon ce qui manque. L'ancienne version n'avait qu'un
+# seul texte, et un seul critere : « ni IBAN ni document ». Elle laissait donc de
+# cote le cas le plus courant — celui qui a depose sa photo et n'a jamais saisi
+# son IBAN. C'est exactement le compte qui a fait remonter la plainte du
+# 2026-09-07 : bloque au depot, et jamais relance.
+_INTRODUCTION = {
+    ("iban", "document"): (
+        "Votre espace ne comporte pas encore de releve d'identite bancaire. "
+        "Sans lui, la comptabilite ne peut pas vous rembourser, meme une note "
+        "deja approuvee."
+    ),
+    ("iban",): (
+        "Votre IBAN n'est pas renseigne dans votre espace. Le document de votre "
+        "banque y figure bien, mais c'est l'IBAN qui sert au virement : sans "
+        "lui, la comptabilite ne peut pas vous rembourser."
+    ),
+    ("document",): (
+        "Le document de votre banque manque dans votre espace. Votre IBAN y est "
+        "bien renseigne, mais la comptabilite a besoin de la piece qui "
+        "l'atteste pour justifier le virement."
+    ),
+}
+
+_CONSIGNE = {
+    ("iban", "document"): (
+        "Rendez-vous dans « Notes de frais » puis l'onglet « Profil » : "
+        "renseignez votre IBAN et deposez le releve de votre banque. Il n'est "
+        "visible que par vous et la comptabilite."
+    ),
+    ("iban",): (
+        "Rendez-vous dans « Notes de frais » puis l'onglet « Profil » pour "
+        "renseigner votre IBAN. Il n'est visible que par vous et la comptabilite."
+    ),
+    ("document",): (
+        "Rendez-vous dans « Notes de frais » puis l'onglet « Profil » pour "
+        "deposer le releve de votre banque. Il n'est visible que par vous et la "
+        "comptabilite."
+    ),
+}
 
 
 def relancer_rib(db: Session, comptes: list[Admin], *, envoyer: bool) -> int:
-    vises = [c for c in comptes if _sans_rib(c)]
-    for compte in vises:
+    # Un manque OU l'autre : le depot exige les deux, la relance vise donc les
+    # deux. Le « et » d'origine ne retenait que les comptes entierement vides.
+    vises = [(c, tuple(m)) for c in comptes if (m := _manques(c))]
+    for compte, manque in vises:
         corps = composer(
             prenom=compte.prenom,
-            introduction=(
-                "Votre espace ne comporte pas encore de releve d'identite bancaire. "
-                "Sans lui, la comptabilite ne peut pas vous rembourser, meme une "
-                "note deja approuvee."
-            ),
+            introduction=_INTRODUCTION[manque],
             blocs=[("Compte", compte.full_name or compte.username)],
             conclusion=liens.avec_lien(
-                "Rendez-vous dans « Notes de frais » puis l'onglet « Profil » : "
-                "renseignez votre IBAN et deposez le document de votre banque "
-                "(PDF ou photo). Il n'est visible que par vous et la comptabilite.",
-                liens.lien_espace(compte.role, "profile"),
+                _CONSIGNE[manque], liens.lien_espace(compte.role, "profile")
             ),
         )
-        print(f"  RIB manquant  → {compte.username} <{compte.email}>")
+        print(f"  {' + '.join(manque):<16} → {compte.username} <{compte.email}>")
         if envoyer:
             outbox.enqueue(
                 db,
