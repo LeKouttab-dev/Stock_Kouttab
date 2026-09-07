@@ -79,13 +79,12 @@ export const ERROR_MESSAGES: Record<string, string> = {
   VAL_5011: 'Code-barres invalide (8 à 14 chiffres attendus).',
   // Le format ne regarde pas le déposant : le serveur convertit ce qu'il reçoit
   // (photo, HEIC, PNG, PDF). Réclamer un PDF envoyait chercher un convertisseur
-  // à celui qui n'a que son téléphone.
-  VAL_5012:
-    'Déposez votre RIB dans votre espace avant de soumettre une note de frais : ' +
-    'une photo de votre relevé suffit, nous le mettons en forme.',
-  VAL_5013:
-    'Renseignez votre IBAN dans votre espace avant de soumettre une note de frais : ' +
-    'c’est lui qui sert au virement, le document en est la preuve.',
+  // à celui qui n'a que son téléphone — et le préciser ici n'apporte rien de
+  // plus que la consigne elle-même.
+  VAL_5012: 'Déposez votre RIB sur votre espace avant de soumettre une note de frais.',
+  // Distinct du document : celui qui a déjà déposé sa photo doit comprendre que
+  // c'est l'IBAN qu'on lui demande, sans quoi il redépose la même photo.
+  VAL_5013: 'Renseignez votre IBAN sur votre espace avant de soumettre une note de frais.',
   VAL_5014:
     'Joignez au moins un justificatif : sans ticket ni facture, la comptabilité ne ' +
     'peut pas rembourser cette dépense.',

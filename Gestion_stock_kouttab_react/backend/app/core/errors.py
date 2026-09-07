@@ -267,8 +267,7 @@ ERROR_MESSAGES: dict[ErrorCode, tuple[int, str]] = {
         # `POST /users/me/rib-document`). Reclamer un PDF envoyait chercher un
         # convertisseur a celui qui n'a que son telephone — exactement la
         # personne que la conversion automatique etait censee depanner.
-        "Deposez votre RIB dans votre espace avant de soumettre une note de "
-        "frais : une photo de votre releve suffit, nous le mettons en forme.",
+        "Deposez votre RIB sur votre espace avant de soumettre une note de frais.",
     ),
     ErrorCode.IBAN_MANQUANT: (
         422,
@@ -276,8 +275,7 @@ ERROR_MESSAGES: dict[ErrorCode, tuple[int, str]] = {
         # au meme endroit mais pas du tout de la meme facon. Confondus sous un
         # seul libelle, celui qui avait deja depose sa photo redeposait la meme
         # photo en boucle sans comprendre ce qu'on lui reclamait.
-        "Renseignez votre IBAN dans votre espace avant de soumettre une note "
-        "de frais : c'est lui qui sert au virement, le document en est la preuve.",
+        "Renseignez votre IBAN sur votre espace avant de soumettre une note de frais.",
     ),
     ErrorCode.JUSTIFICATIF_MANQUANT: (
         422,

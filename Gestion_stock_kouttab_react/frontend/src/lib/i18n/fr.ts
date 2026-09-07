@@ -185,22 +185,16 @@ export const fr = {
     ribDocumentSupprime: 'RIB supprimé.',
     ribDocumentTelecharger: 'Télécharger le RIB',
     ribRequisTitre: 'Votre RIB est indispensable',
-    // Ce que le bénévole doit fournir, et rien de plus : le format est l'affaire
-    // du serveur, qui convertit tout dépôt en PDF (cf. `ribDocumentAide`).
-    ribRequisTexte:
-      'Une photo de votre relevé suffit, nous le mettons en forme. La comptabilité ' +
-      'rembourse par virement et ne peut pas traiter une note sans lui. Votre saisie est ' +
-      'conservée pendant ce temps.',
+    // La consigne, et rien de plus. Le format est l'affaire du serveur, qui
+    // convertit tout dépôt en PDF, et l'écran de profil le dit déjà là où c'est
+    // utile (`ribDocumentAide`) : le répéter ici alourdissait un encart dont on
+    // attend qu'il se lise d'un coup d'œil.
+    ribRequisTexte: 'Déposez votre RIB sur votre espace.',
     // L'IBAN est une autre chose que le document, et manque souvent seul : le
-    // dépôt de la photo se voit, la saisie de l'IBAN s'oublie.
-    ibanRequisTexte:
-      'Renseignez votre IBAN dans votre espace : c’est lui qui sert au virement, ' +
-      'le document que vous avez déposé en est la preuve. Votre saisie est conservée ' +
-      'pendant ce temps.',
-    ribRequisTexteLesDeux:
-      'Renseignez votre IBAN et déposez votre RIB — une photo de votre relevé suffit, ' +
-      'nous le mettons en forme. La comptabilité rembourse par virement et ne peut pas ' +
-      'traiter une note sans eux. Votre saisie est conservée pendant ce temps.',
+    // dépôt de la photo se voit, la saisie de l'IBAN s'oublie. Le message doit
+    // donc nommer précisément celui qui manque.
+    ibanRequisTexte: 'Renseignez votre IBAN sur votre espace.',
+    ribRequisTexteLesDeux: 'Renseignez votre IBAN et déposez votre RIB sur votre espace.',
     ticketRequisTexte:
       'Joignez au moins un justificatif : sans ticket ni facture, la comptabilité ne ' +
       'peut pas rembourser cette dépense.',
