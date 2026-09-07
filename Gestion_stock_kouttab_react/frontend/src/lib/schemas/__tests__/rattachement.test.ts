@@ -116,14 +116,17 @@ describe('note de frais — pôle sans événement', () => {
     expect(chemins(r)).toContain('id_categorie');
   });
 
-  it("exige la description de l'achat", () => {
+  it("n'exige pas de description : la catégorie dit déjà ce qui a été acheté", () => {
+    // Elle a été obligatoire un temps, sous les pôles sans événement. Le
+    // serveur ne l'a jamais réclamée, et le comptable la reçoit comme un
+    // simple commentaire : la contrainte bloquait le dépôt sans rien apporter.
     const r = expenseSchema.safeParse({
       ...NOTE_BASE,
       requiert_evenement: false,
       id_categorie: 3,
       commentaires: '   ',
     });
-    expect(chemins(r)).toContain('commentaires');
+    expect(r.success).toBe(true);
   });
 });
 

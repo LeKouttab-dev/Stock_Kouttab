@@ -27,6 +27,7 @@ from app.core.logger import get_logger
 from app.db.models import OutboundEmail
 from app.db.session import SessionLocal
 from app.services import email as email_service
+from app.services import liens
 
 
 logger = get_logger("outbox")
@@ -79,7 +80,11 @@ def enqueue(
         entity_id=entity_id,
         recipients=json.dumps(recipients, ensure_ascii=False),
         subject=subject[:255],
-        body=body,
+        # Le filet est pose ICI, et non a l'envoi : le corps mis en file est
+        # celui que relit l'ecran « Envois » de l'administration. Un lien ajoute
+        # plus tard n'y figurerait pas, et on chercherait pourquoi le courriel
+        # recu ne ressemble pas a celui qu'on relit.
+        body=liens.garantir_lien(body),
         attachments=json.dumps([str(p) for p in (attachments or [])], ensure_ascii=False),
         status=STATUS_PENDING,
         triggered_by=triggered_by,

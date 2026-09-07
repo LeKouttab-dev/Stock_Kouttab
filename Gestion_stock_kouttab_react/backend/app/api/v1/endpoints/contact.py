@@ -38,7 +38,7 @@ from app.schemas.contact import (
     StatutUpdate,
     TransfertIn,
 )
-from app.services import outbox
+from app.services import liens, outbox
 from app.services.email_layout import composer
 
 
@@ -77,12 +77,20 @@ def _prevenir(
             f"{conversation.user.full_name or conversation.user.username} "
             f"vous ecrit depuis l'application.\n\n{corps}"
         )
-        conclusion = "Repondez depuis l'espace « Nous contacter » de l'application."
+        conclusion = liens.avec_lien(
+            "Repondez depuis l'espace « Nous contacter » de l'application.",
+            liens.lien_espace(None, "contact"),
+        )
     else:
         destinataires = [conversation.user.email] if conversation.user.email else []
         prenom = conversation.user.prenom
         introduction = f"Vous avez une reponse a votre question.\n\n{corps}"
-        conclusion = "Retrouvez le fil dans l'espace « Nous contacter » de l'application."
+        # Lien choisi d'apres le COMPTE du demandeur, comme partout ailleurs :
+        # un BenevoleFrais n'a pas de mot de passe stock (cf. services/liens).
+        conclusion = liens.avec_lien(
+            "Retrouvez le fil dans l'espace « Nous contacter » de l'application.",
+            liens.lien_espace(getattr(conversation.user, "role", None), "contact"),
+        )
 
     outbox.enqueue(
         db,

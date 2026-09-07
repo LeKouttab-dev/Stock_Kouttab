@@ -276,7 +276,12 @@ Préfixe : `/api/v1`. Auth : header `Authorization: Bearer <jwt>` (sauf `/auth/*
 ### Users
 - `GET /users` — liste (Super Admin)
 - `GET /users/pending` — comptes en attente (Super Admin)
-- `PATCH /users/{id}/validate` — `active|rejected` (Super Admin)
+- `PATCH /users/{id}/validate` — `active|rejected` (Super Admin). Une acceptation
+  **prévient le demandeur** par la file (`kind="compte_valide"`), une seule fois :
+  la demande d'inscription prévenait les Super Admins, leur réponse ne prévenait
+  personne, et le demandeur restait devant un écran de connexion qui refusait son
+  mot de passe sans qu'il puisse l'apprendre autrement qu'en réessayant. Un refus
+  supprime le compte (comportement hérité) et n'envoie rien.
 - `PATCH /users/{id}/role` — changer rôle (Super Admin)
 - `DELETE /users/{id}` — supprimer (Super Admin)
 - `GET /users/me/profile` — profil + RIB
@@ -394,7 +399,7 @@ n'est écrite en dur, ni au back ni au front :
 | `Poles.requiert_evenement` | Le dépôt exige | Nom du PDF comptable |
 |---|---|---|
 | `true` — EV(T), EV(G), EV(J) | la **catégorie**, plus un événement (référentiel ou saisie libre) **et** sa date | `{Pôle}_{Événement}_{date événement}.pdf` |
-| `false` — Frais généraux, Institut, Halaqa, Séjour annuel, ESP-VT | la **catégorie** et une description de l'achat | `{Pôle}_{Catégorie}_{date dépense}.pdf` |
+| `false` — Frais généraux, Institut, Halaqa, Séjour annuel, ESP-VT | la **catégorie** seule | `{Pôle}_{Catégorie}_{date dépense}.pdf` |
 
 **La catégorie est demandée sous tous les pôles.** Elle était refusée sous les
 pôles événementiels, l'événement y tenant lieu de rattachement — mais
@@ -616,6 +621,39 @@ ne laisse personne — un seul compte porte les rôles, et c'est le déposant �
 `_destinataires_du_depot` retombe sur `COMPTA_EMAIL` : c'est une boîte, pas une
 personne, et elle peut être relevée par quelqu'un sans compte. Auparavant l'avis
 se perdait en silence (cf. `docs/08` §13).
+
+### Liens et rendu des courriels
+
+**Tout courriel porte une adresse absolue de l'application.** Les gabarits qui
+savent où envoyer leur lecteur posent la leur, adaptée au **compte** —
+`liens.lien_espace(role, page)` : un `BenevoleFrais` n'a pas de mot de passe
+stock, l'écran de connexion serait une impasse, sa porte est
+`gestion.lekouttab.fr/benevole`. Pour les autres, `liens.garantir_lien` est un
+filet posé dans `outbox.enqueue` **et** dans `email.composer_message` : un
+gabarit ajouté demain sans lien en hérite, un gabarit qui en pose un n'est pas
+touché. Jamais de jeton dans un courriel (60 s de vie, usage unique).
+
+Le filet vit dans `enqueue` **et** à l'envoi, à dessein : le corps mis en file
+est celui que relit *Administration > Envois*, il doit porter la même adresse
+que le message reçu.
+
+**Les courriels partent en `multipart/alternative`** (`services/email_html.py`) :
+les gabarits continuent d'écrire du **texte brut** — c'est la partie principale,
+celle qu'on relit dans l'écran « Envois » et celle que rendent les clients sans
+HTML —, et la doublure HTML en est déduite à l'envoi. Elle transforme les URL en
+`<a target="_blank" rel="noopener noreferrer">` et la ligne d'accès en bouton :
+une URL nue en texte seul n'est pas cliquable partout.
+
+**Pas de doublure HTML quand il y a des pièces jointes.** fastapi-mail accroche
+alors les pièces au `multipart/related` qui enveloppe l'alternative, et non à un
+`multipart/mixed` : les PDF du circuit comptable risqueraient de ne plus
+s'afficher, et c'est justement l'envoi où la pièce compte plus que le lien.
+
+**Ce qu'aucun format ne permet** : forcer le navigateur du système.
+L'application Gmail sur mobile ouvre les liens dans sa vue intégrée — c'est un
+réglage du lecteur (« Ouvrir les liens web dans Gmail »), pas de l'expéditeur.
+`target="_blank"` garantit seulement qu'un webmail ouvre un onglet plutôt que de
+remplacer la boîte de réception.
 
 ### Notifications
 - `GET /notifications/summary` — dossiers en attente pour l'utilisateur

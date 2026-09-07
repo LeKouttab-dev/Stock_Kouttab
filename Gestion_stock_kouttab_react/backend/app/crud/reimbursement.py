@@ -33,7 +33,7 @@ from app.core.reimbursement_options import (
     valider_moyen,
 )
 from app.db.models import Admin, Expense, Reimbursement
-from app.services import naming, outbox, reimbursement_doc
+from app.services import liens, naming, outbox, reimbursement_doc
 from app.services.email_layout import composer
 
 
@@ -354,9 +354,10 @@ def _mettre_en_file(
                     "Le justificatif est joint a ce message, en PDF et en tableur."
                 ),
                 blocs=details,
-                conclusion=(
+                conclusion=liens.avec_lien(
                     "Vous retrouvez ce justificatif a tout moment dans l'application, "
-                    "onglet « Remboursements » de vos notes de frais."
+                    "onglet « Remboursements » de vos notes de frais.",
+                    liens.lien_espace(benevole.role, "expenses"),
                 ),
             ),
         )

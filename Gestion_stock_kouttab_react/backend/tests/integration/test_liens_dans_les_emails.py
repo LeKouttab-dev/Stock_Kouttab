@@ -181,3 +181,24 @@ async def test_les_relances_du_worker_portent_aussi_le_bon_lien(
     dernier = captured_emails[-1]
     assert LIEN_GESTION in dernier.body
     assert f"{settings.frontend_url.rstrip('/')}/invoices/upload" not in dernier.body
+
+
+def test_un_envoi_mis_en_file_sans_lien_en_recoit_un(db_session):
+    """Filet de `outbox.enqueue` : un gabarit ajoute demain sans adresse ne
+    laissera pas son lecteur chercher le domaine de memoire.
+
+    Pose a la mise en file, et non a l'envoi : le corps stocke est celui que
+    relit l'ecran « Envois » de l'administration, il doit donc porter la meme
+    adresse que le courriel recu."""
+    from app.services import outbox
+
+    ligne = outbox.enqueue(
+        db_session,
+        kind="test_filet",
+        entity_type="test",
+        entity_id=1,
+        recipients=["quelqu-un@lekouttab.fr"],
+        subject="Un gabarit distrait",
+        body="Connectez-vous a l'application pour la suite.",
+    )
+    assert settings.frontend_url.rstrip("/") in ligne.body
