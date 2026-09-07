@@ -643,10 +643,11 @@ function SubmitExpenseTab({
             )}
           </div>
 
-          {/* Sous un pôle sans événement, la description prend la place que
-              l'événement occupait : c'est elle qui dit ce qui a été acheté. */}
+          {/* Description libre sous tous les pôles : la catégorie dit déjà ce
+              qui a été acheté, et le comptable la reçoit comme un commentaire.
+              L'exiger bloquait le dépôt sans rien apporter à l'imputation. */}
           <div className="space-y-1.5">
-            <Label htmlFor="commentaires" required={!requiertEvenement}>
+            <Label htmlFor="commentaires">
               {requiertEvenement ? fr.expenses.commentaires : fr.categories.description}
             </Label>
             <Textarea

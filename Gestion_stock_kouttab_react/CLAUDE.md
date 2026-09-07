@@ -399,7 +399,7 @@ n'est écrite en dur, ni au back ni au front :
 | `Poles.requiert_evenement` | Le dépôt exige | Nom du PDF comptable |
 |---|---|---|
 | `true` — EV(T), EV(G), EV(J) | la **catégorie**, plus un événement (référentiel ou saisie libre) **et** sa date | `{Pôle}_{Événement}_{date événement}.pdf` |
-| `false` — Frais généraux, Institut, Halaqa, Séjour annuel, ESP-VT | la **catégorie** et une description de l'achat | `{Pôle}_{Catégorie}_{date dépense}.pdf` |
+| `false` — Frais généraux, Institut, Halaqa, Séjour annuel, ESP-VT | la **catégorie** seule | `{Pôle}_{Catégorie}_{date dépense}.pdf` |
 
 **La catégorie est demandée sous tous les pôles.** Elle était refusée sous les
 pôles événementiels, l'événement y tenant lieu de rattachement — mais

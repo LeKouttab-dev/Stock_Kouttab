@@ -14,9 +14,12 @@ import { EXPENSE_STATUS } from '../constants';
  * Ce que le pôle commande en plus, précisément :
  * - **pôle événementiel** → un événement (identifiant HelloAsso ou saisie libre
  *   pour ce qui n'existe pas chez eux) et sa date ;
- * - **tout autre pôle** → une description de l'achat, qui prend la place que
- *   l'événement occupait. Une dépense du local n'a pas d'événement, et en
- *   exiger un obligeait à en inventer.
+ * - **tout autre pôle** → rien de plus. Une dépense du local n'a pas
+ *   d'événement, et en exiger un obligeait à en inventer.
+ *
+ * La **description reste libre partout** : la catégorie dit déjà ce qui a été
+ * acheté, et le serveur ne l'a jamais réclamée. L'exiger bloquait le dépôt sur
+ * un champ que le comptable reçoit comme un simple commentaire.
  *
  * `requiert_evenement` est un champ technique, recopié depuis le pôle
  * sélectionné : Zod valide un objet et ne connaît pas le référentiel des pôles.
@@ -64,15 +67,6 @@ export const expenseSchema = z
           message: "Date de l'événement obligatoire",
         });
       }
-      return;
-    }
-
-    if (!v.commentaires?.trim()) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['commentaires'],
-        message: "Décrivez l'achat",
-      });
     }
   });
 
