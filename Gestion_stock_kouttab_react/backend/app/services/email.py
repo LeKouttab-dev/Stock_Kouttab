@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Iterable
 
 from fastapi_mail import ConnectionConfig, FastMail, MessageSchema, MessageType
+from fastapi_mail.schemas import MultipartSubtypeEnum
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -16,6 +17,7 @@ from app.core.errors import ErrorCode
 from app.core.exceptions import AppException
 from app.core.logger import get_logger
 from app.crud.user import get_emails_by_roles
+from app.services import email_html
 from app.services import email_layout
 from app.services import liens
 
@@ -144,6 +146,55 @@ def verifier_smtp(timeout: float = 10.0) -> tuple[bool, str | None]:
     return True, None
 
 
+def composer_message(
+    subject: str,
+    body: str,
+    recipients: list[str],
+    *,
+    html: bool = False,
+    attachments: Sequence[Path] | None = None,
+) -> MessageSchema:
+    """Assemble le message a remettre au serveur SMTP.
+
+    Separee de :func:`_send_raw` pour rester verifiable : la suite de tests
+    remplace l'envoi en entier, et sans cette fonction rien ne pourrait relire
+    ce qui part reellement.
+    """
+    pieces = [str(p) for p in (attachments or [])]
+    # Filet : le corps porte une adresse d'application, meme quand le gabarit a
+    # oublie d'en poser une (cf. services/liens).
+    corps = body if html else liens.garantir_lien(body)
+
+    # Doublure HTML : une URL nue en texte seul n'est pas cliquable partout, et
+    # le lecteur en est reduit a recopier le domaine a la main. Le texte reste
+    # la partie principale — c'est lui qu'on relit dans l'ecran « Envois », et
+    # celui que rendent les clients qui ignorent le HTML.
+    #
+    # PAS quand il y a des pieces jointes : fastapi-mail les accroche alors au
+    # `multipart/related` qui enveloppe l'alternative, et non a un
+    # `multipart/mixed`. Les PDF du circuit comptable risqueraient de ne plus
+    # s'afficher — c'est justement l'envoi ou la piece compte plus que le lien.
+    doublure = (
+        {}
+        if html or pieces
+        else {
+            "alternative_body": email_html.en_html(corps),
+            "multipart_subtype": MultipartSubtypeEnum.alternative,
+        }
+    )
+
+    return MessageSchema(
+        subject=subject,
+        recipients=recipients,
+        body=corps,
+        subtype=MessageType.html if html else MessageType.plain,
+        # fastapi-mail nomme la piece jointe d'apres le fichier sur disque :
+        # c'est pourquoi les PDF sont copies sous leur nom definitif en amont.
+        attachments=pieces,
+        **doublure,
+    )
+
+
 async def _send_raw(
     subject: str,
     body: str,
@@ -198,14 +249,8 @@ async def _send_raw(
             detail="Serveur SMTP non configure (SMTP_HOST / SMTP_USER).",
         )
 
-    message = MessageSchema(
-        subject=subject,
-        recipients=rec_list,
-        body=body,
-        subtype=MessageType.html if html else MessageType.plain,
-        # fastapi-mail nomme la piece jointe d'apres le fichier sur disque :
-        # c'est pourquoi les PDF sont copies sous leur nom definitif en amont.
-        attachments=[str(p) for p in (attachments or [])],
+    message = composer_message(
+        subject, body, rec_list, html=html, attachments=attachments
     )
     try:
         await _mailer.send_message(message)
@@ -328,6 +373,7 @@ async def send_stock_alert(
         f"Quantite restante : {quantity}\n"
         f"Seuil d'alerte : {threshold}\n\n"
         "Merci de prevoir un reapprovisionnement.\n\n"
+        f"{liens.LIBELLE_ACCES} : {liens.lien_espace(None, 'stock')}\n\n"
         f"{email_layout.SIGNATURE}"
     )
     await _send(subject, body, recipients)
@@ -349,6 +395,7 @@ async def send_buvette_low_stock_alert(
         f"Quantite restante : {quantity}\n"
         f"Seuil d'alerte : {threshold}\n\n"
         "Merci de prevoir un reapprovisionnement avant la prochaine vente HelloAsso.\n\n"
+        f"{liens.LIBELLE_ACCES} : {liens.lien_espace(None, 'buvette')}\n\n"
         f"{email_layout.SIGNATURE}"
     )
     await _send(subject, body, recipients)
@@ -384,6 +431,7 @@ async def send_new_expense_notification(
         f"Montant : {amount:.2f} EUR\n"
         f"Rattachement : {rattachement or '-'}\n\n"
         "Vous pouvez la consulter et la valider dans l'application.\n\n"
+        f"{liens.LIBELLE_ACCES} : {liens.lien_espace(None, 'expenses/validate')}\n\n"
         f"{email_layout.SIGNATURE}"
     )
     await _send(subject, body, recipients)
@@ -412,6 +460,7 @@ async def send_invoice_notification(
         f"Depose par : {user_full_name}\n"
         f"Commentaire : {comment or 'Aucun'}\n\n"
         "Connectez-vous a l'application pour la consulter.\n\n"
+        f"{liens.LIBELLE_ACCES} : {liens.lien_espace(None, 'invoices')}\n\n"
         f"{email_layout.SIGNATURE}"
     )
     await _send(subject, body, recipients)
@@ -570,6 +619,7 @@ async def send_new_account_request(
             f"Identifiant : {username}\n"
             f"Adresse e-mail : {email or 'non renseignee'}\n\n"
             "La demande est en attente dans Administration > Comptes a valider.\n\n"
+            f"{liens.LIBELLE_ACCES} : {liens.lien_espace(None, 'admin')}\n\n"
             f"{email_layout.SIGNATURE}"
         ),
         destinataires,

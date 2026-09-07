@@ -45,7 +45,7 @@ from sqlalchemy.orm import Session  # noqa: E402
 from app.core.logger import get_logger  # noqa: E402
 from app.db.models import Admin, Expense  # noqa: E402
 from app.db.session import SessionLocal  # noqa: E402
-from app.services import outbox  # noqa: E402
+from app.services import liens, outbox  # noqa: E402
 from app.services.email_layout import composer  # noqa: E402
 
 
@@ -100,10 +100,11 @@ def relancer_rib(db: Session, comptes: list[Admin], *, envoyer: bool) -> int:
                 "note deja approuvee."
             ),
             blocs=[("Compte", compte.full_name or compte.username)],
-            conclusion=(
+            conclusion=liens.avec_lien(
                 "Rendez-vous dans « Notes de frais » puis l'onglet « Profil » : "
                 "renseignez votre IBAN et deposez le document de votre banque "
-                "(PDF ou photo). Il n'est visible que par vous et la comptabilite."
+                "(PDF ou photo). Il n'est visible que par vous et la comptabilite.",
+                liens.lien_espace(compte.role, "profile"),
             ),
         )
         print(f"  RIB manquant  → {compte.username} <{compte.email}>")
@@ -160,10 +161,11 @@ def relancer_commentaires(db: Session, comptes: list[Admin], *, envoyer: bool) -
                 f"{'une de vos notes de frais' if len(notes) == 1 else 'plusieurs de vos notes de frais'} :"
                 f"\n\n{detail}"
             ),
-            conclusion=(
+            conclusion=liens.avec_lien(
                 "Retrouvez-les dans « Notes de frais », onglet « Mes demandes ». "
                 "Repondez depuis l'espace « Nous contacter » si un point reste "
-                "obscur."
+                "obscur.",
+                liens.lien_espace(compte.role, "expenses"),
             ),
         )
         print(f"  {len(notes)} commentaire(s) → {compte.username} <{compte.email}>")

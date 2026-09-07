@@ -19,7 +19,7 @@ from app.core.config import settings
 from app.core.logger import get_logger
 from app.db.models import Expense, Invoice, OutboundEmail
 from app.services import files as files_service
-from app.services import naming, outbox, pdf
+from app.services import liens, naming, outbox, pdf
 
 
 logger = get_logger("compta_dispatch")
@@ -143,6 +143,7 @@ def prepare_invoice_dispatch(
             f"Commentaire   : {invoice.commentaire or '-'}\n\n"
             "Piece(s) jointe(s) :\n"
             + "\n".join(f"  - {p.name}" for p in batch)
+            + f"\n\n{liens.LIBELLE_ACCES} : {liens.lien_espace(None, 'invoices')}"
             + "\n\nCordialement,\nLe Kouttab — gestion des stocks."
         )
         rows.append(
@@ -211,6 +212,7 @@ def prepare_expense_dispatch(
             f"Commentaires  : {expense.commentaires or '-'}\n\n"
             "Ticket(s) joint(s) :\n"
             + "\n".join(f"  - {p.name}" for p in batch)
+            + f"\n\n{liens.LIBELLE_ACCES} : {liens.lien_espace(None, 'expenses/validate')}"
             + "\n\nCordialement,\nLe Kouttab — gestion des stocks."
         )
         rows.append(

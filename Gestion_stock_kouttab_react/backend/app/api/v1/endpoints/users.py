@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, Response, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Response, UploadFile
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_roles
 from app.core.errors import ErrorCode
 from app.core.exceptions import AppException
+from app.core.logger import get_logger
 from app.crud import user as user_crud
 from app.db.models import Admin
 from app.db.session import get_db
@@ -21,8 +22,11 @@ from app.schemas.user import (
     UserRoleUpdate,
     UserValidate,
 )
+from app.services import email_layout, liens, outbox
 from app.services.files import lire_en_memoire
 
+
+logger = get_logger("users")
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -170,7 +174,13 @@ def download_rib_document(
     response_model=UserOut,
     dependencies=[Depends(require_roles("Super Admin"))],
 )
-def validate_user(user_id: int, payload: UserValidate, db: Session = Depends(get_db)) -> Any:
+def validate_user(
+    user_id: int,
+    payload: UserValidate,
+    background: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: Admin = Depends(get_current_user),
+) -> Any:
     if payload.validation_status == "rejected":
         # Reject = delete (legacy behaviour).
         user_crud.delete_user(db, user_id)
@@ -180,8 +190,66 @@ def validate_user(user_id: int, payload: UserValidate, db: Session = Depends(get
             role="Benevole",
             validation_status="rejected",
         )
+    # Le statut d'avant : accepter deux fois le meme compte ne doit pas lui
+    # renvoyer une deuxieme fois « votre compte vient d'etre valide ».
+    avant = user_crud.get_user(db, user_id)
+    deja_actif = avant is not None and avant.validation_status == "active"
+
     user = user_crud.update_validation_status(db, user_id, payload.validation_status)
+
+    if not deja_actif:
+        _annoncer_l_acces(db, user, background, valide_par=current_user.id)
     return UserOut.model_validate(user)
+
+
+def _annoncer_l_acces(
+    db: Session, user: Admin, background: BackgroundTasks, *, valide_par: int
+) -> None:
+    """Previent le demandeur que son compte est ouvert.
+
+    Rien ne partait : la demande d'inscription prevenait les Super Admins, leur
+    reponse ne prevenait personne. Le demandeur restait devant un ecran de
+    connexion qui refusait son mot de passe — le compte n'etait plus `pending`,
+    mais il n'avait aucun moyen de l'apprendre autrement qu'en reessayant au
+    hasard. C'est arrive a un benevole valide le 2026-09-07.
+
+    Par la file, et non en envoi tolerant : c'est le seul message que recoit le
+    demandeur, et un SMTP coupe le ferait disparaitre sans laisser de trace. La
+    ligne apparait alors dans Administration > Envois, et se relance.
+    """
+    if not user.email:
+        logger.info(
+            "Compte %s valide sans courriel d'annonce : aucune adresse au dossier.",
+            user.username,
+        )
+        return
+
+    envoi = outbox.enqueue(
+        db,
+        kind="compte_valide",
+        entity_type="user",
+        entity_id=user.id,
+        recipients=[user.email],
+        subject="Votre compte Le Kouttâb est actif",
+        body=email_layout.composer(
+            prenom=user.prenom,
+            introduction=(
+                "Votre demande de compte a ete acceptee : vous pouvez des "
+                "maintenant vous connecter avec l'identifiant et le mot de passe "
+                "choisis lors de votre inscription."
+            ),
+            blocs=[("Identifiant", user.username), ("Role", user.role)],
+            # Le lien depend du COMPTE : un BenevoleFrais n'a pas de mot de passe
+            # stock, l'ecran de connexion serait une impasse (cf. services/liens).
+            conclusion=liens.avec_lien(
+                "Si le mot de passe ne vous revient pas, utilisez « Mot de passe "
+                "oublie » depuis l'ecran de connexion.",
+                liens.lien_espace(user.role, "login"),
+            ),
+        ),
+        triggered_by=valide_par,
+    )
+    background.add_task(outbox.try_send_now, envoi.id)
 
 
 @router.patch(
