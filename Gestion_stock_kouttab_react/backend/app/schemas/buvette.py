@@ -124,6 +124,9 @@ class CaisseProduitOut(BaseModel):
     price_cents: int
     category: CaisseCategory
     emoji: str | None = None
+    # Photo de l'article (celle de la boutique HelloAsso). La tablette la garde
+    # en cache et reprend l'emoji quand elle manque ou ne se charge pas.
+    image_url: str | None = None
     quantity: int
     low_stock: bool
 

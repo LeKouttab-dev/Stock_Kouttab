@@ -792,6 +792,9 @@ sa fiche.
 - `GET /buvette/caisse/catalogue` et `POST /buvette/caisse/ventes`, protégés par
   la clé `CAISSE_API_KEY` (en-tête `X-Caisse-Key`), sans session. Clé vide côté
   serveur = 404, mauvaise clé = 401.
+- Le catalogue porte la photo de chaque produit (`image_url`, reprise de la
+  boutique HelloAsso à la synchronisation) : la tablette la garde en cache et
+  affiche l'emoji quand il n'y en a pas.
 - Une vente renvoyée (même `transaction_id`) répond 200 `already_recorded` sans
   décrémenter : la tablette renvoie tant qu'elle n'a pas de réponse.
 - Un total différent de la somme des lignes est refusé (422) sans rien écrire.

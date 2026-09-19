@@ -205,6 +205,7 @@ def caisse_catalogue(request: Request, db: Session = Depends(get_db)) -> Any:
                 price_cents=p.price_cents,
                 category=p.caisse_category,
                 emoji=p.emoji,
+                image_url=p.image_url,
                 quantity=p.quantity,
                 low_stock=p.low_stock,
             )
