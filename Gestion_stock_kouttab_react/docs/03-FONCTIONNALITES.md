@@ -784,7 +784,7 @@ le 2026-09-19, **les ventes passent par une tablette de caisse** (app Android
 et envoie chaque vente payée, qui décrémente le stock. Le webhook HelloAsso de
 la boutique reste en place. Les produits se créent à la main, au scanner, ou se
 synchronisent depuis la boutique HelloAsso ; un produit n'est vendu par la
-tablette qu'une fois rangé dans un **onglet** (Sucré-salé, Boissons, Café) depuis
+tablette qu'une fois rangé dans un **onglet** (Sucré-salé, Boissons, Café, Épicerie) depuis
 sa fiche.
 
 ### Caisse : la tablette

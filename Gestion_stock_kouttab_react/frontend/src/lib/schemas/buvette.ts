@@ -7,7 +7,7 @@ import type { CaisseCategory } from '@/types/api';
  * `aucun` tient lieu de `null` : une liste déroulante Radix refuse une valeur
  * vide. La conversion se fait à l'envoi, par `ongletVersCategorie`.
  */
-export const ONGLETS_CAISSE = ['aucun', 'sucre_sale', 'boissons', 'cafe'] as const;
+export const ONGLETS_CAISSE = ['aucun', 'sucre_sale', 'boissons', 'cafe', 'epicerie'] as const;
 export type OngletCaisse = (typeof ONGLETS_CAISSE)[number];
 
 export function ongletVersCategorie(onglet: OngletCaisse): CaisseCategory | null {

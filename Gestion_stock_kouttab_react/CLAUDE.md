@@ -189,7 +189,7 @@ Gestion_stock_kouttab_react/
 | **TicketsJustificatif** | Demande de pièce manquante : `libelle` (seul obligatoire), `montant_attendu`, `date_achat`, `fournisseur`, `statut` (`ouvert`·`clos`·`annule`), `rappels_envoyes`, `dernier_rappel_at` | `id_user`, `cree_par`, `closed_by`, `id_facture → Factures.id` |
 | **Remboursements** | Un versement à un bénévole soldant N notes : `date_remboursement`, `moyen`, `etablissement`, `approuve_par`, `montant_total` (**instantané**), `chemin_pdf`, `chemin_xlsx` | `id_user`, `cree_par → Admins.id` |
 | **CategoriesDepense** | Référentiel administrable de la **nature des dépenses**, demandée sous tous les pôles (`Courses`, `Stock goûter`, `Achat buvette`, `Achat matériel`, `Mobilier, immobilier et petit équipement`, `Fournitures administratives`, `Entretien`, `Réceptions (repas, déplacements, nourriture)`, `Autre`) : `nom` UNIQUE, `is_default`, `is_active`, `ordre` — `Autre` porte `ordre = 99` pour rester en fin de liste | — |
-| **BuvetteProducts** | Produits de la buvette (saisis, scannés ou synchronisés HelloAsso) : `helloasso_tier_id` UNIQUE, `name`, `price_cents`, `quantity`, `seuil_alerte`, `emoji`, `image_url`, `alert_sent`, `last_synced_at`, `is_active`, **`caisse_category`** (onglet de la tablette `sucre_sale`·`boissons`·`cafe` ; NULL = absent de la tablette) | — |
+| **BuvetteProducts** | Produits de la buvette (saisis, scannés ou synchronisés HelloAsso) : `helloasso_tier_id` UNIQUE, `name`, `price_cents`, `quantity`, `seuil_alerte`, `emoji`, `image_url`, `alert_sent`, `last_synced_at`, `is_active`, **`caisse_category`** (onglet de la tablette `sucre_sale`·`boissons`·`cafe`·`epicerie` ; NULL = absent de la tablette) | — |
 | **Conversations** | Fil de discussion : `id_user` (auteur), `destinataire` (`compta`·`admin`), `sujet`, `statut` (`ouverte`·`en_cours`·`traitee`), `attente_equipe`, `non_lu_demandeur` (**dénormalisés**, cf. §6) | `id_user`, `closed_by` |
 | **ConversationMessages** | Un message : `corps`, `auteur_nom` et `de_l_equipe` **figés à l'écriture** — un compte supprimé laisserait des messages anonymes, un bénévole promu comptable ferait passer ses anciennes questions pour des réponses | `id_conversation` (CASCADE), `id_auteur` |
 | **BuvetteSales** | Log idempotent des ventes : **`source`** (`helloasso`·`caisse`), `helloasso_order_id`, `helloasso_payment_id`, `helloasso_item_id`, `caisse_tx_id` (id de transaction de la tablette), `caisse_line`, `sumup_tx_code`, snapshot `product_name_snapshot`, `quantity_sold`, `amount_cents`, infos client, `raw_event` JSON | `buvette_product_id → BuvetteProducts.id` (SET NULL) ; UNIQUE (`helloasso_payment_id`, `helloasso_item_id`) ; UNIQUE (`caisse_tx_id`, `caisse_line`) |
@@ -1030,7 +1030,7 @@ personne : c'est la tablette qui appelle l'API.
   entières, un jeton de 30 minutes la déconnecterait en plein service. Clé vide
   = routes en 404 (même parti que le passage signé). Mauvaise clé = 401.
 - **Catalogue** : un produit n'apparaît sur la tablette que s'il est actif **et**
-  rangé dans un onglet (`caisse_category`), réglé dans la fiche produit
+  rangé dans un onglet (`caisse_category` : Sucré-salé, Boissons, Café, Épicerie), réglé dans la fiche produit
   (`AdjustStockModal`, `CreateProductModal`). Les produits importés de HelloAsso
   arrivent sans onglet.
 - **Idempotence** : `transaction_id` est le `foreignTransactionId` transmis à

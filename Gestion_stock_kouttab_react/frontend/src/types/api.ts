@@ -415,7 +415,7 @@ export interface ApiError {
 /* Buvette (tablette de caisse SumUp, et boutique HelloAsso) */
 
 /** Onglet de la tablette de caisse ; `null` = produit absent de la tablette. */
-export type CaisseCategory = 'sucre_sale' | 'boissons' | 'cafe';
+export type CaisseCategory = 'sucre_sale' | 'boissons' | 'cafe' | 'epicerie';
 
 export interface BuvetteProduct {
   id: number;

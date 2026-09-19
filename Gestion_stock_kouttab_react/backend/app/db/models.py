@@ -916,7 +916,7 @@ class BuvetteProduct(Base):
         String(32), nullable=True, unique=True, index=True
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    # Onglet de la tablette de caisse : `sucre_sale`, `boissons` ou `cafe`.
+    # Onglet de la tablette de caisse : `sucre_sale`, `boissons`, `cafe` ou `epicerie`.
     # NULL = absent de la tablette. Les produits importes de HelloAsso arrivent
     # sans categorie : c'est ce qui permet de choisir ce que la caisse vend.
     caisse_category: Mapped[str | None] = mapped_column(String(20), nullable=True)

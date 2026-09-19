@@ -592,6 +592,7 @@ export const fr = {
       sucre_sale: 'Sucré-salé',
       boissons: 'Boissons',
       cafe: 'Café',
+      epicerie: 'Épicerie',
     },
     surLaTablette: 'Tablette',
     soldAt: 'Date de vente',

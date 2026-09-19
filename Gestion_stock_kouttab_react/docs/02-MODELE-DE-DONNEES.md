@@ -343,7 +343,7 @@ uniquement par migration sont signalés en §4.3, anomalie A3.
   touche jamais), `seuil_alerte` (défaut 5), `emoji` (défaut 🥤), `image_url`,
   `barcode` (**UNIQUE**, indexé), `is_active`, `alert_sent`, `last_synced_at`,
   `caisse_category` (onglet de la tablette de caisse : `sucre_sale`,
-  `boissons`, `cafe` ; **NULL = absent de la tablette**, l'état de tout produit
+  `boissons`, `cafe`, `epicerie` ; **NULL = absent de la tablette**, l'état de tout produit
   importé de HelloAsso).
 - **FK** : aucune.
 - **Index** : `idx_buvette_prod_tier`, `idx_buvette_prod_active`.

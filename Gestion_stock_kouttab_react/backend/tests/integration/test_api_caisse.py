@@ -173,6 +173,10 @@ def test_la_categorie_de_caisse_se_regle_depuis_la_fiche_produit(
     assert reponse.status_code == 200
     assert reponse.json()["caisse_category"] == "cafe"
 
+    # Quatrième onglet, pour le miel et ce qui n'est pas un en-cas.
+    reponse = c.patch(f"/api/v1/buvette/products/{produit.id}", json={"caisse_category": "epicerie"})
+    assert reponse.json()["caisse_category"] == "epicerie"
+
     # Retirer de la tablette : repasser à null.
     reponse = c.patch(f"/api/v1/buvette/products/{produit.id}", json={"caisse_category": None})
     assert reponse.json()["caisse_category"] is None

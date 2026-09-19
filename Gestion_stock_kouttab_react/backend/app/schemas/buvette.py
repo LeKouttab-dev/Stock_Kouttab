@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field
 # Onglets de la tablette de caisse. Liste figee : chaque valeur correspond a un
 # onglet code dans l'application Android, une valeur inconnue n'y serait
 # affichee nulle part.
-CaisseCategory = Literal["sucre_sale", "boissons", "cafe"]
+CaisseCategory = Literal["sucre_sale", "boissons", "cafe", "epicerie"]
 
 
 # ---------------------------------------------------------------------------
