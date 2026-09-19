@@ -412,7 +412,11 @@ export interface ApiError {
   status?: number;
 }
 
-/* Buvette (HelloAsso) */
+/* Buvette (tablette de caisse SumUp, et boutique HelloAsso) */
+
+/** Onglet de la tablette de caisse ; `null` = produit absent de la tablette. */
+export type CaisseCategory = 'sucre_sale' | 'boissons' | 'cafe';
+
 export interface BuvetteProduct {
   id: number;
   helloasso_tier_id: number | null;
@@ -430,6 +434,8 @@ export interface BuvetteProduct {
   // `string | null` quand le backend le renvoie ; absent dans certaines fixtures
   // de test. Le champ est garanti côté backend.
   barcode?: string | null;
+  // Même remarque : garanti côté backend, absent des fixtures antérieures.
+  caisse_category?: CaisseCategory | null;
 }
 
 export interface BuvetteProductUpdate {
@@ -441,6 +447,8 @@ export interface BuvetteProductUpdate {
   description?: string | null;
   price_cents?: number;
   barcode?: string | null;
+  /** `null` retire le produit de la tablette ; absent = inchangé. */
+  caisse_category?: CaisseCategory | null;
 }
 
 export interface BuvetteProductCreate {
@@ -452,10 +460,15 @@ export interface BuvetteProductCreate {
   image_url?: string | null;
   helloasso_tier_id?: number | null;
   barcode?: string | null;
+  caisse_category?: CaisseCategory | null;
 }
 
 export interface BuvetteSale {
   id: number;
+  /** Absent des fixtures antérieures à la caisse : `helloasso` par défaut. */
+  source?: 'helloasso' | 'caisse';
+  caisse_tx_id?: string | null;
+  sumup_tx_code?: string | null;
   product_name_snapshot: string;
   quantity_sold: number;
   amount_cents: number;

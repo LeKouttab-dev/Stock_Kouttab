@@ -1,4 +1,4 @@
-import { Edit3, Link2, Trash2 } from 'lucide-react';
+import { Edit3, Link2, Tablet, Trash2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -59,11 +59,23 @@ export function BuvetteProductCard({
           {getStockBadge(product)}
         </div>
 
-        {isHelloAsso && (
-          <Badge variant="outline" className="w-fit text-[10px]">
-            <Link2 className="h-3.5 w-3.5" aria-hidden />
-            {fr.buvette.helloassoLink}
-          </Badge>
+        {(isHelloAsso || product.caisse_category) && (
+          <div className="flex flex-wrap gap-1.5">
+            {isHelloAsso && (
+              <Badge variant="outline" className="w-fit text-[10px]">
+                <Link2 className="h-3.5 w-3.5" aria-hidden />
+                {fr.buvette.helloassoLink}
+              </Badge>
+            )}
+            {/* Sans ce badge, rien ne distingue un produit vendu par la tablette
+                d'un produit qui n'y apparaît pas. */}
+            {product.caisse_category && (
+              <Badge variant="outline" className="w-fit text-[10px]">
+                <Tablet className="h-3.5 w-3.5" aria-hidden />
+                {fr.buvette.surLaTablette} : {fr.buvette.onglets[product.caisse_category]}
+              </Badge>
+            )}
+          </div>
         )}
 
         <div className="flex items-baseline justify-between rounded-md bg-muted/30 px-3 py-2">

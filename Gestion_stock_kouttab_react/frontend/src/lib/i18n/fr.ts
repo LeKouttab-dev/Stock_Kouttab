@@ -514,7 +514,9 @@ export const fr = {
   },
   buvette: {
     title: 'Buvette — Stock en temps réel',
-    subtitle: 'Stock synchronisé avec HelloAsso en temps réel',
+    // Les ventes passent désormais par la tablette de caisse : annoncer une
+    // synchronisation HelloAsso décrirait un circuit qui ne tourne plus.
+    subtitle: 'Stock décrémenté à chaque vente encaissée par la tablette de caisse',
     sync: 'Synchroniser depuis HelloAsso',
     syncing: 'Synchronisation en cours…',
     syncSuccess: (r: SyncResult) =>
@@ -554,7 +556,7 @@ export const fr = {
       'Le jeton fait partie de l’adresse : collez-la entière. Sans lui, les ventes ' +
       'seront refusées, et HelloAsso n’y verra rien.',
     webhookTitle: 'Configuration du webhook HelloAsso',
-    salesTitle: 'Ventes HelloAsso',
+    salesTitle: 'Ventes de la buvette',
     salesEmpty: 'Aucune vente enregistrée pour le moment.',
     backToBuvette: '← Retour à la buvette',
     totalProducts: 'Total produits',
@@ -579,7 +581,19 @@ export const fr = {
     lastSync: 'Dernière synchro',
     neverSynced: 'Jamais synchronisé',
     customer: 'Client',
-    orderId: 'Commande HelloAsso',
+    orderId: 'Origine',
+    origineCaisse: 'Caisse',
+    origineHelloasso: 'HelloAsso',
+    ongletCaisse: 'Onglet de la tablette de caisse',
+    ongletCaisseAide:
+      'Un produit sans onglet n’apparaît pas sur la tablette : il reste en stock, mais ne se vend pas.',
+    onglets: {
+      aucun: 'Pas sur la tablette',
+      sucre_sale: 'Sucré-salé',
+      boissons: 'Boissons',
+      cafe: 'Café',
+    },
+    surLaTablette: 'Tablette',
     soldAt: 'Date de vente',
     amount: 'Montant',
     qtySold: 'Qté',

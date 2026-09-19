@@ -13,8 +13,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useCreateBuvetteProduct } from '@/api/endpoints/buvette';
+import { OngletCaisseSelect } from '@/components/buvette/OngletCaisseSelect';
 import {
   createBuvetteProductSchema,
+  ongletVersCategorie,
   type CreateBuvetteProductFormValues,
 } from '@/lib/schemas/buvette';
 import { useToast } from '@/hooks/useToast';
@@ -40,6 +42,7 @@ export function CreateProductModal({ open, onOpenChange }: CreateProductModalPro
       seuil_alerte: 5,
       emoji: '🥤',
       helloasso_tier_id: null,
+      onglet_caisse: 'aucun',
     },
   });
 
@@ -56,6 +59,7 @@ export function CreateProductModal({ open, onOpenChange }: CreateProductModalPro
         seuil_alerte: values.seuil_alerte,
         emoji: values.emoji,
         helloasso_tier_id: values.helloasso_tier_id === undefined ? null : values.helloasso_tier_id,
+        caisse_category: ongletVersCategorie(values.onglet_caisse),
       },
       {
         onSuccess: () => {
@@ -176,6 +180,11 @@ export function CreateProductModal({ open, onOpenChange }: CreateProductModalPro
               {...form.register('helloasso_tier_id')}
             />
           </div>
+
+          <OngletCaisseSelect
+            value={form.watch('onglet_caisse')}
+            onChange={(onglet) => form.setValue('onglet_caisse', onglet, { shouldDirty: true })}
+          />
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

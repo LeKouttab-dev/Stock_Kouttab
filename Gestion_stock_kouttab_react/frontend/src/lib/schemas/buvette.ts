@@ -1,4 +1,22 @@
 import { z } from 'zod';
+import type { CaisseCategory } from '@/types/api';
+
+/**
+ * Onglet de la tablette de caisse, tel que le formulaire le manipule.
+ *
+ * `aucun` tient lieu de `null` : une liste déroulante Radix refuse une valeur
+ * vide. La conversion se fait à l'envoi, par `ongletVersCategorie`.
+ */
+export const ONGLETS_CAISSE = ['aucun', 'sucre_sale', 'boissons', 'cafe'] as const;
+export type OngletCaisse = (typeof ONGLETS_CAISSE)[number];
+
+export function ongletVersCategorie(onglet: OngletCaisse): CaisseCategory | null {
+  return onglet === 'aucun' ? null : onglet;
+}
+
+export function categorieVersOnglet(categorie: CaisseCategory | null | undefined): OngletCaisse {
+  return categorie ?? 'aucun';
+}
 
 /**
  * Schéma de création d'un produit buvette.
@@ -10,6 +28,7 @@ export const createBuvetteProductSchema = z.object({
   quantity: z.coerce.number().int().min(0, 'Doit être ≥ 0'),
   seuil_alerte: z.coerce.number().int().min(0, 'Doit être ≥ 0'),
   emoji: z.string().min(1, 'Emoji obligatoire').max(8),
+  onglet_caisse: z.enum(ONGLETS_CAISSE),
   helloasso_tier_id: z
     .preprocess(
       (v) => (v === '' || v === null || v === undefined ? null : Number(v)),
@@ -28,6 +47,7 @@ export const adjustBuvetteProductSchema = z.object({
   quantity: z.coerce.number().int().min(0, 'Doit être ≥ 0'),
   seuil_alerte: z.coerce.number().int().min(0, 'Doit être ≥ 0'),
   emoji: z.string().min(1, 'Emoji obligatoire').max(8),
+  onglet_caisse: z.enum(ONGLETS_CAISSE),
 });
 
 export type AdjustBuvetteProductFormValues = z.infer<typeof adjustBuvetteProductSchema>;

@@ -1,13 +1,13 @@
-"""Buvette / HelloAsso endpoints."""
+"""Buvette endpoints : produits, webhook HelloAsso, caisse de la tablette."""
 
 from __future__ import annotations
 
 import secrets
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import quote
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, Query, Request, Response
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_roles
@@ -15,6 +15,7 @@ from app.core.config import settings
 from app.core.errors import ErrorCode
 from app.core.exceptions import AppException
 from app.core.logger import get_logger
+from app.core.rate_limit import limiter
 from app.crud import buvette as buvette_crud
 from app.db.models import Admin
 from app.db.session import SessionLocal, get_db
@@ -24,6 +25,10 @@ from app.schemas.buvette import (
     BuvetteProductOut,
     BuvetteProductUpdate,
     BuvetteSaleOut,
+    CaisseCatalogueOut,
+    CaisseProduitOut,
+    CaisseVenteIn,
+    CaisseVenteOut,
     HelloAssoWebhookPayload,
     SyncResult,
     WebhookConfigureIn,
@@ -159,6 +164,87 @@ def list_sales(
         BuvetteSaleOut.model_validate(s)
         for s in buvette_crud.list_sales(db, limit=limit, offset=offset)
     ]
+
+
+# ---------------------------------------------------------------------------
+# Caisse (tablette SumUp — cle dediee, pas de session)
+# ---------------------------------------------------------------------------
+
+
+def _verifier_cle_caisse(
+    x_caisse_key: str | None = Header(default=None, alias="X-Caisse-Key"),
+) -> None:
+    """Seule protection de ces routes : elles decrementent le stock.
+
+    Cle absente du `.env` : la caisse n'existe pas (404), comme le passage
+    signe. Sans ce choix, une cle vide comparee a un en-tete vide ouvrirait la
+    porte. Comparaison en temps constant, sur des octets : `compare_digest`
+    leve sur une chaine non ASCII, qu'un appelant peut envoyer.
+    """
+    attendue = settings.caisse_api_key.strip()
+    if not attendue:
+        raise AppException(ErrorCode.NOT_FOUND)
+    if not secrets.compare_digest((x_caisse_key or "").encode(), attendue.encode()):
+        raise AppException(ErrorCode.TOKEN_INVALID)
+
+
+@router.get(
+    "/caisse/catalogue",
+    response_model=CaisseCatalogueOut,
+    dependencies=[Depends(_verifier_cle_caisse)],
+)
+# Un seul client, qui rafraichit toutes les 5 minutes et a chaque reprise :
+# la limite ne vise que l'abus d'une cle qui aurait fuite.
+@limiter.limit("120/minute")
+def caisse_catalogue(request: Request, db: Session = Depends(get_db)) -> Any:
+    return CaisseCatalogueOut(
+        products=[
+            CaisseProduitOut(
+                id=p.id,
+                name=p.name,
+                price_cents=p.price_cents,
+                category=p.caisse_category,
+                emoji=p.emoji,
+                quantity=p.quantity,
+                low_stock=p.low_stock,
+            )
+            for p in buvette_crud.list_caisse_catalogue(db)
+        ],
+        generated_at=datetime.now(timezone.utc),
+    )
+
+
+@router.post(
+    "/caisse/ventes",
+    response_model=CaisseVenteOut,
+    status_code=201,
+    dependencies=[Depends(_verifier_cle_caisse)],
+)
+@limiter.limit("120/minute")
+def caisse_vente(
+    request: Request,
+    response: Response,
+    vente: CaisseVenteIn,
+    background: BackgroundTasks,
+    db: Session = Depends(get_db),
+) -> Any:
+    """Une vente payee par SumUp : enregistree, et le stock decremente.
+
+    201 a la premiere reception, 200 quand la tablette renvoie une vente deja
+    connue. Les deux sont un succes pour elle : elle retire la vente de sa file.
+    """
+    deja, a_signaler = buvette_crud.record_caisse_sale(db, vente)
+    if deja:
+        response.status_code = 200
+    for produit in a_signaler:
+        background.add_task(
+            _send_buvette_alert_safe, produit.name, produit.quantity, produit.seuil_alerte
+        )
+    return CaisseVenteOut(
+        transaction_id=vente.transaction_id,
+        status="already_recorded" if deja else "recorded",
+        lines=len(vente.lines),
+    )
 
 
 # ---------------------------------------------------------------------------

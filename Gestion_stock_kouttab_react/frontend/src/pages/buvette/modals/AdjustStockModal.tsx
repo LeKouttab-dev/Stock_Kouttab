@@ -14,8 +14,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useUpdateBuvetteProduct } from '@/api/endpoints/buvette';
+import { OngletCaisseSelect } from '@/components/buvette/OngletCaisseSelect';
 import {
   adjustBuvetteProductSchema,
+  categorieVersOnglet,
+  ongletVersCategorie,
   type AdjustBuvetteProductFormValues,
 } from '@/lib/schemas/buvette';
 import { useToast } from '@/hooks/useToast';
@@ -36,7 +39,7 @@ export function AdjustStockModal({ open, onOpenChange, product }: AdjustStockMod
 
   const form = useForm<AdjustBuvetteProductFormValues>({
     resolver: zodResolver(adjustBuvetteProductSchema),
-    defaultValues: { quantity: 0, seuil_alerte: 0, emoji: '📦' },
+    defaultValues: { quantity: 0, seuil_alerte: 0, emoji: '📦', onglet_caisse: 'aucun' },
   });
 
   useEffect(() => {
@@ -45,14 +48,15 @@ export function AdjustStockModal({ open, onOpenChange, product }: AdjustStockMod
         quantity: product.quantity,
         seuil_alerte: product.seuil_alerte,
         emoji: product.emoji || '📦',
+        onglet_caisse: categorieVersOnglet(product.caisse_category),
       });
     }
   }, [product, form]);
 
-  const onSubmit = (values: AdjustBuvetteProductFormValues) => {
+  const onSubmit = ({ onglet_caisse, ...values }: AdjustBuvetteProductFormValues) => {
     if (!product) return;
     update.mutate(
-      { id: product.id, data: values },
+      { id: product.id, data: { ...values, caisse_category: ongletVersCategorie(onglet_caisse) } },
       {
         onSuccess: () => {
           toast.success(fr.buvette.productUpdated);
@@ -143,6 +147,11 @@ export function AdjustStockModal({ open, onOpenChange, product }: AdjustStockMod
               <p className="text-xs text-destructive">{form.formState.errors.emoji.message}</p>
             )}
           </div>
+
+          <OngletCaisseSelect
+            value={form.watch('onglet_caisse')}
+            onChange={(onglet) => form.setValue('onglet_caisse', onglet, { shouldDirty: true })}
+          />
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
