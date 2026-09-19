@@ -576,6 +576,32 @@ Super Admin (`buvette.py:345-354`, `buvette.py:391-399`) ; `GET
 
 ---
 
+## 6 bis. La clé de la tablette de caisse
+
+`GET /buvette/caisse/catalogue` et `POST /buvette/caisse/ventes` ne présentent
+aucune session : la tablette reste en caisse des journées entières, un jeton de
+30 minutes la déconnecterait en plein service. Leur seule protection est la clé
+`CAISSE_API_KEY`, envoyée dans l'en-tête `X-Caisse-Key` — et la seconde route
+**décrémente le stock**.
+
+- **Comparaison en temps constant, sur des octets** (`_verifier_cle_caisse`) :
+  `secrets.compare_digest` lève sur une chaîne non ASCII, qu'un appelant peut
+  envoyer.
+- **Clé vide = 404**, jamais une porte ouverte : une clé vide comparée à un
+  en-tête vide serait égale. Même parti que le passage signé.
+- **Refus de démarrer en production** si la clé fait moins de 32 caractères ou
+  reprend `JWT_SECRET_KEY` / `SSO_SHARED_SECRET` (`config.py`).
+- **Contrairement au webhook, les refus sont francs (401)** : l'appelant est
+  notre propre tablette, qui doit pouvoir afficher « clé refusée » plutôt que de
+  croire ses ventes enregistrées.
+- Limite de débit : 120 requêtes par minute et par route, pour un client unique
+  qui rafraîchit toutes les 5 minutes.
+- La clé est aussi dans le `local.properties` de l'app Android, donc dans l'APK :
+  quiconque récupère l'APK peut la lire. La changer = modifier le `.env` du VPS
+  **et** reconstruire l'APK.
+
+---
+
 ## 7. CORS et en-têtes
 
 ### CORS

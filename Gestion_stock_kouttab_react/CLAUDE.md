@@ -23,7 +23,7 @@ L'application gère :
 - **Factures** déposées par les bénévoles, traitées par la compta
 - **Utilisateurs** multi-rôles avec invitations email et validation admin
 - **Tableaux de bord** avec KPIs, alertes stock, historique
-- **Buvette synchronisée HelloAsso** : produits importés depuis la boutique HelloAsso, stock décrémenté automatiquement à chaque vente via webhook
+- **Buvette** : stock décrémenté à chaque vente encaissée par la **tablette de caisse** (app Android + terminal SumUp, cf. §12 bis) ; le webhook HelloAsso de la boutique reste en place
 
 ---
 
@@ -189,10 +189,10 @@ Gestion_stock_kouttab_react/
 | **TicketsJustificatif** | Demande de pièce manquante : `libelle` (seul obligatoire), `montant_attendu`, `date_achat`, `fournisseur`, `statut` (`ouvert`·`clos`·`annule`), `rappels_envoyes`, `dernier_rappel_at` | `id_user`, `cree_par`, `closed_by`, `id_facture → Factures.id` |
 | **Remboursements** | Un versement à un bénévole soldant N notes : `date_remboursement`, `moyen`, `etablissement`, `approuve_par`, `montant_total` (**instantané**), `chemin_pdf`, `chemin_xlsx` | `id_user`, `cree_par → Admins.id` |
 | **CategoriesDepense** | Référentiel administrable de la **nature des dépenses**, demandée sous tous les pôles (`Courses`, `Stock goûter`, `Achat buvette`, `Achat matériel`, `Mobilier, immobilier et petit équipement`, `Fournitures administratives`, `Entretien`, `Réceptions (repas, déplacements, nourriture)`, `Autre`) : `nom` UNIQUE, `is_default`, `is_active`, `ordre` — `Autre` porte `ordre = 99` pour rester en fin de liste | — |
-| **BuvetteProducts** | Produits de la buvette synchronisés HelloAsso : `helloasso_tier_id` UNIQUE, `name`, `price_cents`, `quantity`, `seuil_alerte`, `emoji`, `image_url`, `alert_sent`, `last_synced_at`, `is_active` | — |
+| **BuvetteProducts** | Produits de la buvette (saisis, scannés ou synchronisés HelloAsso) : `helloasso_tier_id` UNIQUE, `name`, `price_cents`, `quantity`, `seuil_alerte`, `emoji`, `image_url`, `alert_sent`, `last_synced_at`, `is_active`, **`caisse_category`** (onglet de la tablette `sucre_sale`·`boissons`·`cafe`·`epicerie` ; NULL = absent de la tablette) | — |
 | **Conversations** | Fil de discussion : `id_user` (auteur), `destinataire` (`compta`·`admin`), `sujet`, `statut` (`ouverte`·`en_cours`·`traitee`), `attente_equipe`, `non_lu_demandeur` (**dénormalisés**, cf. §6) | `id_user`, `closed_by` |
 | **ConversationMessages** | Un message : `corps`, `auteur_nom` et `de_l_equipe` **figés à l'écriture** — un compte supprimé laisserait des messages anonymes, un bénévole promu comptable ferait passer ses anciennes questions pour des réponses | `id_conversation` (CASCADE), `id_auteur` |
-| **BuvetteSales** | Log idempotent des ventes HelloAsso : `helloasso_order_id`, `helloasso_payment_id`, `helloasso_item_id`, snapshot `product_name_snapshot`, `quantity_sold`, `amount_cents`, infos client, `raw_event` JSON | `buvette_product_id → BuvetteProducts.id` (SET NULL) ; UNIQUE (`helloasso_payment_id`, `helloasso_item_id`) |
+| **BuvetteSales** | Log idempotent des ventes : **`source`** (`helloasso`·`caisse`), `helloasso_order_id`, `helloasso_payment_id`, `helloasso_item_id`, `caisse_tx_id` (id de transaction de la tablette), `caisse_line`, `sumup_tx_code`, snapshot `product_name_snapshot`, `quantity_sold`, `amount_cents`, infos client, `raw_event` JSON | `buvette_product_id → BuvetteProducts.id` (SET NULL) ; UNIQUE (`helloasso_payment_id`, `helloasso_item_id`) ; UNIQUE (`caisse_tx_id`, `caisse_line`) |
 
 **Énumérations (string)**
 - `Admins.role` : `Super Admin` · `AdminBenevoles` · `Compta` · `Benevole`
@@ -257,6 +257,8 @@ le démarrage en production. Les valeurs en clair héritées restent lisibles
 | Buvette — synchroniser produits HelloAsso | — | ✅ | — | ✅ |
 | Buvette — CRUD produits / ajuster stock | — | ✅ | — | ✅ |
 | Buvette — configurer/supprimer webhook HelloAsso | — | — | — | ✅ |
+| Buvette — ranger un produit dans un onglet de la tablette | — | ✅ | — | ✅ |
+| Caisse — lire le catalogue, envoyer une vente | clé `CAISSE_API_KEY` (la tablette), aucun rôle | | | |
 
 ---
 
@@ -715,6 +717,8 @@ remplacer la boîte de réception.
 - `GET /buvette/webhook/status` — statut du webhook côté HelloAsso (AdminBenevoles+)
 - `POST /buvette/webhook/configure` — enregistre l'URL du webhook chez HelloAsso (Super Admin)
 - `DELETE /buvette/webhook` — désinscrit le webhook (Super Admin)
+- `GET /buvette/caisse/catalogue` — produits actifs **et** rangés dans un onglet, pour la tablette (en-tête `X-Caisse-Key`)
+- `POST /buvette/caisse/ventes` — une vente payée par SumUp : enregistrée et stock décrémenté ; 201, ou 200 `already_recorded` si la tablette la renvoie (en-tête `X-Caisse-Key`)
 
 ---
 
@@ -866,6 +870,10 @@ HELLOASSO_CLIENT_ID=
 HELLOASSO_CLIENT_SECRET=
 HELLOASSO_ORG_SLUG=eclat-education-culture-langues-apprentissage-transmission
 HELLOASSO_BUVETTE_FORM_SLUG=buvette
+
+# Tablette de caisse (buvette encaissée par SumUp). Vide = routes /caisse en 404.
+# 32 caractères minimum en production, distincte des autres secrets.
+CAISSE_API_KEY=               # python -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 
 ### Frontend (`.env`)
@@ -1009,6 +1017,35 @@ HELLOASSO_BUVETTE_FORM_SLUG=buvette
 - `backend/app/db/models.py` — `BuvetteProduct`, `BuvetteSale`
 - `frontend/src/pages/buvette/*` — UI (liste produits, ventes, modals admin)
 - `frontend/src/api/endpoints/buvette.ts` — hooks TanStack
+
+## 12 bis. Caisse de la buvette (tablette SumUp)
+
+Depuis le 2026-09-19, **les ventes de la buvette passent par une tablette
+Android** reliée à un terminal SumUp (projet `Kouttab/buvette-app`, hors de ce
+dépôt), et non plus par la boutique HelloAsso. Un encaissement SumUp ne prévient
+personne : c'est la tablette qui appelle l'API.
+
+- **Authentification par clé** (`X-Caisse-Key` = `CAISSE_API_KEY`), comparée en
+  temps constant, et non par session : la tablette reste en caisse des journées
+  entières, un jeton de 30 minutes la déconnecterait en plein service. Clé vide
+  = routes en 404 (même parti que le passage signé). Mauvaise clé = 401.
+- **Catalogue** : un produit n'apparaît sur la tablette que s'il est actif **et**
+  rangé dans un onglet (`caisse_category` : Sucré-salé, Boissons, Café, Épicerie), réglé dans la fiche produit
+  (`AdjustStockModal`, `CreateProductModal`). Les produits importés de HelloAsso
+  arrivent sans onglet.
+- **Idempotence** : `transaction_id` est le `foreignTransactionId` transmis à
+  SumUp. UNIQUE (`caisse_tx_id`, `caisse_line`) ; une vente renvoyée répond 200
+  `already_recorded` sans toucher au stock. La tablette renvoie tant qu'elle n'a
+  pas de réponse : une coupure pendant la réponse est le cas normal.
+- **Total contrôlé** dans `crud.record_caisse_sale`, avant toute écriture (422
+  si `total_cents` ≠ somme des lignes). Pas dans un `model_validator` : le
+  gestionnaire des erreurs de validation ne sait pas sérialiser son exception.
+- **Rien ne bloque une vente payée** : produit inconnu (supprimé depuis le
+  dernier catalogue) = ligne gardée sans décrément ; stock arrêté à 0.
+- **Alerte de stock bas** : même courriel que pour HelloAsso, une seule fois
+  (`alert_sent`), envoyé en tâche de fond.
+- `get_sales_activity` **ne compte que `source = helloasso`** : c'est la preuve
+  que le webhook fonctionne, les ventes de la tablette la fausseraient.
 
 ---
 

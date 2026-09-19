@@ -1,4 +1,4 @@
-"""CRUD operations for Buvette products and HelloAsso-driven sales."""
+"""CRUD operations for Buvette products and sales (HelloAsso webhook and caisse)."""
 
 from __future__ import annotations
 
@@ -17,6 +17,7 @@ from app.db.models import BuvetteProduct, BuvetteSale
 from app.schemas.buvette import (
     BuvetteProductCreate,
     BuvetteProductUpdate,
+    CaisseVenteIn,
     SyncResult,
 )
 from app.utils.validators import validate_barcode
@@ -105,6 +106,7 @@ def create_product(db: Session, data: BuvetteProductCreate) -> BuvetteProduct:
         image_url=data.image_url,
         barcode=barcode_clean,
         is_active=data.is_active,
+        caisse_category=data.caisse_category,
     )
     db.add(product)
     try:
@@ -144,6 +146,9 @@ def update_product(
         product.image_url = payload["image_url"]
     if "is_active" in payload and payload["is_active"] is not None:
         product.is_active = payload["is_active"]
+    # `None` explicite est une valeur a part entiere : retirer de la tablette.
+    if "caisse_category" in payload:
+        product.caisse_category = payload["caisse_category"]
 
     barcode_clean: str | None = None
     if "barcode" in payload:
@@ -469,9 +474,14 @@ def get_sales_activity(db: Session) -> tuple[datetime | None, int]:
     Sert a savoir si le webhook HelloAsso fonctionne : une vente en base est,
     par construction, une notification recue. C'est la seule verification
     possible, HelloAsso ne permettant pas de relire l'URL enregistree.
+
+    Les ventes de la tablette sont exclues : elles ne passent pas par HelloAsso,
+    et les compter afficherait un webhook « actif » qui n'a jamais rien recu.
     """
     row = db.execute(
-        select(func.max(BuvetteSale.processed_at), func.count(BuvetteSale.id))
+        select(func.max(BuvetteSale.processed_at), func.count(BuvetteSale.id)).where(
+            BuvetteSale.source == "helloasso"
+        )
     ).one()
     return row[0], int(row[1] or 0)
 
@@ -484,3 +494,120 @@ def list_sales(db: Session, *, limit: int = 50, offset: int = 0) -> list[Buvette
         .offset(max(0, offset))
     )
     return list(db.execute(stmt).scalars().all())
+
+
+# ---------------------------------------------------------------------------
+# Caisse (tablette SumUp)
+# ---------------------------------------------------------------------------
+
+
+def list_caisse_catalogue(db: Session) -> list[BuvetteProduct]:
+    """Produits vendus par la tablette : actifs ET ranges dans un onglet."""
+    stmt = (
+        select(BuvetteProduct)
+        .where(
+            BuvetteProduct.is_active.is_(True),
+            BuvetteProduct.caisse_category.is_not(None),
+        )
+        .order_by(BuvetteProduct.caisse_category.asc(), BuvetteProduct.name.asc())
+    )
+    return list(db.execute(stmt).scalars().all())
+
+
+def record_caisse_sale(
+    db: Session, vente: CaisseVenteIn
+) -> tuple[bool, list[BuvetteProduct]]:
+    """Enregistre une vente de la tablette et decremente le stock.
+
+    Rend ``(deja_enregistree, produits_a_signaler)``. Le second element liste
+    les produits qui viennent de passer sous leur seuil : leur `alert_sent` est
+    deja leve, l'appelant n'a plus qu'a envoyer le courriel.
+
+    Idempotence : la tablette renvoie une vente tant qu'elle n'a pas recu de
+    reponse, et une coupure pendant la reponse est le cas normal d'un sous-sol.
+    Une transaction deja connue ne touche plus au stock.
+    """
+    # Avant toute ecriture. Un ecart signale une tablette dereglee : enregistrer
+    # quand meme graverait un chiffre d'affaires qui ne correspond a aucun
+    # encaissement.
+    detail = sum(l.quantity * l.unit_price_cents for l in vente.lines)
+    if detail != vente.total_cents:
+        raise AppException(
+            ErrorCode.VALIDATION_ERROR,
+            detail="Le total encaisse ne correspond pas au detail du panier.",
+            extras={"total_cents": vente.total_cents, "somme_des_lignes": detail},
+        )
+
+    deja = db.execute(
+        select(func.count(BuvetteSale.id)).where(
+            BuvetteSale.caisse_tx_id == vente.transaction_id
+        )
+    ).scalar_one()
+    if deja:
+        logger.info("Vente caisse %s deja enregistree : aucun decrement.", vente.transaction_id)
+        return True, []
+
+    ids = {l.product_id for l in vente.lines if l.product_id is not None}
+    # Une seule requete pour tout le panier : la base est distante.
+    produits = (
+        {p.id: p for p in db.execute(select(BuvetteProduct).where(BuvetteProduct.id.in_(ids))).scalars()}
+        if ids
+        else {}
+    )
+
+    # L'heure de la tablette, telle qu'elle l'affichait. On garde l'heure
+    # murale et on retire le decalage, comme le fait deja le pilote MySQL pour
+    # les ventes HelloAsso : l'ecran des ventes lit ces dates comme locales.
+    sold_at = vente.sold_at.replace(tzinfo=None) if vente.sold_at else None
+
+    touches: dict[int, BuvetteProduct] = {}
+    for rang, ligne in enumerate(vente.lines):
+        produit = produits.get(ligne.product_id) if ligne.product_id is not None else None
+        if ligne.product_id is not None and produit is None:
+            # Supprime cote stock depuis le dernier catalogue : l'argent est
+            # encaisse, la vente est gardee plutot que perdue.
+            logger.warning(
+                "Vente caisse %s : produit %s introuvable, ligne gardee sans decrement.",
+                vente.transaction_id,
+                ligne.product_id,
+            )
+        db.add(
+            BuvetteSale(
+                source="caisse",
+                caisse_tx_id=vente.transaction_id,
+                caisse_line=rang,
+                sumup_tx_code=vente.sumup_tx_code,
+                buvette_product_id=produit.id if produit else None,
+                product_name_snapshot=ligne.name[:255],
+                quantity_sold=ligne.quantity,
+                amount_cents=ligne.quantity * ligne.unit_price_cents,
+                sold_at=sold_at,
+            )
+        )
+        if produit is not None:
+            # Le comptage physique peut etre en retard sur les ventes : la vente
+            # passe, le stock s'arrete a zero.
+            produit.quantity = max(0, produit.quantity - ligne.quantity)
+            touches[produit.id] = produit
+
+    a_signaler: list[BuvetteProduct] = []
+    for produit in touches.values():
+        if produit.quantity < produit.seuil_alerte and not produit.alert_sent:
+            produit.alert_sent = True
+            a_signaler.append(produit)
+
+    try:
+        db.commit()
+    except IntegrityError:
+        # Deux envois simultanes de la meme vente : l'autre a gagne.
+        db.rollback()
+        logger.warning("Vente caisse %s : doublon concurrent ecarte.", vente.transaction_id)
+        return True, []
+
+    logger.info(
+        "Vente caisse %s enregistree : %d ligne(s), %d centimes.",
+        vente.transaction_id,
+        len(vente.lines),
+        vente.total_cents,
+    )
+    return False, a_signaler

@@ -774,14 +774,31 @@ AdminBenevoles et Super Admin) — `AdminPage.tsx:104-108`.
 
 ---
 
-## 12. Buvette (HelloAsso)
+## 12. Buvette (tablette de caisse et HelloAsso)
 
 ### Ce que ça permet
 
-Suivre le stock des produits de la buvette et l'historique des ventes. Les
-ventes arrivent en temps réel par un webhook HelloAsso, qui décrémente le stock.
-Les produits se synchronisent depuis la boutique HelloAsso, ou se créent à la
-main.
+Suivre le stock des produits de la buvette et l'historique des ventes. Depuis
+le 2026-09-19, **les ventes passent par une tablette de caisse** (app Android
+`Kouttab/buvette-app` reliée à un terminal SumUp) : elle lit son catalogue ici
+et envoie chaque vente payée, qui décrémente le stock. Le webhook HelloAsso de
+la boutique reste en place. Les produits se créent à la main, au scanner, ou se
+synchronisent depuis la boutique HelloAsso ; un produit n'est vendu par la
+tablette qu'une fois rangé dans un **onglet** (Sucré-salé, Boissons, Café, Épicerie) depuis
+sa fiche.
+
+### Caisse : la tablette
+
+- `GET /buvette/caisse/catalogue` et `POST /buvette/caisse/ventes`, protégés par
+  la clé `CAISSE_API_KEY` (en-tête `X-Caisse-Key`), sans session. Clé vide côté
+  serveur = 404, mauvaise clé = 401.
+- Une vente renvoyée (même `transaction_id`) répond 200 `already_recorded` sans
+  décrémenter : la tablette renvoie tant qu'elle n'a pas de réponse.
+- Un total différent de la somme des lignes est refusé (422) sans rien écrire.
+- Rien ne bloque une vente payée : produit supprimé entre-temps = ligne gardée
+  sans décrément ; le stock s'arrête à 0.
+- La liste des ventes affiche l'origine (Caisse + code SumUp, ou HelloAsso +
+  commande).
 
 ### Qui a le droit de quoi
 

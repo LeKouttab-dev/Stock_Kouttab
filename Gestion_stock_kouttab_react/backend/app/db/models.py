@@ -916,6 +916,10 @@ class BuvetteProduct(Base):
         String(32), nullable=True, unique=True, index=True
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Onglet de la tablette de caisse : `sucre_sale`, `boissons`, `cafe` ou `epicerie`.
+    # NULL = absent de la tablette. Les produits importes de HelloAsso arrivent
+    # sans categorie : c'est ce qui permet de choisir ce que la caisse vend.
+    caisse_category: Mapped[str | None] = mapped_column(String(20), nullable=True)
     alert_sent: Mapped[bool] = mapped_column(Boolean, default=False)
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -944,6 +948,11 @@ class BuvetteSale(Base):
         UniqueConstraint(
             "helloasso_payment_id", "helloasso_item_id", name="uq_sale_payment_item"
         ),
+        # Idempotence des ventes de la tablette : elle renvoie une vente tant
+        # qu'elle n'a pas recu de reponse. Les lignes HelloAsso laissent ces
+        # colonnes a NULL, qui ne se heurtent jamais dans un index unique.
+        # L'index de la contrainte sert aussi la recherche par transaction.
+        UniqueConstraint("caisse_tx_id", "caisse_line", name="uq_sale_caisse_tx_line"),
         Index("idx_buvette_sale_order", "helloasso_order_id"),
         Index("idx_buvette_sale_payment", "helloasso_payment_id"),
         Index("idx_buvette_sale_item", "helloasso_item_id"),
@@ -952,6 +961,16 @@ class BuvetteSale(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    # `helloasso` (webhook de la boutique) ou `caisse` (tablette SumUp).
+    source: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="helloasso", server_default="helloasso"
+    )
+    # Ventes de la tablette : l'identifiant de transaction qu'elle a genere
+    # (le `foreignTransactionId` transmis a SumUp), le rang de la ligne dans le
+    # panier, et le code rendu par SumUp pour le rapprochement bancaire.
+    caisse_tx_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    caisse_line: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    sumup_tx_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     helloasso_order_id: Mapped[int | None] = mapped_column(
         Integer, nullable=True, index=True
     )

@@ -8,6 +8,12 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 
+# Onglets de la tablette de caisse. Liste figee : chaque valeur correspond a un
+# onglet code dans l'application Android, une valeur inconnue n'y serait
+# affichee nulle part.
+CaisseCategory = Literal["sucre_sale", "boissons", "cafe", "epicerie"]
+
+
 # ---------------------------------------------------------------------------
 # Products
 # ---------------------------------------------------------------------------
@@ -36,6 +42,7 @@ class BuvetteProductCreate(BaseModel):
     barcode: str | None = Field(default=None, max_length=32)
     helloasso_tier_id: int | None = None
     is_active: bool = True
+    caisse_category: CaisseCategory | None = None
 
 
 class BuvetteProductUpdate(BaseModel):
@@ -48,6 +55,8 @@ class BuvetteProductUpdate(BaseModel):
     image_url: str | None = None
     barcode: str | None = Field(default=None, max_length=32)
     is_active: bool | None = None
+    # `null` explicite = retirer le produit de la tablette ; absent = inchange.
+    caisse_category: CaisseCategory | None = None
 
 
 class BuvetteProductOut(BaseModel):
@@ -62,6 +71,7 @@ class BuvetteProductOut(BaseModel):
     image_url: str | None = None
     barcode: str | None = None
     is_active: bool = True
+    caisse_category: CaisseCategory | None = None
     alert_sent: bool = False
     last_synced_at: datetime | None = None
     created_at: datetime | None = None
@@ -82,6 +92,9 @@ class BuvetteProductOut(BaseModel):
 
 class BuvetteSaleOut(BaseModel):
     id: int
+    source: Literal["helloasso", "caisse"] = "helloasso"
+    caisse_tx_id: str | None = None
+    sumup_tx_code: str | None = None
     helloasso_order_id: int | None = None
     helloasso_payment_id: int | None = None
     helloasso_item_id: int | None = None
@@ -96,6 +109,60 @@ class BuvetteSaleOut(BaseModel):
     processed_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# ---------------------------------------------------------------------------
+# Caisse (tablette SumUp)
+# ---------------------------------------------------------------------------
+
+
+class CaisseProduitOut(BaseModel):
+    """Ce que la tablette affiche d'un produit, et rien de plus."""
+
+    id: int
+    name: str
+    price_cents: int
+    category: CaisseCategory
+    emoji: str | None = None
+    quantity: int
+    low_stock: bool
+
+
+class CaisseCatalogueOut(BaseModel):
+    products: list[CaisseProduitOut]
+    generated_at: datetime
+
+
+class CaisseLigneIn(BaseModel):
+    """Une ligne du panier encaisse.
+
+    `product_id` peut viser un produit supprime depuis le dernier catalogue : la
+    vente est gardee sans decrement plutot que perdue. Le nom sert d'instantane.
+    """
+
+    product_id: int | None = None
+    name: str = Field(min_length=1, max_length=255)
+    quantity: int = Field(ge=1, le=100)
+    unit_price_cents: int = Field(ge=0, le=100_000)
+
+
+class CaisseVenteIn(BaseModel):
+    # Le `foreignTransactionId` transmis a SumUp : l'identifiant qui rend la
+    # vente idempotente. Alphabet restreint, il finit dans les journaux.
+    transaction_id: str = Field(min_length=8, max_length=64, pattern=r"^[A-Za-z0-9-]+$")
+    sumup_tx_code: str | None = Field(default=None, max_length=64)
+    total_cents: int = Field(ge=0)
+    sold_at: datetime | None = None
+    # La coherence total / detail est controlee dans `crud.record_caisse_sale`,
+    # et non par un `model_validator` : le gestionnaire des erreurs de
+    # validation ne sait pas serialiser l'exception qu'il porterait (500).
+    lines: list[CaisseLigneIn] = Field(min_length=1, max_length=50)
+
+
+class CaisseVenteOut(BaseModel):
+    transaction_id: str
+    status: Literal["recorded", "already_recorded"]
+    lines: int
 
 
 # ---------------------------------------------------------------------------

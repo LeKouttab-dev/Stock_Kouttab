@@ -349,6 +349,7 @@ et `backend/.env.example`, eux, sont corrects (`SMTP_USE_TLS=false`,
 | `RATE_LIMIT_ENABLED` | Limitation de débit `slowapi` | `true` (`config.py:87`) |
 | `HELLOASSO_API_BASE`, `HELLOASSO_CLIENT_ID`, `HELLOASSO_CLIENT_SECRET`, `HELLOASSO_ORG_SLUG`, `HELLOASSO_BUVETTE_FORM_SLUG` | Intégration buvette | `config.py:90-101` |
 | `HELLOASSO_WEBHOOK_SECRET` | Secret ajouté à l'URL de webhook | `""` (`config.py:106-108`) — vide = **aucune vérification** : HelloAsso ne signe pas ses notifications, n'importe qui peut alors forger des ventes et décrémenter le stock. |
+| `CAISSE_API_KEY` | Clé de la tablette de caisse (en-tête `X-Caisse-Key`), identique à `stock.caisseKey` côté Android | `""` — vide = routes `/buvette/caisse/*` en **404**, la tablette n'affiche aucun produit. En production : 32 caractères minimum et distincte des autres secrets, sinon **refus de démarrer**. |
 
 ### 2.6 Variables lues par Docker Compose, pas par l'application
 

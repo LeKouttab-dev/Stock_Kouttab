@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -76,7 +77,19 @@ export function BuvetteSalesPage() {
                         {customer || '—'}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
-                        {sale.helloasso_order_id ?? '—'}
+                        {/* Le code SumUp sert au rapprochement avec le relevé : c'est lui
+                            qu'on cherche dans l'application SumUp, pas l'identifiant interne. */}
+                        {sale.source === 'caisse' ? (
+                          <span className="flex items-center gap-1.5">
+                            <Badge variant="outline">{fr.buvette.origineCaisse}</Badge>
+                            {sale.sumup_tx_code ?? ''}
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1.5">
+                            <Badge variant="outline">{fr.buvette.origineHelloasso}</Badge>
+                            {sale.helloasso_order_id ?? ''}
+                          </span>
+                        )}
                       </TableCell>
                     </TableRow>
                   );

@@ -121,6 +121,13 @@ class Settings(BaseSettings):
         default="", alias="HELLOASSO_WEBHOOK_SECRET"
     )
 
+    # Cle de la tablette de caisse (buvette encaissee par SumUp). Une cle et non
+    # une session : la tablette reste en caisse des journees entieres, un jeton
+    # de 30 minutes la deconnecterait en plein service. Vide = routes /caisse
+    # inexistantes (404), comme le passage signe.
+    # Generer avec : python -c "import secrets; print(secrets.token_urlsafe(48))"
+    caisse_api_key: str = Field(default="", alias="CAISSE_API_KEY")
+
     # Cle de chiffrement du RIB au repos (AES-256-GCM, base64 de 32 octets).
     # La perdre rend les RIB deja enregistres definitivement illisibles :
     # elle se sauvegarde avec le reste du .env, hors du depot.
@@ -173,6 +180,13 @@ class Settings(BaseSettings):
             problems.append("SSO_SHARED_SECRET est trop court (32 caractères minimum).")
         if sso and sso == self.jwt_secret_key.strip():
             problems.append("SSO_SHARED_SECRET doit différer de JWT_SECRET_KEY.")
+        # La cle de caisse autorise a decrementer le stock : une cle courte se
+        # devine, et la reprendre d'un autre secret ferait fuir les deux a la fois.
+        caisse = self.caisse_api_key.strip()
+        if caisse and (len(caisse) < 32 or caisse in INSECURE_JWT_SECRETS):
+            problems.append("CAISSE_API_KEY est trop courte (32 caractères minimum).")
+        if caisse and caisse in (self.jwt_secret_key.strip(), sso):
+            problems.append("CAISSE_API_KEY doit différer des autres secrets.")
         if problems:
             raise ValueError(
                 "Configuration de production invalide :\n- " + "\n- ".join(problems)

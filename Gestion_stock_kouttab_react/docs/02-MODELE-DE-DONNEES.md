@@ -341,18 +341,25 @@ uniquement par migration sont signalés en §4.3, anomalie A3.
   rapprochement avec HelloAsso), `name`, `description`, `price_cents`,
   `quantity` (le stock local est la source de vérité, la synchronisation n'y
   touche jamais), `seuil_alerte` (défaut 5), `emoji` (défaut 🥤), `image_url`,
-  `barcode` (**UNIQUE**, indexé), `is_active`, `alert_sent`, `last_synced_at`.
+  `barcode` (**UNIQUE**, indexé), `is_active`, `alert_sent`, `last_synced_at`,
+  `caisse_category` (onglet de la tablette de caisse : `sucre_sale`,
+  `boissons`, `cafe`, `epicerie` ; **NULL = absent de la tablette**, l'état de tout produit
+  importé de HelloAsso).
 - **FK** : aucune.
 - **Index** : `idx_buvette_prod_tier`, `idx_buvette_prod_active`.
 - **Propriété** `low_stock` : `quantity < seuil_alerte` (`models.py:906`).
 
 | Table | Rôle |
 |---|---|
-| `BuvetteSales` | Journal idempotent des ventes reçues par webhook HelloAsso. |
+| `BuvetteSales` | Journal idempotent des ventes : webhook HelloAsso et tablette de caisse (SumUp). |
 
 `backend/app/db/models.py:911`
 
-- **Colonnes notables** : `helloasso_order_id`, `helloasso_payment_id`,
+- **Colonnes notables** : `source` (`helloasso` · `caisse`, défaut serveur
+  `helloasso`), `caisse_tx_id` (identifiant de transaction généré par la
+  tablette, transmis à SumUp comme `foreignTransactionId`), `caisse_line` (rang
+  de la ligne dans le panier), `sumup_tx_code` (code SumUp, pour le
+  rapprochement), `helloasso_order_id`, `helloasso_payment_id`,
   `helloasso_item_id`, `product_name_snapshot` (**instantané**, VARCHAR 255,
   NOT NULL), `quantity_sold`, `amount_cents`, identité client
   (`customer_first_name`, `customer_last_name`, `customer_email`), `raw_event`
@@ -362,7 +369,9 @@ uniquement par migration sont signalés en §4.3, anomalie A3.
 - **Contraintes / index** : **UNIQUE (`helloasso_payment_id`,
   `helloasso_item_id`)** (`uq_sale_payment_item`) — c'est **l'idempotence
   garantie par la base** : HelloAsso peut rejouer un appel, un même item ne peut
-  pas décrémenter le stock deux fois. Plus `idx_buvette_sale_order`,
+  pas décrémenter le stock deux fois. Même principe pour la tablette :
+  **UNIQUE (`caisse_tx_id`, `caisse_line`)** (`uq_sale_caisse_tx_line`) — les
+  lignes HelloAsso y laissent NULL, qui ne se heurte jamais. Plus `idx_buvette_sale_order`,
   `_payment`, `_item`, `_product`, `_processed`.
 
 ### 1.9 Référentiels comptables
@@ -815,8 +824,9 @@ branchement, aucun `depends_on`, aucun chaînon manquant. L'ordre des
 | 17 | `e1a8c3d6f0b2` | `2026_08_13_2300-…_suivi_non_lu.py` | Ajoute `non_lu_demandeur` (+ index) sur `NotesDeFrais` et `Factures` ; ajoute `Factures.commentaires_compta`. | Un commentaire de la comptabilité n'allumait rien : il fallait ouvrir « Mes demandes » et repérer soi-même l'encart, le seul canal étant un courriel best-effort. Et un **refus de facture arrivait sans motif**, la colonne n'existant nulle part. Dénormalisé pour éviter une sous-requête vers une base distante à chaque chargement. |
 | 18 | `f2b9d4e7a1c3` | `2026_08_14_0900-…_ecarter_un_justificatif.py` | Ajoute `ecarte_at` / `ecarte_par` / `motif_ecart` (+ index, + FK SET NULL) sur `FichiersNotesDeFrais`. | Une pièce illisible ou mal rattachée ne pouvait ni être retirée ni remplacée ; l'écran conseillait de « supprimer cette note et la recréer ». Écarter plutôt qu'effacer, comme pour les notes : la pièce sort du dossier, reste en base, se restaure. Le motif accompagne le geste. |
 | 19 | `a3c7e5b2f9d4` | `2026_08_14_1100-…_archiver_les_factures.py` | Ajoute `archived_at` / `archived_by` (+ index, + FK SET NULL) sur `Factures`. | Même raisonnement que `b8d5f3a0c4e7`, appliqué là où il manquait : `DELETE /invoices/{id}` supprimait la ligne, ses fichiers et leur contenu en base — sur **n'importe quelle** facture, y compris validée, donc déjà comptabilisée. |
-| 20 | `b4d8f6c3e0a5` | `2026_08_14_1600-…_pole_esp_vt_et_natures_de_depense.py` | Insère le pôle `ESP-VT` et quatre natures de dépense (mobilier et petit équipement, fournitures administratives, entretien, réceptions) ; fait passer `Autre` à `ordre = 99`. **Tête actuelle.** | La catégorie était **refusée** sous un pôle événementiel : l'événement dit à quelle occasion la dépense a eu lieu, pas ce qui a été acheté, et le comptable n'avait la nature de la dépense que sur la moitié des pièces. Entièrement additif — `id_categorie` reste nullable, et les pièces événementielles déposées avant ce jour n'en auront jamais : la leur inventer rétroactivement inscrirait dans la comptabilité une information que personne n'a saisie. Insertions en `WHERE NOT EXISTS`, le `ensure_default_*` du démarrage ayant pu prendre les devants. |
-| 21 | `c5e9a7d4f1b6` | `2026_08_14_1800-…_photo_du_produit_sur_le_stock.py` | Ajoute `Stock.image_url` (VARCHAR 500, nullable). **Tête actuelle.** | Le scan d'un code-barres affichait la photo OpenFoodFacts dans l'aperçu puis la **jetait** : l'article créé n'en gardait rien et la liste retombait sur l'emoji. Une adresse plutôt que les octets — image publique, remplaçable, perte sans conséquence, et une base distante ne doit pas être interrogée par vignette affichée. Additif : les articles existants laissent la colonne vide et gardent leur emoji. |
+| 20 | `b4d8f6c3e0a5` | `2026_08_14_1600-…_pole_esp_vt_et_natures_de_depense.py` | Insère le pôle `ESP-VT` et quatre natures de dépense (mobilier et petit équipement, fournitures administratives, entretien, réceptions) ; fait passer `Autre` à `ordre = 99`. | La catégorie était **refusée** sous un pôle événementiel : l'événement dit à quelle occasion la dépense a eu lieu, pas ce qui a été acheté, et le comptable n'avait la nature de la dépense que sur la moitié des pièces. Entièrement additif — `id_categorie` reste nullable, et les pièces événementielles déposées avant ce jour n'en auront jamais : la leur inventer rétroactivement inscrirait dans la comptabilité une information que personne n'a saisie. Insertions en `WHERE NOT EXISTS`, le `ensure_default_*` du démarrage ayant pu prendre les devants. |
+| 21 | `c5e9a7d4f1b6` | `2026_08_14_1800-…_photo_du_produit_sur_le_stock.py` | Ajoute `Stock.image_url` (VARCHAR 500, nullable). | Le scan d'un code-barres affichait la photo OpenFoodFacts dans l'aperçu puis la **jetait** : l'article créé n'en gardait rien et la liste retombait sur l'emoji. Une adresse plutôt que les octets — image publique, remplaçable, perte sans conséquence, et une base distante ne doit pas être interrogée par vignette affichée. Additif : les articles existants laissent la colonne vide et gardent leur emoji. |
+| 24 | `f9c3a5e7b2d1` | `2026_09_19_1000-…_caisse_tablette.py` | Révise `e8b2f4a7c1d5` (`rib_en_pdf`). Ajoute `BuvetteProducts.caisse_category` ; sur `BuvetteSales`, `source` (défaut serveur `helloasso`), `caisse_tx_id`, `caisse_line`, `sumup_tx_code` et l'unicité `uq_sale_caisse_tx_line`. **Tête actuelle.** | Les ventes de la buvette passent désormais par une tablette SumUp, qui ne prévient personne : sans ces colonnes, le stock ne bougeait plus. Additif, aucune écriture dans l'existant : le défaut serveur étiquette les ventes déjà reçues. `batch_alter_table` pour la contrainte, sans effet sur MariaDB mais nécessaire à la base SQLite de développement. |
 
 ### 4.3 Vérification de la chaîne et anomalies
 

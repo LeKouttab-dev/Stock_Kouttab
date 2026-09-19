@@ -394,7 +394,7 @@ async def send_buvette_low_stock_alert(
         f"Produit : {product_name}\n"
         f"Quantite restante : {quantity}\n"
         f"Seuil d'alerte : {threshold}\n\n"
-        "Merci de prevoir un reapprovisionnement avant la prochaine vente HelloAsso.\n\n"
+        "Merci de prevoir un reapprovisionnement avant la prochaine vente.\n\n"
         f"{liens.LIBELLE_ACCES} : {liens.lien_espace(None, 'buvette')}\n\n"
         f"{email_layout.SIGNATURE}"
     )
