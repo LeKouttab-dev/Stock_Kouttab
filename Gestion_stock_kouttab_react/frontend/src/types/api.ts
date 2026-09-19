@@ -674,3 +674,51 @@ export interface TicketRecipient {
   id: number;
   nom_complet: string;
 }
+
+/* ---- Calendrier (miroir en lecture des agendas Google) ------------------ */
+
+/** Un agenda Google visible dans l'application. */
+export interface Agenda {
+  id: string;
+  nom: string;
+  description?: string | null;
+  /** Couleur choisie dans Google, reprise telle quelle pour s'y retrouver. */
+  couleur?: string | null;
+  couleur_texte?: string | null;
+  fuseau?: string | null;
+  /** Agenda réservé au Super Admin (rendez-vous de santé, par exemple). */
+  restreint: boolean;
+}
+
+/** Une occurrence d'événement : les récurrences sont déjà développées. */
+export interface EvenementCalendrier {
+  id: string;
+  agenda_id: string;
+  agenda_nom: string;
+  titre: string;
+  /** ISO 8601 ; date seule (AAAA-MM-JJ) quand `journee_entiere`. */
+  debut: string;
+  fin: string;
+  journee_entiere: boolean;
+  lieu?: string | null;
+  description?: string | null;
+  organisateur?: string | null;
+  couleur?: string | null;
+  lien?: string | null;
+  statut?: string | null;
+  recurrent: boolean;
+}
+
+export interface CalendrierReponse {
+  evenements: EvenementCalendrier[];
+  /** Agendas injoignables sur cet appel : la page sert les autres quand même. */
+  agendas_en_erreur: string[];
+}
+
+export interface EtatCalendrier {
+  configure: boolean;
+  compte_impersonne?: string | null;
+  nombre_agendas?: number | null;
+  agendas_restreints: string[];
+  erreur?: string | null;
+}

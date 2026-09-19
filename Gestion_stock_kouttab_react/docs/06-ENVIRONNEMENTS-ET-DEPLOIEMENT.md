@@ -350,6 +350,10 @@ et `backend/.env.example`, eux, sont corrects (`SMTP_USE_TLS=false`,
 | `HELLOASSO_API_BASE`, `HELLOASSO_CLIENT_ID`, `HELLOASSO_CLIENT_SECRET`, `HELLOASSO_ORG_SLUG`, `HELLOASSO_BUVETTE_FORM_SLUG` | Intégration buvette | `config.py:90-101` |
 | `HELLOASSO_WEBHOOK_SECRET` | Secret ajouté à l'URL de webhook | `""` (`config.py:106-108`) — vide = **aucune vérification** : HelloAsso ne signe pas ses notifications, n'importe qui peut alors forger des ventes et décrémenter le stock. |
 | `CAISSE_API_KEY` | Clé de la tablette de caisse (en-tête `X-Caisse-Key`), identique à `stock.caisseKey` côté Android | `""` — vide = routes `/buvette/caisse/*` en **404**, la tablette n'affiche aucun produit. En production : 32 caractères minimum et distincte des autres secrets, sinon **refus de démarrer**. |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` / `GOOGLE_SERVICE_ACCOUNT_FILE` | Clé du compte de service Google (base64 du JSON, ou chemin en développement) | `""` — vide = onglet Calendrier en **503** `EXT_6040`, avec un message explicite plutôt qu'un agenda vide. |
+| `GOOGLE_CALENDAR_SUBJECT` | Compte Workspace impersonné par délégation. **Décide de tout ce que l'application voit** : ses agendas sont ceux de ce compte, y compris ceux créés plus tard. | `""` — vide = fonctionnalité coupée, au même titre qu'une clé absente. |
+| `GOOGLE_CALENDAR_RESTRICTED` | Agendas réservés au Super Admin, séparés par des virgules (rendez-vous de santé, RGPD) | `""` — vide = tous les agendas sont servis à tous les rôles complets. |
+| `GOOGLE_CALENDAR_CACHE_SECONDS` | Durée du cache mémoire des événements | `180`. À `0`, chaque changement de mois relance 42 appels à Google. |
 
 ### 2.6 Variables lues par Docker Compose, pas par l'application
 

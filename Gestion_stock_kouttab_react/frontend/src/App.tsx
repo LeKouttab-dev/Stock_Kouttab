@@ -56,6 +56,9 @@ const BuvetteSalesPage = lazyNamed(
   () => import('@/pages/buvette/BuvetteSalesPage'),
   'BuvetteSalesPage',
 );
+// La page embarque FullCalendar : elle pèse plus que les autres, et seul
+// celui qui ouvre l'onglet la télécharge.
+const CalendarPage = lazyNamed(() => import('@/pages/calendar/CalendarPage'), 'CalendarPage');
 const AdminPage = lazyNamed(() => import('@/pages/admin/AdminPage'), 'AdminPage');
 const DatabaseManagementPage = lazyNamed(
   () => import('@/pages/admin/DatabaseManagementPage'),
@@ -139,6 +142,10 @@ export default function App() {
                 } />
                 <Route path="/invoices" element={
                   <ProtectedRoute requiredAction={ACTIONS.INVOICES_SUBMIT}><InvoiceListPage /></ProtectedRoute>
+                } />
+
+                <Route path="/calendar" element={
+                  <ProtectedRoute requiredAction={ACTIONS.CALENDAR_VIEW}><CalendarPage /></ProtectedRoute>
                 } />
 
                 <Route path="/buvette" element={

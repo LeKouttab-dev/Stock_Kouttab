@@ -55,6 +55,8 @@ L'application gère :
 
 ### Intégrations externes
 - **HelloAsso API V5** : OAuth2 client_credentials, lecture boutique `Shop/buvette`, webhook entrant pour les ventes en temps réel.
+- **Google Calendar v3** : compte de service + délégation à l'échelle du domaine,
+  **lecture seule**, sans aucun stockage local (cf. `docs/09-CALENDRIER-GOOGLE.md`).
 
 ### Hébergement
 - **Production** : O2Switch mutualisé (cPanel + Passenger)
@@ -258,6 +260,9 @@ le démarrage en production. Les valeurs en clair héritées restent lisibles
 | Buvette — CRUD produits / ajuster stock | — | ✅ | — | ✅ |
 | Buvette — configurer/supprimer webhook HelloAsso | — | — | — | ✅ |
 | Buvette — ranger un produit dans un onglet de la tablette | — | ✅ | — | ✅ |
+| Calendrier — consulter les agendas Google | ✅ | ✅ | ✅ | ✅ |
+| Calendrier — agendas déclarés réservés (`GOOGLE_CALENDAR_RESTRICTED`) | — | — | — | ✅ |
+| Calendrier — état de l'intégration | — | — | — | ✅ |
 | Caisse — lire le catalogue, envoyer une vente | clé `CAISSE_API_KEY` (la tablette), aucun rôle | | | |
 
 ---
@@ -720,6 +725,25 @@ remplacer la boîte de réception.
 - `GET /buvette/caisse/catalogue` — produits actifs **et** rangés dans un onglet, pour la tablette (en-tête `X-Caisse-Key`)
 - `POST /buvette/caisse/ventes` — une vente payée par SumUp : enregistrée et stock décrémenté ; 201, ou 200 `already_recorded` si la tablette la renvoie (en-tête `X-Caisse-Key`)
 
+### Calendrier (Google Agenda)
+- `GET /calendar/agendas` — agendas visibles par le compte connecté
+- `GET /calendar?debut=&fin=&agendas=` — événements de la fenêtre (400 jours max),
+  récurrences déjà développées par Google
+- `GET /calendar/etat` — diagnostic (Super Admin) ; `POST /calendar/rafraichir`
+  vide le cache mémoire (AdminBenevoles+)
+
+**Rien n'est stocké** : ni table, ni migration. Google reste la source de
+vérité — dupliquer les événements en créerait une seconde, à tenir à jour.
+
+**Les agendas réservés sont filtrés dans l'API**, jamais dans l'interface
+(`GOOGLE_CALENDAR_RESTRICTED`, Super Admin seul) : prévu pour les rendez-vous de
+santé, données sensibles au sens du RGPD. Passer l'identifiant d'un agenda
+restreint dans `?agendas=` ne le rend pas — le filtre porte sur l'intersection
+avec ce à quoi le compte a droit, et l'agenda n'est même pas interrogé.
+
+**Le cache mémoire n'est pas un confort** : 42 agendas font 42 appels à Google
+par fenêtre affichée, et feuilleter les mois épuiserait le quota.
+
 ---
 
 ## 7. Authentification & sécurité
@@ -870,6 +894,14 @@ HELLOASSO_CLIENT_ID=
 HELLOASSO_CLIENT_SECRET=
 HELLOASSO_ORG_SLUG=eclat-education-culture-langues-apprentissage-transmission
 HELLOASSO_BUVETTE_FORM_SLUG=buvette
+
+# Google Agenda (onglet Calendrier) — LECTURE SEULE, cf. docs/09
+# Clé JSON du compte de service, en base64. GOOGLE_CALENDAR_SUBJECT décide de
+# TOUT ce que l'application voit : ses agendas sont ceux de ce compte.
+GOOGLE_SERVICE_ACCOUNT_JSON=
+GOOGLE_CALENDAR_SUBJECT=admin@lekouttab.com
+GOOGLE_CALENDAR_RESTRICTED=      # agendas réservés au Super Admin (RGPD)
+GOOGLE_CALENDAR_CACHE_SECONDS=180
 
 # Tablette de caisse (buvette encaissée par SumUp). Vide = routes /caisse en 404.
 # 32 caractères minimum en production, distincte des autres secrets.

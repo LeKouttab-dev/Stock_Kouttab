@@ -53,6 +53,7 @@ def _produit(
     categorie: str | None = "sucre_sale",
     actif: bool = True,
     prix: int = 150,
+    image: str | None = None,
 ) -> BuvetteProduct:
     produit = buvette_crud.create_product(
         db,
@@ -62,6 +63,7 @@ def _produit(
             quantity=quantite,
             seuil_alerte=seuil,
             emoji="🍫",
+            image_url=image,
             is_active=actif,
             caisse_category=categorie,
         ),
@@ -141,7 +143,13 @@ def test_le_catalogue_ne_montre_que_les_produits_actifs_et_classes(
     Les produits importés de HelloAsso arrivent sans catégorie : c'est ce qui
     permet de choisir ce que la tablette vend, sans rien supprimer.
     """
-    visible = _produit(db_session, nom="Kinder Bueno", categorie="sucre_sale", quantite=4)
+    visible = _produit(
+        db_session,
+        nom="Kinder Bueno",
+        categorie="sucre_sale",
+        quantite=4,
+        image="https://cdn.helloasso.com/img/photos/boutiques/kinder-bueno.png",
+    )
     _produit(db_session, nom="Sans categorie", categorie=None)
     _produit(db_session, nom="Desactive", categorie="boissons", actif=False)
 
@@ -156,6 +164,7 @@ def test_le_catalogue_ne_montre_que_les_produits_actifs_et_classes(
         "price_cents": 150,
         "category": "sucre_sale",
         "emoji": "🍫",
+        "image_url": "https://cdn.helloasso.com/img/photos/boutiques/kinder-bueno.png",
         "quantity": 4,
         "low_stock": True,
     }

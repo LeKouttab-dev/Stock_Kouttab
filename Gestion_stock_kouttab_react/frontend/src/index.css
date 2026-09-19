@@ -131,3 +131,54 @@
     @apply rounded-full bg-muted-foreground/30;
   }
 }
+
+/**
+ * Calendrier (FullCalendar) aux couleurs du Kouttâb.
+ *
+ * FullCalendar v6 injecte sa feuille de style lui-même et s'habille par
+ * variables CSS : les redéfinir sous un seul conteneur évite d'écrire des
+ * sélecteurs concurrents de ceux de la bibliothèque, qui changent d'une
+ * version à l'autre.
+ */
+.calendrier-kouttab {
+  --fc-border-color: theme('colors.sand.200');
+  --fc-page-bg-color: transparent;
+  --fc-neutral-bg-color: theme('colors.cream.100');
+  --fc-today-bg-color: theme('colors.terracotta.50');
+  --fc-now-indicator-color: theme('colors.terracotta.500');
+  --fc-button-bg-color: theme('colors.forest.600');
+  --fc-button-border-color: theme('colors.forest.600');
+  --fc-button-hover-bg-color: theme('colors.forest.700');
+  --fc-button-hover-border-color: theme('colors.forest.700');
+  --fc-button-active-bg-color: theme('colors.terracotta.500');
+  --fc-button-active-border-color: theme('colors.terracotta.500');
+  --fc-list-event-hover-bg-color: theme('colors.cream.100');
+  font-size: 0.875rem;
+}
+
+.calendrier-kouttab .fc .fc-toolbar-title {
+  @apply font-serif text-lg font-bold text-forest;
+}
+
+.calendrier-kouttab .fc .fc-col-header-cell-cushion,
+.calendrier-kouttab .fc .fc-daygrid-day-number {
+  @apply text-forest no-underline;
+}
+
+.calendrier-kouttab .fc .fc-event {
+  @apply cursor-pointer rounded border-0 px-1 text-[11px] leading-tight;
+}
+
+/* Sur un téléphone, la barre d'outils déborde en une ligne : on la replie et
+   on laisse les boutons passer à la ligne plutôt que de les rogner. */
+@media (max-width: 640px) {
+  .calendrier-kouttab .fc .fc-toolbar {
+    @apply flex-col items-stretch gap-2;
+  }
+  .calendrier-kouttab .fc .fc-toolbar-chunk {
+    @apply flex justify-center;
+  }
+  .calendrier-kouttab .fc .fc-button {
+    @apply px-2 py-1 text-xs;
+  }
+}

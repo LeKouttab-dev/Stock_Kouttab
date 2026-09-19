@@ -792,6 +792,9 @@ sa fiche.
 - `GET /buvette/caisse/catalogue` et `POST /buvette/caisse/ventes`, protégés par
   la clé `CAISSE_API_KEY` (en-tête `X-Caisse-Key`), sans session. Clé vide côté
   serveur = 404, mauvaise clé = 401.
+- Le catalogue porte la photo de chaque produit (`image_url`, reprise de la
+  boutique HelloAsso à la synchronisation) : la tablette la garde en cache et
+  affiche l'emoji quand il n'y en a pas.
 - Une vente renvoyée (même `transaction_id`) répond 200 `already_recorded` sans
   décrémenter : la tablette renvoie tant qu'elle n'a pas de réponse.
 - Un total différent de la somme des lignes est refusé (422) sans rien écrire.
@@ -991,6 +994,37 @@ seul**.
 
 ---
 
+## 15 bis. Calendrier Google
+
+L'onglet **Calendrier** montre les agendas Google de l'association — cours,
+réservations de salles, événements — dans l'application, en lecture seule.
+
+**Pourquoi le serveur et pas le navigateur.** Une intégration par iframe n'aurait
+rien affiché aux bénévoles : il faut un compte Google ayant accès aux agendas, et
+la plupart n'en ont pas. Le serveur détient un compte de service Google qui
+impersonne un compte Workspace ; l'application voit exactement les agendas de ce
+compte, ceux de la rentrée prochaine compris. Mise en service :
+[`09-CALENDRIER-GOOGLE.md`](09-CALENDRIER-GOOGLE.md).
+
+**Rien n'est stocké.** Aucune table, aucune migration. Google reste la source de
+vérité : recopier les événements chez nous créerait une seconde vérité à tenir.
+Un cache mémoire de quelques minutes évite 42 appels à Google chaque fois que
+quelqu'un change de mois ; un bouton **Rafraîchir** le vide.
+
+**Agendas réservés.** `GOOGLE_CALENDAR_RESTRICTED` liste les agendas servis au
+seul Super Admin — prévu pour les rendez-vous de santé, où le seul titre d'un
+événement nomme la personne suivie. Le filtrage est fait dans l'API : masquer une
+case dans le menu ne protège rien, et demander l'agenda dans l'URL ne le rend pas.
+
+**Une panne partielle ne vide pas l'écran.** Un agenda supprimé ou devenu
+inaccessible est signalé par son nom ; les quarante autres s'affichent.
+
+L'écran propose mois, semaine, jour et liste, la sélection des agendas (retenue
+d'une visite à l'autre) et une fiche au clic : horaires, lieu, organisateur,
+description.
+
+---
+
 ## 16. Tableau récapitulatif rôle × action
 
 Vérifié contre le code. Les lignes marquées **(nouveau)** ne figurent pas dans
@@ -999,6 +1033,8 @@ Vérifié contre le code. Les lignes marquées **(nouveau)** ne figurent pas dan
 | Page / Action | Benevole | AdminBenevoles | Compta | Super Admin |
 |---|:--:|:--:|:--:|:--:|
 | **Dashboard** (vue + alertes) | ✅ | ✅ | ✅ | ✅ |
+| Calendrier — consulter les agendas Google **(nouveau)** | ✅ | ✅ | ✅ | ✅ |
+| Calendrier — agendas déclarés réservés **(nouveau)** | — | — | — | ✅ |
 | Stock — consulter | ✅ | ✅ | ✅ | ✅ |
 | Stock — demander une modification | ✅ | ✅ ¹ | ✅ ¹ | ✅ ¹ |
 | Stock — voir les demandes des autres **(nouveau)** | — | ✅ | — | ✅ |

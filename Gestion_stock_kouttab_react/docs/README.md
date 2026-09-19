@@ -38,6 +38,7 @@ migrations. Le schéma est partagé avec une base de production réelle.
 | [`06-ENVIRONNEMENTS-ET-DEPLOIEMENT.md`](06-ENVIRONNEMENTS-ET-DEPLOIEMENT.md) | Développement, tests, production : variables, Docker, chaîne de déploiement, sauvegarde, retour arrière |
 | [`07-TESTS.md`](07-TESTS.md) | Comment lancer les tests, comment on les écrit ici, et ce qu'ils ne couvrent pas |
 | [`08-PIEGES-ET-BONNES-PRATIQUES.md`](08-PIEGES-ET-BONNES-PRATIQUES.md) | Les incidents réels du projet et la règle qu'on en tire |
+| [`09-CALENDRIER-GOOGLE.md`](09-CALENDRIER-GOOGLE.md) | L'onglet Calendrier : mise en service du compte de service Google, agendas réservés, ce qui a été écarté |
 
 À la racine du dépôt, en complément :
 
