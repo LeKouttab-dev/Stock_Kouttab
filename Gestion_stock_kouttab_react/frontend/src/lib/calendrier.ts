@@ -18,13 +18,28 @@ export function contrasteSur(fond: string | null | undefined): string {
   return (r * 299 + g * 587 + b * 114) / 1000 > 150 ? '#1f2937' : '#ffffff';
 }
 
+/**
+ * Tout s'affiche à l'heure de Paris, jamais à celle de l'appareil.
+ *
+ * C'est le fuseau de tous les agendas de l'association, et celui que la grille
+ * du calendrier impose déjà (`timeZone` de FullCalendar). Sans ce réglage, un
+ * bénévole en déplacement lisait « 17:00 » dans la grille et « 15:00 » dans la
+ * fiche du même cours.
+ */
+const FUSEAU = 'Europe/Paris';
+
 const JOUR = new Intl.DateTimeFormat('fr-FR', {
   weekday: 'long',
   day: 'numeric',
   month: 'long',
   year: 'numeric',
+  timeZone: FUSEAU,
 });
-const HEURE = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' });
+const HEURE = new Intl.DateTimeFormat('fr-FR', {
+  hour: '2-digit',
+  minute: '2-digit',
+  timeZone: FUSEAU,
+});
 
 const UN_JOUR_MS = 86_400_000;
 

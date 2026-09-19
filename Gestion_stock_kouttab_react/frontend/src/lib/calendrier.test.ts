@@ -33,7 +33,9 @@ describe('contrasteSur', () => {
 });
 
 describe('formatPlage', () => {
-  it('donne les horaires quand tout tient dans la journée', () => {
+  it("donne les horaires de Paris, quel que soit le fuseau de l'appareil", () => {
+    // L'intégration tourne en UTC : sans fuseau explicite, ce cours de 17 h
+    // s'afficherait à 15 h pour elle, et pour tout bénévole en déplacement.
     const texte = formatPlage(evenement({}));
     expect(texte).toContain('17:00');
     expect(texte).toContain('18:30');
