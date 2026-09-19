@@ -33,6 +33,7 @@ export const ACTIONS = {
   EXPENSES_DELETE: 'expenses:delete',
   PROFILE_VIEW: 'profile:view',
   CONTACT_VIEW: 'contact:view',
+  CALENDAR_VIEW: 'calendar:view',
 } as const;
 
 export type Action = (typeof ACTIONS)[keyof typeof ACTIONS];
@@ -81,6 +82,11 @@ const PERMISSIONS: Record<Action, Role[]> = {
   // échanges passent par les commentaires de ses notes.
   [ACTIONS.PROFILE_VIEW]: ['Super Admin', 'AdminBenevoles', 'Compta', 'Benevole'],
   [ACTIONS.CONTACT_VIEW]: ['Super Admin', 'AdminBenevoles', 'Compta', 'Benevole'],
+  // Le calendrier se consulte, il ne décide de rien : tous les rôles complets.
+  // Doit refléter `ROLES_COMPLETS` posé sur le router `/calendar` côté serveur.
+  // Les agendas sensibles ne sont pas retirés ici mais dans l'API
+  // (`GOOGLE_CALENDAR_RESTRICTED`) : masquer une ligne d'un menu ne protège rien.
+  [ACTIONS.CALENDAR_VIEW]: ['Super Admin', 'AdminBenevoles', 'Compta', 'Benevole'],
 };
 
 export function canAccess(role: Role | null | undefined, action: Action): boolean {

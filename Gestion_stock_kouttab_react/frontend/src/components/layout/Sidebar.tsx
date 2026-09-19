@@ -8,6 +8,7 @@ import {
   Database,
   User,
   Beer,
+  CalendarDays,
   LifeBuoy,
   X,
 } from 'lucide-react';
@@ -48,6 +49,12 @@ export function Sidebar({ open, onClose }: SidebarProps) {
     },
     { to: '/stock', label: fr.nav.stock, icon: Package, visible: can(ACTIONS.STOCK_VIEW) },
     { to: '/buvette', label: fr.nav.buvette, icon: Beer, visible: can(ACTIONS.BUVETTE_VIEW) },
+    {
+      to: '/calendar',
+      label: fr.nav.calendar,
+      icon: CalendarDays,
+      visible: can(ACTIONS.CALENDAR_VIEW),
+    },
     {
       to: '/expenses',
       label: fr.nav.expenses,

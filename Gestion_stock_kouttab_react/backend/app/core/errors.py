@@ -106,6 +106,9 @@ class ErrorCode(str, Enum):
     EMAIL_SEND_FAILED = "EXT_6010"
     DATABASE_ERROR = "EXT_6020"
     OPENFOODFACTS_UNAVAILABLE = "EXT_6030"
+    GOOGLE_CALENDAR_NOT_CONFIGURED = "EXT_6040"
+    GOOGLE_CALENDAR_AUTH_FAILED = "EXT_6041"
+    GOOGLE_CALENDAR_API_ERROR = "EXT_6042"
 
     # ---- Rate limit (7xxx) ------------------------------------------------
     RATE_LIMIT_EXCEEDED = "RATE_7001"
@@ -307,6 +310,20 @@ ERROR_MESSAGES: dict[ErrorCode, tuple[int, str]] = {
     ErrorCode.OPENFOODFACTS_UNAVAILABLE: (
         503,
         "Le service OpenFoodFacts est temporairement indisponible.",
+    ),
+    ErrorCode.GOOGLE_CALENDAR_NOT_CONFIGURED: (
+        503,
+        "Le calendrier Google n'est pas encore configure. "
+        "Un Super Admin doit renseigner le compte de service.",
+    ),
+    ErrorCode.GOOGLE_CALENDAR_AUTH_FAILED: (
+        502,
+        "Connexion a Google Agenda refusee. Verifiez le compte de service "
+        "et la delegation accordee dans la console d'administration.",
+    ),
+    ErrorCode.GOOGLE_CALENDAR_API_ERROR: (
+        502,
+        "Google Agenda est momentanement injoignable. Reessayez dans un instant.",
     ),
 
     # Rate limit

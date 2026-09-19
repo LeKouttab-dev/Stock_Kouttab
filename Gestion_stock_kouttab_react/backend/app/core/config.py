@@ -128,6 +128,37 @@ class Settings(BaseSettings):
     # Generer avec : python -c "import secrets; print(secrets.token_urlsafe(48))"
     caisse_api_key: str = Field(default="", alias="CAISSE_API_KEY")
 
+    # Google Agenda (onglet Calendrier) — compte de service Google Cloud avec
+    # delegation a l'echelle du domaine, en LECTURE SEULE.
+    #
+    # La cle du compte de service tient dans le .env (JSON brut ou base64 du
+    # JSON) plutot que dans un fichier monte : le compose du VPS ne monte que
+    # `uploads` et `outbox`, et ajouter un volume imposerait de le recopier a
+    # la main sur le serveur (cf. DEPLOIEMENT-VPS.md §13). Un chemin reste
+    # accepte pour le developpement local.
+    google_service_account_json: str = Field(
+        default="", alias="GOOGLE_SERVICE_ACCOUNT_JSON"
+    )
+    google_service_account_file: str = Field(
+        default="", alias="GOOGLE_SERVICE_ACCOUNT_FILE"
+    )
+    # Compte Workspace impersonne par le compte de service. C'est LUI qui decide
+    # des agendas visibles : l'application voit exactement ce que voit ce compte,
+    # y compris les agendas crees demain. Vide = fonctionnalite coupee.
+    google_calendar_subject: str = Field(default="", alias="GOOGLE_CALENDAR_SUBJECT")
+    # Agendas reserves au Super Admin (identifiants separes par des virgules).
+    # Pense pour les rendez-vous de sante, donnees sensibles au sens du RGPD :
+    # ils remontent bien dans l'application, mais pas dans l'onglet de tous.
+    google_calendar_restricted_raw: str = Field(
+        default="", alias="GOOGLE_CALENDAR_RESTRICTED"
+    )
+    # Duree de vie du cache memoire des evenements. 42 agendas = 42 appels a
+    # Google par fenetre affichee : sans cache, chaque changement de mois d'un
+    # utilisateur en declencherait autant.
+    google_calendar_cache_seconds: int = Field(
+        default=180, alias="GOOGLE_CALENDAR_CACHE_SECONDS"
+    )
+
     # Cle de chiffrement du RIB au repos (AES-256-GCM, base64 de 32 octets).
     # La perdre rend les RIB deja enregistres definitivement illisibles :
     # elle se sauvegarde avec le reste du .env, hors du depot.
@@ -200,6 +231,29 @@ class Settings(BaseSettings):
     @property
     def compta_emails(self) -> List[str]:
         return [e.strip() for e in self.compta_email_raw.split(",") if e.strip()]
+
+    @property
+    def google_calendar_restricted(self) -> List[str]:
+        return [
+            c.strip()
+            for c in self.google_calendar_restricted_raw.split(",")
+            if c.strip()
+        ]
+
+    @property
+    def google_calendar_configured(self) -> bool:
+        """Vrai si l'onglet Calendrier peut interroger Google.
+
+        Le compte impersonne est aussi obligatoire que la cle : sans lui, le
+        compte de service n'a acces a aucun agenda et l'API repondrait par une
+        liste vide, ce qui ressemble a « aucun evenement » et non a « pas
+        configure ».
+        """
+        a_une_cle = bool(
+            self.google_service_account_json.strip()
+            or self.google_service_account_file.strip()
+        )
+        return a_une_cle and bool(self.google_calendar_subject.strip())
 
     @property
     def database_url(self) -> str:

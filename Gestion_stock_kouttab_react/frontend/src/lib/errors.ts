@@ -96,6 +96,11 @@ export const ERROR_MESSAGES: Record<string, string> = {
   EXT_6004: "L'intégration HelloAsso n'est pas configurée.",
   EXT_6010: "L'envoi de l'email a échoué. L'action a quand même été enregistrée.",
   EXT_6020: "Erreur base de données. Contactez l'administrateur.",
+  EXT_6040:
+    "Le calendrier Google n'est pas encore configuré. Un Super Admin doit renseigner le compte de service.",
+  EXT_6041:
+    "Connexion à Google Agenda refusée. Vérifiez le compte de service et la délégation accordée dans la console d'administration.",
+  EXT_6042: 'Google Agenda est momentanément injoignable. Réessayez dans un instant.',
 
   // ---------------- Rate limit (7xxx) ----------------
   RATE_7001: 'Trop de requêtes. Patientez quelques instants.',
