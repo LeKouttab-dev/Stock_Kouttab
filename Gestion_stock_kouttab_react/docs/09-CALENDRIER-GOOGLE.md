@@ -120,11 +120,41 @@ quand un suivi se termine.
   42 agendas multipliés par autant de mois, et les quotas Google se comptent à
   la requête.
 
-## 5. Fichiers
+## 5. L'aperçu figé, en attendant (provisoire)
+
+L'onglet est parti en production avant le compte de service. Plutôt qu'un écran
+vide, il sert un **relevé daté** des agendas, pris le 2026-09-20 sur quatre
+semaines (20 septembre → 18 octobre 2026, 195 événements, 41 agendas) :
+`backend/app/ressources/calendrier_instantane.json`.
+
+- **Google l'emporte toujours.** Dès que la clé et le compte impersonné sont
+  posés, le relevé n'est plus lu — sans quoi il masquerait la source vivante et
+  se tairait à chaque horaire corrigé. Le fichier peut alors être supprimé,
+  avec `app/services/calendrier_instantane.py`.
+- **L'écran le dit.** Une bannière donne la date du relevé et annonce que rien
+  n'y bouge. Un planning daté qui se présenterait comme le direct ferait manquer
+  un cours déplacé. Le bouton « Rafraîchir » disparaît : il ne promet rien.
+- **« PSY RDV » n'y est pas.** Un fichier versionné reste dans l'historique Git
+  pour de bon, et ces titres nomment les familles suivies. Cet agenda ne
+  reviendra que par la connexion en direct, où le filtrage par rôle s'applique.
+  Les descriptions et les participants sont également absents du relevé.
+- **Les couleurs sont posées par famille de cours** : cet accès ne les expose
+  pas. Les vraies arrivent avec le direct.
+- **Le fichier ne vit pas dans `app/data/`** : `.gitignore` exclut tout dossier
+  nommé `data/`, et le relevé aurait été absent de l'image construite par la CI
+  sans que rien ne le signale.
+
+Le relevé a été produit avec le connecteur Google Agenda d'un assistant, une
+fois — il n'existe pas de script rejouable, et il n'en faut pas : l'étape 2
+rend l'exercice inutile.
+
+## 6. Fichiers
 
 | Fichier | Rôle |
 |---|---|
 | `backend/app/services/google_calendar.py` | Jeton JWT-bearer, appels Calendar v3, cache |
+| `backend/app/services/calendrier_instantane.py` | Le relevé figé (provisoire, cf. §5) |
+| `backend/app/ressources/calendrier_instantane.json` | Le relevé lui-même |
 | `backend/app/api/v1/endpoints/calendar.py` | `/calendar`, `/calendar/agendas`, `/calendar/etat`, `/calendar/rafraichir` |
 | `backend/tests/integration/test_api_calendar.py` | Filtrage par rôle, normalisation, panne partielle |
 | `frontend/src/pages/calendar/CalendarPage.tsx` | L'écran (FullCalendar : mois, semaine, jour, liste) |

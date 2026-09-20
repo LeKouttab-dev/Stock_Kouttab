@@ -744,6 +744,16 @@ avec ce à quoi le compte a droit, et l'agenda n'est même pas interrogé.
 **Le cache mémoire n'est pas un confort** : 42 agendas font 42 appels à Google
 par fenêtre affichée, et feuilleter les mois épuiserait le quota.
 
+**Un relevé figé tient lieu de source tant que Google n'est pas branché**
+(`services/calendrier_instantane.py`, `app/ressources/calendrier_instantane.json`,
+195 événements du 20 sept. au 18 oct. 2026). Provisoire : **Google l'emporte dès
+qu'il est configuré**, sinon le fichier masquerait la source vivante. L'écran
+affiche une bannière datée — un planning figé qui se présenterait comme le direct
+ferait manquer un cours déplacé. « PSY RDV » en est exclu : un fichier versionné
+reste dans l'historique Git, et ces titres nomment les familles suivies.
+Le fichier n'est **pas** dans `app/data/` — `.gitignore` exclut tout dossier de
+ce nom, et il aurait manqué à l'image sans que rien ne le signale.
+
 ---
 
 ## 7. Authentification & sécurité

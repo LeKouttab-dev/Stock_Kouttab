@@ -48,12 +48,20 @@ class CalendrierOut(BaseModel):
     # Un agenda supprime ou devenu inaccessible ne doit pas vider la page des
     # quarante autres : on sert ce qu'on a, en disant ce qui manque.
     agendas_en_erreur: list[str] = []
+    # Releve fige, servi tant que la connexion Google n'est pas faite. L'ecran
+    # l'affiche : un planning date qui se presenterait comme le direct ferait
+    # manquer un cours deplace.
+    instantane: bool = False
+    genere_le: str | None = None
 
 
 class EtatCalendrierOut(BaseModel):
     """Diagnostic de l'integration, pour l'ecran d'administration."""
 
     configure: bool
+    # Vrai quand l'onglet sert le releve fige faute de connexion Google.
+    instantane: bool = False
+    genere_le: str | None = None
     compte_impersonne: str | None = None
     nombre_agendas: int | None = None
     agendas_restreints: list[str] = []

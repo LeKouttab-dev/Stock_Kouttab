@@ -713,10 +713,16 @@ export interface CalendrierReponse {
   evenements: EvenementCalendrier[];
   /** Agendas injoignables sur cet appel : la page sert les autres quand même. */
   agendas_en_erreur: string[];
+  /** Relevé figé, servi tant que la connexion Google n'est pas faite. */
+  instantane: boolean;
+  /** Date du relevé (AAAA-MM-JJ) quand `instantane`. */
+  genere_le?: string | null;
 }
 
 export interface EtatCalendrier {
   configure: boolean;
+  instantane: boolean;
+  genere_le?: string | null;
   compte_impersonne?: string | null;
   nombre_agendas?: number | null;
   agendas_restreints: string[];
