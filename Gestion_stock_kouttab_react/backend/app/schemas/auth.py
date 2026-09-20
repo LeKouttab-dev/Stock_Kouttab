@@ -7,6 +7,7 @@ from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field
 
+from app.schemas.calendar import AgendaOut, EvenementOut
 from app.schemas.user import UserOut
 
 
@@ -71,6 +72,26 @@ class SsoDepensesOut(BaseModel):
 
     evenement_trouve: bool
     lignes: list[SsoDepenseOut]
+
+
+class SsoCalendrierOut(BaseModel):
+    """Le calendrier tel que l'outil de gestion le lit.
+
+    Les agendas accompagnent les evenements : sans eux, le selecteur de
+    l'autre outil ne pourrait pas proposer un agenda qui n'a rien cette
+    semaine-la, et il disparaitrait de la liste une semaine sur deux.
+
+    **Les agendas reserves n'en font jamais partie** — quel que soit le
+    demandeur. Ils restent consultables dans cette application, par un Super
+    Admin ; les faire traverser la frontiere reviendrait a confier leur
+    filtrage a l'autre outil.
+    """
+
+    agendas: list[AgendaOut]
+    evenements: list[EvenementOut]
+    # Releve fige : l'ecran de gestion doit pouvoir le dire comme le notre.
+    instantane: bool = False
+    genere_le: str | None = None
 
 
 class ResetPasswordIn(BaseModel):
