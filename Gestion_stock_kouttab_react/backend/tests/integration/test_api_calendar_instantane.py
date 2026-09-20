@@ -59,9 +59,9 @@ def test_psy_rdv_n_est_pas_dans_le_fichier_versionne():
 
 
 def test_sans_google_l_onglet_sert_l_instantane(
-    client: TestClient, benevole_user, auth_headers, sans_google
+    client: TestClient, admin_benevoles_user, auth_headers, sans_google
 ):
-    reponse = client.get("/api/v1/calendar", params=FENETRE, headers=auth_headers(benevole_user))
+    reponse = client.get("/api/v1/calendar", params=FENETRE, headers=auth_headers(admin_benevoles_user))
     assert reponse.status_code == 200, reponse.text
     charge = reponse.json()
     assert charge["instantane"] is True
@@ -69,18 +69,18 @@ def test_sans_google_l_onglet_sert_l_instantane(
     assert len(charge["evenements"]) > 100
     # Les agendas sortent aussi du relevé, sinon la liste latérale serait vide
     # alors que la grille est pleine.
-    agendas = client.get("/api/v1/calendar/agendas", headers=auth_headers(benevole_user))
+    agendas = client.get("/api/v1/calendar/agendas", headers=auth_headers(admin_benevoles_user))
     assert len(agendas.json()) > 30
 
 
 def test_les_evenements_de_l_instantane_sont_dans_la_fenetre_demandee(
-    client: TestClient, benevole_user, auth_headers, sans_google
+    client: TestClient, admin_benevoles_user, auth_headers, sans_google
 ):
     """Une semaine demandée ne rend pas les quatre du relevé."""
     reponse = client.get(
         "/api/v1/calendar",
         params={"debut": "2026-09-21T00:00:00+02:00", "fin": "2026-09-28T00:00:00+02:00"},
-        headers=auth_headers(benevole_user),
+        headers=auth_headers(admin_benevoles_user),
     )
     evenements = reponse.json()["evenements"]
     assert evenements
@@ -92,7 +92,7 @@ def test_les_evenements_de_l_instantane_sont_dans_la_fenetre_demandee(
 
 
 def test_un_agenda_restreint_reste_filtre_sur_l_instantane(
-    client: TestClient, benevole_user, super_admin_user, auth_headers, monkeypatch, sans_google
+    client: TestClient, admin_benevoles_user, super_admin_user, auth_headers, monkeypatch, sans_google
 ):
     """Le filtrage ne dépend pas de la source : c'est le même chemin de code."""
     donnees = calendrier_instantane.charger()
@@ -101,7 +101,7 @@ def test_un_agenda_restreint_reste_filtre_sur_l_instantane(
     monkeypatch.setattr(settings, "google_calendar_restricted_raw", cible, raising=False)
 
     pour_benevole = client.get(
-        "/api/v1/calendar/agendas", headers=auth_headers(benevole_user)
+        "/api/v1/calendar/agendas", headers=auth_headers(admin_benevoles_user)
     ).json()
     pour_super_admin = client.get(
         "/api/v1/calendar/agendas", headers=auth_headers(super_admin_user)
@@ -111,7 +111,7 @@ def test_un_agenda_restreint_reste_filtre_sur_l_instantane(
 
 
 def test_google_configure_reprend_la_main_sur_l_instantane(
-    client: TestClient, benevole_user, auth_headers, monkeypatch
+    client: TestClient, admin_benevoles_user, auth_headers, monkeypatch
 ):
     """Le fichier est toujours là, mais c'est Google qui répond."""
 
@@ -140,7 +140,7 @@ def test_google_configure_reprend_la_main_sur_l_instantane(
     google_calendar._cache._valeurs.clear()
 
     assert calendrier_instantane.disponible() is True
-    reponse = client.get("/api/v1/calendar", params=FENETRE, headers=auth_headers(benevole_user))
+    reponse = client.get("/api/v1/calendar", params=FENETRE, headers=auth_headers(admin_benevoles_user))
     charge = reponse.json()
     assert charge["instantane"] is False
     assert [e["titre"] for e in charge["evenements"]] == ["Cours ajouté après le relevé"]
@@ -157,20 +157,20 @@ def test_l_etat_annonce_l_instantane_au_super_admin(
 
 
 def test_un_instantane_absent_redonne_le_message_de_configuration(
-    client: TestClient, benevole_user, auth_headers, monkeypatch, sans_google
+    client: TestClient, admin_benevoles_user, auth_headers, monkeypatch, sans_google
 ):
     """Une fois le fichier supprimé et Google absent, on dit ce qui manque."""
     monkeypatch.setattr(calendrier_instantane, "charger", lambda: None)
-    reponse = client.get("/api/v1/calendar", params=FENETRE, headers=auth_headers(benevole_user))
+    reponse = client.get("/api/v1/calendar", params=FENETRE, headers=auth_headers(admin_benevoles_user))
     assert reponse.status_code == 503
     assert reponse.json()["code"] == "EXT_6040"
 
 
 def test_les_horaires_gardent_leur_fuseau(
-    client: TestClient, benevole_user, auth_headers, sans_google
+    client: TestClient, admin_benevoles_user, auth_headers, sans_google
 ):
     """Un cours de 17 h reste à 17 h : les offsets du relevé sont servis tels quels."""
-    reponse = client.get("/api/v1/calendar", params=FENETRE, headers=auth_headers(benevole_user))
+    reponse = client.get("/api/v1/calendar", params=FENETRE, headers=auth_headers(admin_benevoles_user))
     debuts = [e["debut"] for e in reponse.json()["evenements"]]
     assert all("+0" in d or "Z" in d or len(d) == 10 for d in debuts)
     minuit_utc = [d for d in debuts if d.endswith("Z")]

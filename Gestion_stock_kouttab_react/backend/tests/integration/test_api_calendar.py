@@ -95,8 +95,10 @@ def google(monkeypatch) -> _ClientDouble:
     return double
 
 
-def test_un_benevole_ne_voit_pas_l_agenda_restreint(client: TestClient, benevole_user, auth_headers, google):
-    reponse = client.get("/api/v1/calendar/agendas", headers=auth_headers(benevole_user))
+def test_un_admin_benevoles_ne_voit_pas_l_agenda_restreint(
+    client: TestClient, admin_benevoles_user, auth_headers, google
+):
+    reponse = client.get("/api/v1/calendar/agendas", headers=auth_headers(admin_benevoles_user))
     assert reponse.status_code == 200, reponse.text
     identifiants = [a["id"] for a in reponse.json()]
     assert AGENDA_PUBLIC["id"] in identifiants
@@ -128,8 +130,10 @@ def test_demander_l_agenda_restreint_dans_l_url_ne_le_donne_pas(
     assert AGENDA_RESTREINT["id"] not in google.agendas_demandes
 
 
-def test_les_evenements_sont_normalises(client: TestClient, benevole_user, auth_headers, google):
-    reponse = client.get("/api/v1/calendar", params=FENETRE, headers=auth_headers(benevole_user))
+def test_les_evenements_sont_normalises(
+    client: TestClient, admin_benevoles_user, auth_headers, google
+):
+    reponse = client.get("/api/v1/calendar", params=FENETRE, headers=auth_headers(admin_benevoles_user))
     assert reponse.status_code == 200, reponse.text
     evenements = reponse.json()["evenements"]
     assert len(evenements) == 1
@@ -143,7 +147,7 @@ def test_les_evenements_sont_normalises(client: TestClient, benevole_user, auth_
 
 
 def test_un_evenement_sans_titre_reste_affichable(
-    client: TestClient, benevole_user, auth_headers, google, monkeypatch
+    client: TestClient, admin_benevoles_user, auth_headers, google, monkeypatch
 ):
     async def _sans_titre(calendar_id: str, debut, fin):
         return [{**EVENEMENT, "summary": None}]
@@ -151,7 +155,7 @@ def test_un_evenement_sans_titre_reste_affichable(
     monkeypatch.setattr(google, "lister_evenements", _sans_titre)
     google_service._cache._valeurs.clear()
 
-    reponse = client.get("/api/v1/calendar", params=FENETRE, headers=auth_headers(benevole_user))
+    reponse = client.get("/api/v1/calendar", params=FENETRE, headers=auth_headers(admin_benevoles_user))
     assert reponse.json()["evenements"][0]["titre"] == "(Sans titre)"
 
 
@@ -177,11 +181,13 @@ def test_un_agenda_en_panne_ne_vide_pas_la_page(
     assert charge["agendas_en_erreur"] == [AGENDA_RESTREINT["summary"]]
 
 
-def test_une_fenetre_trop_large_est_refusee(client: TestClient, benevole_user, auth_headers, google):
+def test_une_fenetre_trop_large_est_refusee(
+    client: TestClient, admin_benevoles_user, auth_headers, google
+):
     reponse = client.get(
         "/api/v1/calendar",
         params={"debut": "2020-01-01T00:00:00+01:00", "fin": "2030-01-01T00:00:00+01:00"},
-        headers=auth_headers(benevole_user),
+        headers=auth_headers(admin_benevoles_user),
     )
     assert reponse.status_code == 422
 
@@ -204,3 +210,23 @@ def test_l_etat_est_reserve_au_super_admin(
     assert etat["nombre_agendas"] == 2
     # Le direct repond : aucune raison de se dire « fige ».
     assert etat["instantane"] is False
+
+
+def test_un_benevole_n_a_pas_acces_au_calendrier(
+    client: TestClient, benevole_user, auth_headers, google
+):
+    """L'emploi du temps porte les creneaux des enseignants et les salles.
+
+    Le retirer du menu ne suffirait pas : l'adresse est devinable, et le
+    contrat porte sur le serveur.
+    """
+    assert (
+        client.get("/api/v1/calendar/agendas", headers=auth_headers(benevole_user)).status_code
+        == 403
+    )
+    assert (
+        client.get(
+            "/api/v1/calendar", params=FENETRE, headers=auth_headers(benevole_user)
+        ).status_code
+        == 403
+    )
