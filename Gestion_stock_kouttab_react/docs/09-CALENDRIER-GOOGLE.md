@@ -159,11 +159,32 @@ Le relevé a été produit avec le connecteur Google Agenda d'un assistant, une
 fois — il n'existe pas de script rejouable, et il n'en faut pas : l'étape 2
 rend l'exercice inutile.
 
-## 7. Fichiers
+## 7. L'outil de gestion lit le même calendrier
+
+`gestion.lekouttab.fr` affiche le même onglet, **sans second compte de service** :
+son serveur signe un jeton court (`typ: 'sso-calendrier'`, 60 s, secret partagé
+`SSO_SHARED_SECRET`) et appelle `POST /api/v1/auth/sso/calendrier`. Troisième
+point d'une famille déjà en place — la pastille et les dépenses passent par le
+même mécanisme.
+
+Ce qui vaut d'être retenu :
+
+- **Une seule connexion Google à configurer**, un seul cache, un seul endroit à
+  corriger le jour où l'API bouge.
+- **La fenêtre demandée est dans le jeton signé**, pas dans le corps : rien à
+  substituer pour balayer l'année, même pour qui tiendrait le secret.
+- **Les agendas réservés ne traversent jamais la frontière**, quel que soit le
+  demandeur. Ils restent consultables ici, par un Super Admin.
+- **Le droit d'ouvrir l'onglet est vérifié côté gestion**, où vivent ses rôles —
+  ici on vérifie seulement que la question vient bien de l'outil de gestion.
+  Même doctrine que `/sso/depenses`.
+
+## 8. Fichiers
 
 | Fichier | Rôle |
 |---|---|
 | `backend/app/services/google_calendar.py` | Jeton JWT-bearer, appels Calendar v3, cache |
+| `backend/app/services/calendrier.py` | Source, fenêtre, normalisation — partagé par l'onglet et le pont SSO |
 | `backend/app/services/calendrier_instantane.py` | Le relevé figé (provisoire, cf. §5) |
 | `backend/app/ressources/calendrier_instantane.json` | Le relevé lui-même |
 | `backend/app/api/v1/endpoints/calendar.py` | `/calendar`, `/calendar/agendas`, `/calendar/etat`, `/calendar/rafraichir` |

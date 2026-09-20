@@ -15,8 +15,8 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from app.api.v1.endpoints import calendar as calendar_endpoint
 from app.core.config import settings
+from app.services import calendrier
 from app.services import google_calendar as google_service
 
 
@@ -76,9 +76,7 @@ class _ClientDouble:
 @pytest.fixture()
 def google(monkeypatch) -> _ClientDouble:
     double = _ClientDouble()
-    monkeypatch.setattr(
-        calendar_endpoint, "get_google_calendar_client", lambda *a, **k: double
-    )
+    monkeypatch.setattr(calendrier, "get_google_calendar_client", lambda *a, **k: double)
     monkeypatch.setattr(
         settings, "google_calendar_restricted_raw", AGENDA_RESTREINT["id"], raising=False
     )

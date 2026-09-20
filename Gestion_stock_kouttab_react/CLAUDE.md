@@ -737,6 +737,19 @@ AdminBenevoles, Compta, Super Admin (`_ROLES_LECTURE` dans
   récurrences déjà développées par Google
 - `GET /calendar/etat` — diagnostic (Super Admin) ; `POST /calendar/rafraichir`
   vide le cache mémoire (AdminBenevoles+)
+- `POST /auth/sso/calendrier` — **le même calendrier, pour l'outil de gestion**
+  (jeton `typ: 'sso-calendrier'`, 60 s, secret partagé). `gestion.lekouttab.fr`
+  affiche son propre onglet sans second compte de service Google : une seule
+  connexion à configurer, un seul cache, un seul endroit à corriger.
+  **La fenêtre est dans le jeton signé**, comme pour `/sso/depenses` — le corps
+  ne porte que le jeton, il n'y a rien à substituer pour balayer l'année.
+  **Les agendas réservés ne traversent jamais la frontière**, quel que soit le
+  demandeur : les servir reviendrait à confier leur filtrage à l'autre outil.
+  Le droit d'ouvrir l'onglet est vérifié côté gestion, où vivent ses rôles.
+
+Le calcul (source, fenêtre, normalisation) vit dans **`services/calendrier.py`**,
+partagé par l'onglet et par le pont : deux chemins de lecture finiraient par
+répondre différemment à la même question, et personne ne saurait lequel croire.
 
 **Rien n'est stocké** : ni table, ni migration. Google reste la source de
 vérité — dupliquer les événements en créerait une seconde, à tenir à jour.

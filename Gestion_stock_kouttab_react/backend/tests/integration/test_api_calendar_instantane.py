@@ -16,9 +16,8 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from fastapi.testclient import TestClient
 
-from app.api.v1.endpoints import calendar as calendar_endpoint
 from app.core.config import settings
-from app.services import calendrier_instantane, google_calendar
+from app.services import calendrier, calendrier_instantane, google_calendar
 
 
 pytestmark = pytest.mark.integration
@@ -134,9 +133,7 @@ def test_google_configure_reprend_la_main_sur_l_instantane(
         settings, "google_calendar_subject", "admin@lekouttab.com", raising=False
     )
     monkeypatch.setattr(settings, "google_calendar_restricted_raw", "", raising=False)
-    monkeypatch.setattr(
-        calendar_endpoint, "get_google_calendar_client", lambda *a, **k: _Double()
-    )
+    monkeypatch.setattr(calendrier, "get_google_calendar_client", lambda *a, **k: _Double())
     google_calendar._cache._valeurs.clear()
 
     assert calendrier_instantane.disponible() is True

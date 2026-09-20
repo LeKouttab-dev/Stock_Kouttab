@@ -29,6 +29,7 @@ from app.core.security import (
 )
 from app.crud import auth_security
 from app.crud import sso as sso_crud
+from app.services import calendrier, calendrier_instantane
 from app.crud import event as event_crud
 from app.crud import expense as expense_crud
 from app.crud import invitation as invitation_crud
@@ -43,6 +44,7 @@ from app.schemas.auth import (
     ForgotPasswordIn,
     InvitationValidateOut,
     LoginIn,
+    SsoCalendrierOut,
     SsoDepensesOut,
     SsoExchangeIn,
     LogoutIn,
@@ -624,3 +626,56 @@ def admin_setup(
     invitation_crud.mark_used(db, invitation)
     logger.info("Super Admin '%s' cree via invitation pour %s", user.username, payload.email)
     return _build_token_payload(db, user, password_must_change=False)
+
+
+@router.post("/sso/calendrier", response_model=SsoCalendrierOut)
+# Meme client unique que la pastille et les depenses : l'IP du VPS de gestion,
+# une requete par fenetre consultee, memoisee 60 s la-bas.
+@limiter.limit("120/minute")
+async def sso_calendrier(request: Request, payload: SsoExchangeIn) -> Any:
+    """Le calendrier de l'institut, pour l'onglet du meme nom cote gestion.
+
+    Jeton dedie (typ 'sso-calendrier', 60 s) signe du secret partage. Lecture
+    seule, pas d'anti-rejeu : relire deux fois le meme planning n'ouvre rien.
+
+    **La fenetre demandee est dans le jeton signe**, pas dans le corps — meme
+    raison que pour les depenses : le corps ne porte que le jeton, il n'y a donc
+    rien a substituer pour balayer l'annee, meme pour qui tiendrait le secret.
+
+    **Les agendas reserves ne traversent jamais la frontiere**, quel que soit le
+    demandeur : ils restent consultables ici, par un Super Admin. Les servir
+    reviendrait a confier leur filtrage a l'autre outil.
+
+    Le droit d'ouvrir cet onglet est verifie cote gestion, ou vivent les roles ;
+    ici on verifie seulement que la question vient bien de l'outil de gestion.
+    """
+    secret = settings.sso_shared_secret.strip()
+    if not secret:
+        raise AppException(ErrorCode.NOT_FOUND)
+
+    charge = sso_crud.verifier_jeton(
+        payload.token, secret, typ_attendu="sso-calendrier", exiger_jti=False
+    )
+    try:
+        debut = datetime.fromisoformat(str(charge.get("debut")))
+        fin = datetime.fromisoformat(str(charge.get("fin")))
+    except (TypeError, ValueError) as exc:
+        raise AppException(
+            ErrorCode.VALIDATION_ERROR, detail="Fenetre absente ou illisible dans le jeton."
+        ) from exc
+    debut, fin = calendrier.borner_fenetre(debut, fin)
+
+    autorises = calendrier.sans_les_restreints(await calendrier.tous_les_agendas())
+    evenements, _echecs = await calendrier.evenements_de(autorises, debut, fin)
+    fige = calendrier.sur_instantane()
+    return SsoCalendrierOut(
+        # `restreints=set()` : ce qui sort d'ici ne l'est jamais, l'etiquette
+        # n'aurait aucun sens de l'autre cote.
+        agendas=sorted(
+            (calendrier.en_agenda(a, set()) for a in autorises),
+            key=lambda a: a.nom.lower(),
+        ),
+        evenements=evenements,
+        instantane=fige,
+        genere_le=calendrier_instantane.genere_le() if fige else None,
+    )
