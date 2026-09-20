@@ -82,11 +82,11 @@ const PERMISSIONS: Record<Action, Role[]> = {
   // échanges passent par les commentaires de ses notes.
   [ACTIONS.PROFILE_VIEW]: ['Super Admin', 'AdminBenevoles', 'Compta', 'Benevole'],
   [ACTIONS.CONTACT_VIEW]: ['Super Admin', 'AdminBenevoles', 'Compta', 'Benevole'],
-  // Le calendrier se consulte, il ne décide de rien : tous les rôles complets.
-  // Doit refléter `ROLES_COMPLETS` posé sur le router `/calendar` côté serveur.
-  // Les agendas sensibles ne sont pas retirés ici mais dans l'API
-  // (`GOOGLE_CALENDAR_RESTRICTED`) : masquer une ligne d'un menu ne protège rien.
-  [ACTIONS.CALENDAR_VIEW]: ['Super Admin', 'AdminBenevoles', 'Compta', 'Benevole'],
+  // L'emploi du temps de l'institut n'est pas une page de consultation ouverte :
+  // il porte les créneaux de chaque enseignant et les réservations de salles.
+  // Même cercle que la buvette. Doit refléter `_ROLES_LECTURE` dans
+  // `endpoints/calendar.py` : le menu ne protège rien, c'est le serveur qui tient.
+  [ACTIONS.CALENDAR_VIEW]: ['Super Admin', 'AdminBenevoles', 'Compta'],
 };
 
 export function canAccess(role: Role | null | undefined, action: Action): boolean {

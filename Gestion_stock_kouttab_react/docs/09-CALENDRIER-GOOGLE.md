@@ -88,7 +88,18 @@ Connecté en Super Admin : `GET /api/v1/calendar/etat` répond
 
 ---
 
-## 3. Agendas réservés
+## 3. Qui voit l'onglet
+
+**AdminBenevoles, Compta et Super Admin** — pas les bénévoles. L'emploi du temps
+porte les créneaux de chaque enseignant et les réservations de salles : c'est un
+outil d'organisation, au même titre que la buvette.
+
+La liste vit à deux endroits qui doivent rester jumeaux : `_ROLES_LECTURE` dans
+`backend/app/api/v1/endpoints/calendar.py` et `ACTIONS.CALENDAR_VIEW` dans
+`frontend/src/lib/auth.ts`. Le second ne fait que cacher une entrée de menu ;
+c'est le premier qui refuse la requête.
+
+## 4. Agendas réservés
 
 `GOOGLE_CALENDAR_RESTRICTED` liste des identifiants d'agendas, séparés par des
 virgules : ils ne sont servis qu'au **Super Admin**.
@@ -105,7 +116,7 @@ quand un suivi se termine.
 
 ---
 
-## 4. Ce que l'application fait des données
+## 5. Ce que l'application fait des données
 
 - **Aucun stockage.** Ni table, ni migration. Un cache mémoire de quelques
   minutes (`GOOGLE_CALENDAR_CACHE_SECONDS`) évite 42 appels à Google à chaque
@@ -120,7 +131,7 @@ quand un suivi se termine.
   42 agendas multipliés par autant de mois, et les quotas Google se comptent à
   la requête.
 
-## 5. L'aperçu figé, en attendant (provisoire)
+## 6. L'aperçu figé, en attendant (provisoire)
 
 L'onglet est parti en production avant le compte de service. Plutôt qu'un écran
 vide, il sert un **relevé daté** des agendas, pris le 2026-09-20 sur quatre
@@ -148,7 +159,7 @@ Le relevé a été produit avec le connecteur Google Agenda d'un assistant, une
 fois — il n'existe pas de script rejouable, et il n'en faut pas : l'étape 2
 rend l'exercice inutile.
 
-## 6. Fichiers
+## 7. Fichiers
 
 | Fichier | Rôle |
 |---|---|

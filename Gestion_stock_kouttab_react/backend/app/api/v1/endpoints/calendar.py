@@ -12,7 +12,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Query
 
-from app.api.deps import ROLES_COMPLETS, require_roles
+from app.api.deps import require_roles
 from app.core.config import settings
 from app.core.errors import ErrorCode
 from app.core.exceptions import AppException
@@ -36,9 +36,12 @@ from app.services.google_calendar import (
 router = APIRouter(prefix="/calendar", tags=["calendar"])
 logger = get_logger("calendar")
 
-# Le calendrier se consulte, il ne decide de rien : tous les roles complets y
-# ont acces. `BenevoleFrais` en est exclu comme du reste de l'application.
-_LECTURE = require_roles(*ROLES_COMPLETS)
+# L'emploi du temps de l'institut n'est pas une page de consultation ouverte :
+# il porte les creneaux de chaque enseignant et les reservations de salles.
+# Meme cercle que la buvette — ceux qui organisent, et la comptabilite.
+# Doit refleter `ACTIONS.CALENDAR_VIEW` dans `frontend/src/lib/auth.ts`.
+_ROLES_LECTURE = ("Super Admin", "AdminBenevoles", "Compta")
+_LECTURE = require_roles(*_ROLES_LECTURE)
 # Fenetre maximale servie en un appel. Un affichage mensuel en demande cinq
 # semaines ; au-dela de l'annee, ce sont 42 agendas multiplies par autant de
 # mois, et Google facture ses quotas a la requete.

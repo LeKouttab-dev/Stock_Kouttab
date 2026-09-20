@@ -260,7 +260,7 @@ le démarrage en production. Les valeurs en clair héritées restent lisibles
 | Buvette — CRUD produits / ajuster stock | — | ✅ | — | ✅ |
 | Buvette — configurer/supprimer webhook HelloAsso | — | — | — | ✅ |
 | Buvette — ranger un produit dans un onglet de la tablette | — | ✅ | — | ✅ |
-| Calendrier — consulter les agendas Google | ✅ | ✅ | ✅ | ✅ |
+| Calendrier — consulter les agendas Google | — | ✅ | ✅ | ✅ |
 | Calendrier — agendas déclarés réservés (`GOOGLE_CALENDAR_RESTRICTED`) | — | — | — | ✅ |
 | Calendrier — état de l'intégration | — | — | — | ✅ |
 | Caisse — lire le catalogue, envoyer une vente | clé `CAISSE_API_KEY` (la tablette), aucun rôle | | | |
@@ -726,6 +726,12 @@ remplacer la boîte de réception.
 - `POST /buvette/caisse/ventes` — une vente payée par SumUp : enregistrée et stock décrémenté ; 201, ou 200 `already_recorded` si la tablette la renvoie (en-tête `X-Caisse-Key`)
 
 ### Calendrier (Google Agenda)
+
+**Pas pour les bénévoles.** L'emploi du temps porte les créneaux de chaque
+enseignant et les réservations de salles : même cercle que la buvette —
+AdminBenevoles, Compta, Super Admin (`_ROLES_LECTURE` dans
+`endpoints/calendar.py`, jumelé à `ACTIONS.CALENDAR_VIEW` côté front).
+
 - `GET /calendar/agendas` — agendas visibles par le compte connecté
 - `GET /calendar?debut=&fin=&agendas=` — événements de la fenêtre (400 jours max),
   récurrences déjà développées par Google

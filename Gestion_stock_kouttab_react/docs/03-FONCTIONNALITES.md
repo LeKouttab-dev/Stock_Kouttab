@@ -1016,6 +1016,12 @@ seul Super Admin — prévu pour les rendez-vous de santé, où le seul titre d'
 événement nomme la personne suivie. Le filtrage est fait dans l'API : masquer une
 case dans le menu ne protège rien, et demander l'agenda dans l'URL ne le rend pas.
 
+**Les bénévoles n'y ont pas accès.** L'emploi du temps porte les créneaux de
+chaque enseignant et les réservations de salles ; c'est un outil d'organisation,
+pas une page de consultation. Même cercle que la buvette : AdminBenevoles,
+Compta, Super Admin. Le contrôle est sur le serveur, l'entrée de menu n'étant
+qu'un affichage.
+
 **Une panne partielle ne vide pas l'écran.** Un agenda supprimé ou devenu
 inaccessible est signalé par son nom ; les quarante autres s'affichent.
 
@@ -1033,7 +1039,7 @@ Vérifié contre le code. Les lignes marquées **(nouveau)** ne figurent pas dan
 | Page / Action | Benevole | AdminBenevoles | Compta | Super Admin |
 |---|:--:|:--:|:--:|:--:|
 | **Dashboard** (vue + alertes) | ✅ | ✅ | ✅ | ✅ |
-| Calendrier — consulter les agendas Google **(nouveau)** | ✅ | ✅ | ✅ | ✅ |
+| Calendrier — consulter les agendas Google **(nouveau)** | — | ✅ | ✅ | ✅ |
 | Calendrier — agendas déclarés réservés **(nouveau)** | — | — | — | ✅ |
 | Stock — consulter | ✅ | ✅ | ✅ | ✅ |
 | Stock — demander une modification | ✅ | ✅ ¹ | ✅ ¹ | ✅ ¹ |
