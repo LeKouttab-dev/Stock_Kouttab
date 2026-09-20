@@ -36,6 +36,9 @@ export const fr = {
     restreint: 'Réservé',
     recurrent: 'Événement récurrent',
     agendasEnErreur: 'Agendas momentanément illisibles :',
+    instantaneTitre: 'Aperçu figé',
+    instantaneTexte:
+      "Ce calendrier est un relevé des agendas Google pris le {date}. Il ne bouge plus : ce qui a été modifié dans Google depuis n'apparaît pas ici. La mise à jour en continu démarrera dès que la connexion à Google Agenda sera configurée.",
     indisponible: 'Calendrier indisponible',
   },
   auth: {

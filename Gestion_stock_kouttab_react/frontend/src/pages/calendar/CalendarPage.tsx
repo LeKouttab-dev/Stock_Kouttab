@@ -5,7 +5,7 @@ import timeGridPlugin from '@fullcalendar/timegrid';
 import listPlugin from '@fullcalendar/list';
 import frLocale from '@fullcalendar/core/locales/fr';
 import type { DatesSetArg, EventClickArg, EventInput } from '@fullcalendar/core';
-import { AlertTriangle, CalendarDays, MapPin, RefreshCw, Repeat, User } from 'lucide-react';
+import { AlertTriangle, CalendarDays, History, MapPin, RefreshCw, Repeat, User } from 'lucide-react';
 
 import { Alert } from '@/components/ui/alert';
 import { ErrorAlert } from '@/components/shared/ErrorAlert';
@@ -133,6 +133,9 @@ export function CalendarPage() {
         <Button
           variant="outline"
           size="sm"
+          // Vider un cache qui ne sert pas encore Google n'apporte rien :
+          // le bouton disparaît plutôt que de promettre une mise à jour.
+          hidden={data?.instantane}
           disabled={rafraichir.isPending}
           onClick={() => rafraichir.mutate(undefined)}
         >
@@ -149,6 +152,31 @@ export function CalendarPage() {
           error={erreurAgendas ?? erreurEvenements}
           title={i18n.calendrier.indisponible}
         />
+      )}
+
+      {/* Un planning daté qui se présenterait comme le direct ferait manquer
+          un cours déplacé : tant que la source est figée, l'écran le dit, et
+          il donne la date du relevé. */}
+      {data?.instantane && (
+        <Alert variant="info">
+          <History className="h-4 w-4" />
+          <div>
+            <p className="font-semibold">{i18n.calendrier.instantaneTitre}</p>
+            <p className="text-sm">
+              {i18n.calendrier.instantaneTexte.replace(
+                '{date}',
+                data.genere_le
+                  ? new Intl.DateTimeFormat('fr-FR', {
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric',
+                      timeZone: 'Europe/Paris',
+                    }).format(new Date(`${data.genere_le}T12:00:00+02:00`))
+                  : 'ce jour',
+              )}
+            </p>
+          </div>
+        </Alert>
       )}
 
       {/* Un agenda illisible n'efface pas les autres : on le dit, et on sert

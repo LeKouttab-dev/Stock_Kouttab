@@ -1,0 +1,1972 @@
+{
+ "genere_le": "2026-09-20",
+ "source": "Agendas Google de l'association, relevés via le connecteur Google Agenda.",
+ "fenetre": {
+  "debut": "2026-09-20T00:00:00+02:00",
+  "fin": "2026-10-18T00:00:00+02:00"
+ },
+ "agendas": [
+  {
+   "id": "c_cf0b776046ff92931f665e6ac17fe4331bd638f28daf7d082b2d2226fe30afe8@group.calendar.google.com",
+   "nom": "Réservation (salle méthodiya)",
+   "couleur": "#a79b8e"
+  },
+  {
+   "id": "c_28aeffb4d628de7672a7a634ca38b584d1dba9d01eb91b10f362b479e043275d@group.calendar.google.com",
+   "nom": "Réservation (salle de conférence)",
+   "couleur": "#a79b8e"
+  },
+  {
+   "id": "c_d17ca60da8709e267afbf654e0400969769d9964d38e5d021344796c9d9892f1@group.calendar.google.com",
+   "nom": "Equipe interne Kouttâb",
+   "couleur": "#3f51b5"
+  },
+  {
+   "id": "c_f601cee0c0697fd0e14a2364c3ddd2be942d7a949900a7f9731b3e2e25c1f1f9@group.calendar.google.com",
+   "nom": "Évènements (salle méthodiya)",
+   "couleur": "#d50000"
+  },
+  {
+   "id": "c_02be45aaffbc3912034200826180ca669a9afe1bdebc3753e1fa25ed2cb6d9c7@group.calendar.google.com",
+   "nom": "SI - Adorations 2026/2027",
+   "couleur": "#8e24aa"
+  },
+  {
+   "id": "c_544a730950e077b8621846a9b1d40da5adc2ba3bca7151c91d28b5f6d95f4167@group.calendar.google.com",
+   "nom": "SI - Fondements de la jurisprudence 2026/2027",
+   "couleur": "#8e24aa"
+  },
+  {
+   "id": "c_b721ea586ff1ba7752a1c5c5b482dcbdbffe50ab5c04a561ec207939003a97fc@group.calendar.google.com",
+   "nom": "SI - Mariage 2026/2027",
+   "couleur": "#8e24aa"
+  },
+  {
+   "id": "c_5daec2155554b99abe0367df400512aad14c0e5d8d506da2746aa2cbb5cc3e95@group.calendar.google.com",
+   "nom": "SI - Société 2026/2027",
+   "couleur": "#8e24aa"
+  },
+  {
+   "id": "c_6f4760a5383034add96913fd21f399a0784f133ce7c2b94d0449a0ff4c259d2f@group.calendar.google.com",
+   "nom": "SI - Fondements du coran et du hadith 2026/2027",
+   "couleur": "#8e24aa"
+  },
+  {
+   "id": "c_6d0ef48e0fe02574077f1ea1b0f06fd2e6a388d1e69f1b1311e1fb906465024b@group.calendar.google.com",
+   "nom": "SI - Jurisprudence comparée 2026/2027",
+   "couleur": "#8e24aa"
+  },
+  {
+   "id": "c_4e7973be94b8837130be4645be56cdfbf82addfc3b1b273155906f6949ecbead@group.calendar.google.com",
+   "nom": "En dehors du kouttab",
+   "couleur": "#616161"
+  },
+  {
+   "id": "c_926b63447012027abecb8ba9f1ee74fd586e0b1b33f0d75aebfe4f7428b4fcb0@group.calendar.google.com",
+   "nom": "SI - analyse de la vie prophétique 2026/2027",
+   "couleur": "#8e24aa"
+  },
+  {
+   "id": "c_56db6fc4250aa888297a3694f81b908359f801a10770a2471be1616b2cd50824@group.calendar.google.com",
+   "nom": "SI - avancé 2026/2027",
+   "couleur": "#8e24aa"
+  },
+  {
+   "id": "c_537edaf99bd3981ec4aee05e7895b8f4987030de91a855b469ededf2cc9b1e16@group.calendar.google.com",
+   "nom": "SI - comportement de l'étudiant 2026/2027",
+   "couleur": "#8e24aa"
+  },
+  {
+   "id": "c_7a85c867f5b5a20ca14f459a7728d568cd1e5ee82f50a08e8ea403b155472d9e@group.calendar.google.com",
+   "nom": "SI - croyance 2026/2027",
+   "couleur": "#8e24aa"
+  },
+  {
+   "id": "c_ab98c6710f795fc0d2d0e6600c1039a4114e09892ed11acf61c4b173a4681d32@group.calendar.google.com",
+   "nom": "Alphabétisation femmes 2026/2027",
+   "couleur": "#616161"
+  },
+  {
+   "id": "c_8e04e9c0c4f32f99df86908b4fe473e99d913063ea0c209b3d32216b5d40c6d1@group.calendar.google.com",
+   "nom": "Alphabétisation hommes 2026/2027",
+   "couleur": "#616161"
+  },
+  {
+   "id": "c_2101500cc806298801b51993dc93ecc7d27593f2dcdff51f5b63a722168ce39c@group.calendar.google.com",
+   "nom": "Coran - hommes niveau 2 2026/2027",
+   "couleur": "#039be5"
+  },
+  {
+   "id": "c_cbe7e4ce075231142c2e12a9db4ddd2e6e44d0f201ae3131207d1812c875f013@group.calendar.google.com",
+   "nom": "Coran - hommes niveau 1 2026/2027",
+   "couleur": "#039be5"
+  },
+  {
+   "id": "c_a417782e8c22f64c5d5de225125969368750e23cc52b15a997e69a5416da4e47@group.calendar.google.com",
+   "nom": "Coran - femmes niveau 1 semaine 2026/2027",
+   "couleur": "#33b679"
+  },
+  {
+   "id": "c_7b10a744fc2a4e17e272c5ac6797f07455bec8ced9c8a9961fe2beab12cfb813@group.calendar.google.com",
+   "nom": "Coran - femmes niveau 1 weekend 2026/2027",
+   "couleur": "#33b679"
+  },
+  {
+   "id": "c_d3055d626ccc0b469942d5d387af0c2172c2c17ba717ef67d9d255c6d2139289@group.calendar.google.com",
+   "nom": "Coran - femmes niveau 2 2026/2027",
+   "couleur": "#33b679"
+  },
+  {
+   "id": "c_eba271ebdb67f1eb504a96b2dc1869c52803c7d5e29bf212daa10be5deb05cc6@group.calendar.google.com",
+   "nom": "Coran - enfants 1+2 U.harissa 2026/2027",
+   "couleur": "#0b8043"
+  },
+  {
+   "id": "c_2df6daa26f81f29d017e2f2d39b603483405045b9be7e43c32432b7d53f6a481@group.calendar.google.com",
+   "nom": "Coran - enfants 2 U.mohamed 2026/2027",
+   "couleur": "#0b8043"
+  },
+  {
+   "id": "c_6b9c99d6e6312979a53fc6d3c88daac88b2d5ea24ce8ac9ba098322ece03f95e@group.calendar.google.com",
+   "nom": "Coran - enfants 3 U.mohamed 2026/2027",
+   "couleur": "#0b8043"
+  },
+  {
+   "id": "c_63f45dd0ed0a4c23198ad7d4138b224cf38952aa136cf47cbeda58f7e92b985d@group.calendar.google.com",
+   "nom": "Coran - enfants 3 U.isabelle 2026/2027",
+   "couleur": "#0b8043"
+  },
+  {
+   "id": "c_f418ab9f5684ec76b0d077e3eabcdb5cc1c23f98a62bda58e52e9e50e3594621@group.calendar.google.com",
+   "nom": "Education islamique 6-11ans 2026/2027",
+   "couleur": "#7986cb"
+  },
+  {
+   "id": "c_1d6573965b81c01784c5645c5fd9961c4770d2334ecb2dd132813bdffa9b3349@group.calendar.google.com",
+   "nom": "Education islamique 11-16ans 2026/2027",
+   "couleur": "#7986cb"
+  },
+  {
+   "id": "c_fcddd6f0d70ac24cd696153a1b8e88bf244c9767eb3c1a1f6546f256ed3c811d@group.calendar.google.com",
+   "nom": "Madrassah niveau 1 2026/2027",
+   "couleur": "#e67c73"
+  },
+  {
+   "id": "c_9e65f898525f86494a017fd0c15b47ac622007011e0b829654676f80ec41e488@group.calendar.google.com",
+   "nom": "Madrassah niveau 2 2026/2027",
+   "couleur": "#e67c73"
+  },
+  {
+   "id": "c_0e6096cb9a22dfd65fecc3949223f608a6d13caef0aed7456311582dd4aa8326@group.calendar.google.com",
+   "nom": "SI - initiation 2026/2027",
+   "couleur": "#8e24aa"
+  },
+  {
+   "id": "c_c3adac9a082a2b880d566c6a676c2bcbab9be2577c4913e2a21a30a41661e1b9@group.calendar.google.com",
+   "nom": "Arabe immersion - éveil 1 2026/2027",
+   "couleur": "#f6bf26"
+  },
+  {
+   "id": "c_ec10dd22ef2857ca1c7b5cf522fb316d12d9fff7c96f56b431dece5d21e5101c@group.calendar.google.com",
+   "nom": "Arabe immersion - primaire 1 2026/2027",
+   "couleur": "#f6bf26"
+  },
+  {
+   "id": "c_8cf6338884d4800cdaab7f8c1bf7093c25bf93c04f25b1b239d24e20c352fb0d@group.calendar.google.com",
+   "nom": "Coran - enfants 1 U.harissa 2026/2027",
+   "couleur": "#0b8043"
+  },
+  {
+   "id": "c_a9ad1a9f85689deb9b5d85fc56ab7091dc3df6cec3e3d38f64c128d9ec8b54fb@group.calendar.google.com",
+   "nom": "Hors cursus - SI - avancé 2026/2027",
+   "couleur": "#8e24aa"
+  },
+  {
+   "id": "c_fecbd49a8c3d50ec9f6c4eff112aab953f4ed8706c20103e775a28cd9917ef2c@group.calendar.google.com",
+   "nom": "Arabe immersion - éveil 2 2026/2027",
+   "couleur": "#f6bf26"
+  },
+  {
+   "id": "c_2086506ae05182ef9aa9d5c8f534cde0b9a4193a3ac80dd7bf761b599fcd415f@group.calendar.google.com",
+   "nom": "Arabe immersion - primaire 2 2026/2027",
+   "couleur": "#f6bf26"
+  },
+  {
+   "id": "c_206dff145e8654909cdf61e0b9e86e7ca1a4c3e43f62f3a952046757a22fe8fa@group.calendar.google.com",
+   "nom": "Coran - enfants 2 U.mohamed 2026/2027 (2)",
+   "couleur": "#0b8043"
+  },
+  {
+   "id": "c_c88cc3090d92d8ace307375403f9878360e02801ffb29b4d80ba494a87b0eafb@group.calendar.google.com",
+   "nom": "Sas",
+   "couleur": "#616161"
+  },
+  {
+   "id": "admin@lekouttab.com",
+   "nom": "Évènements (salle conférence)",
+   "couleur": "#d50000"
+  },
+  {
+   "id": "c_746a4fefc16346480d047ff9cf2148ba84cabd6e4df9326239dba2b3823a6a60@group.calendar.google.com",
+   "nom": "Hafiz famille 2026/2027",
+   "couleur": "#f4511e"
+  }
+ ],
+ "evenements": [
+  {
+   "agenda_id": "c_56db6fc4250aa888297a3694f81b908359f801a10770a2471be1616b2cd50824@group.calendar.google.com",
+   "id": "ucpo27brqkspakfjg08gdqchlk",
+   "titre": "cours 04",
+   "debut": "2026-09-20T08:30:00+02:00",
+   "fin": "2026-09-20T12:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_746a4fefc16346480d047ff9cf2148ba84cabd6e4df9326239dba2b3823a6a60@group.calendar.google.com",
+   "id": "a269svfpsrmunsditmo2br1eqs",
+   "titre": "Hafiz famille",
+   "debut": "2026-09-20T09:00:00+02:00",
+   "fin": "2026-09-20T11:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_ab98c6710f795fc0d2d0e6600c1039a4114e09892ed11acf61c4b173a4681d32@group.calendar.google.com",
+   "id": "c9360ee9cc61a22203bacf2a1cb99acce09123a59",
+   "titre": "cours 02",
+   "debut": "2026-09-20T12:15:00+02:00",
+   "fin": "2026-09-20T15:45:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_ec10dd22ef2857ca1c7b5cf522fb316d12d9fff7c96f56b431dece5d21e5101c@group.calendar.google.com",
+   "id": "c5f5404e2a0bac0a1386595ffae56078e625e72a1",
+   "titre": "cours 03",
+   "debut": "2026-09-20T13:30:00+02:00",
+   "fin": "2026-09-20T15:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_c3adac9a082a2b880d566c6a676c2bcbab9be2577c4913e2a21a30a41661e1b9@group.calendar.google.com",
+   "id": "cd50085af99883d0aee6d3ab8d92ea0dc6c7edd34",
+   "titre": "cours 03",
+   "debut": "2026-09-20T15:45:00+02:00",
+   "fin": "2026-09-20T17:45:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_0e6096cb9a22dfd65fecc3949223f608a6d13caef0aed7456311582dd4aa8326@group.calendar.google.com",
+   "id": "ah7i4j8im9aif2mvldecs5jipg",
+   "titre": "cours 02",
+   "debut": "2026-09-20T16:00:00+02:00",
+   "fin": "2026-09-20T17:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_2101500cc806298801b51993dc93ecc7d27593f2dcdff51f5b63a722168ce39c@group.calendar.google.com",
+   "id": "ce121dec6e63bcf9aef6901f21faa50ec66b67c42",
+   "titre": "cours 03",
+   "debut": "2026-09-20T18:00:00+02:00",
+   "fin": "2026-09-20T20:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_537edaf99bd3981ec4aee05e7895b8f4987030de91a855b469ededf2cc9b1e16@group.calendar.google.com",
+   "id": "hv38b9oqm80e55eqi632ftsjtc",
+   "titre": "cours 02",
+   "debut": "2026-09-20T20:00:00+02:00",
+   "fin": "2026-09-20T21:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_cbe7e4ce075231142c2e12a9db4ddd2e6e44d0f201ae3131207d1812c875f013@group.calendar.google.com",
+   "id": "c38d26964fe85a08972bafb6d42cb26d17e6ed26a",
+   "titre": "cours 03",
+   "debut": "2026-09-20T20:15:00+02:00",
+   "fin": "2026-09-20T22:15:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_d17ca60da8709e267afbf654e0400969769d9964d38e5d021344796c9d9892f1@group.calendar.google.com",
+   "id": "1oj8tls0icmmo981m0c60dar9t_20260920T190000Z",
+   "titre": "Point Hebdo",
+   "debut": "2026-09-20T21:00:00+02:00",
+   "fin": "2026-09-20T22:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_a417782e8c22f64c5d5de225125969368750e23cc52b15a997e69a5416da4e47@group.calendar.google.com",
+   "id": "c83960706f6485c56239cd764d71981bfe5d37aaa",
+   "titre": "cours 02",
+   "debut": "2026-09-21T09:15:00+02:00",
+   "fin": "2026-09-21T11:45:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_2df6daa26f81f29d017e2f2d39b603483405045b9be7e43c32432b7d53f6a481@group.calendar.google.com",
+   "id": "c03afc68c256d1e6ba8f4ee871f24ba98d25fcf01",
+   "titre": "cours 05",
+   "debut": "2026-09-21T17:30:00+02:00",
+   "fin": "2026-09-21T18:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_8cf6338884d4800cdaab7f8c1bf7093c25bf93c04f25b1b239d24e20c352fb0d@group.calendar.google.com",
+   "id": "cc422e52cad5ccc955a1a25b4536ceaa0b307a363",
+   "titre": "cours 05",
+   "debut": "2026-09-21T17:30:00+02:00",
+   "fin": "2026-09-21T18:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_6b9c99d6e6312979a53fc6d3c88daac88b2d5ea24ce8ac9ba098322ece03f95e@group.calendar.google.com",
+   "id": "c14a90331b053b6c6aa6f797464c49a6144942392",
+   "titre": "cours 05",
+   "debut": "2026-09-21T18:30:00+02:00",
+   "fin": "2026-09-21T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_eba271ebdb67f1eb504a96b2dc1869c52803c7d5e29bf212daa10be5deb05cc6@group.calendar.google.com",
+   "id": "c8056e4fea3ff35f28e39585f6c0e03d406713ec9",
+   "titre": "cours 05",
+   "debut": "2026-09-21T18:30:00+02:00",
+   "fin": "2026-09-21T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_02be45aaffbc3912034200826180ca669a9afe1bdebc3753e1fa25ed2cb6d9c7@group.calendar.google.com",
+   "id": "siadorations20260921",
+   "titre": "cours 02",
+   "debut": "2026-09-21T20:00:00+02:00",
+   "fin": "2026-09-21T21:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_ab98c6710f795fc0d2d0e6600c1039a4114e09892ed11acf61c4b173a4681d32@group.calendar.google.com",
+   "id": "c00cf11190af060aecce4fd99cae468d9e59489fa",
+   "titre": "cours 02",
+   "debut": "2026-09-22T09:15:00+02:00",
+   "fin": "2026-09-22T11:45:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_a9ad1a9f85689deb9b5d85fc56ab7091dc3df6cec3e3d38f64c128d9ec8b54fb@group.calendar.google.com",
+   "id": "ce7795c1fcc056f467ab7abc58abe7432c9e093f7",
+   "titre": "cours 02",
+   "debut": "2026-09-22T13:00:00+02:00",
+   "fin": "2026-09-22T15:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_2df6daa26f81f29d017e2f2d39b603483405045b9be7e43c32432b7d53f6a481@group.calendar.google.com",
+   "id": "c45defd9d55d881b0fe24415075297ca9874984bb",
+   "titre": "cours 06",
+   "debut": "2026-09-22T17:30:00+02:00",
+   "fin": "2026-09-22T18:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_8cf6338884d4800cdaab7f8c1bf7093c25bf93c04f25b1b239d24e20c352fb0d@group.calendar.google.com",
+   "id": "cf4300ffcc8bafc5f0cb0b4d1882e0b209e437972",
+   "titre": "cours 06",
+   "debut": "2026-09-22T17:30:00+02:00",
+   "fin": "2026-09-22T18:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_6b9c99d6e6312979a53fc6d3c88daac88b2d5ea24ce8ac9ba098322ece03f95e@group.calendar.google.com",
+   "id": "ca9b951b0f6209ee67e1962c3d107dfcf995227ae",
+   "titre": "cours 06",
+   "debut": "2026-09-22T18:30:00+02:00",
+   "fin": "2026-09-22T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_eba271ebdb67f1eb504a96b2dc1869c52803c7d5e29bf212daa10be5deb05cc6@group.calendar.google.com",
+   "id": "cd06eadbd3e0f2fac51be038dc0c0806196ed9afe",
+   "titre": "cours 06",
+   "debut": "2026-09-22T18:30:00+02:00",
+   "fin": "2026-09-22T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_b721ea586ff1ba7752a1c5c5b482dcbdbffe50ab5c04a561ec207939003a97fc@group.calendar.google.com",
+   "id": "8kdcm32it76tfakmjem3qeso5o",
+   "titre": "cours 02",
+   "debut": "2026-09-22T20:00:00+02:00",
+   "fin": "2026-09-22T21:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_fcddd6f0d70ac24cd696153a1b8e88bf244c9767eb3c1a1f6546f256ed3c811d@group.calendar.google.com",
+   "id": "986lrjjht8fok445ephsr46780",
+   "titre": "cours 02",
+   "debut": "2026-09-23T09:00:00+02:00",
+   "fin": "2026-09-23T12:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_9e65f898525f86494a017fd0c15b47ac622007011e0b829654676f80ec41e488@group.calendar.google.com",
+   "id": "830vte9dtfffa67ddsemeol9e4",
+   "titre": "cours 02",
+   "debut": "2026-09-23T13:30:00+02:00",
+   "fin": "2026-09-23T17:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_ec10dd22ef2857ca1c7b5cf522fb316d12d9fff7c96f56b431dece5d21e5101c@group.calendar.google.com",
+   "id": "c686884bd17c95cb8f79337d1583851772039130e",
+   "titre": "cours 04",
+   "debut": "2026-09-23T13:30:00+02:00",
+   "fin": "2026-09-23T15:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_c3adac9a082a2b880d566c6a676c2bcbab9be2577c4913e2a21a30a41661e1b9@group.calendar.google.com",
+   "id": "c383e715e8596368700eb139147a65e59aa8912b5",
+   "titre": "cours 04",
+   "debut": "2026-09-23T15:45:00+02:00",
+   "fin": "2026-09-23T17:45:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_63f45dd0ed0a4c23198ad7d4138b224cf38952aa136cf47cbeda58f7e92b985d@group.calendar.google.com",
+   "id": "c31673f92eeebff904d7aac9d9070aded570212e8",
+   "titre": "cours 02",
+   "debut": "2026-09-23T17:30:00+02:00",
+   "fin": "2026-09-23T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_2101500cc806298801b51993dc93ecc7d27593f2dcdff51f5b63a722168ce39c@group.calendar.google.com",
+   "id": "cc1961c60460e697735ef7c4de7fe628fc1228253",
+   "titre": "cours 04",
+   "debut": "2026-09-23T18:00:00+02:00",
+   "fin": "2026-09-23T20:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_5daec2155554b99abe0367df400512aad14c0e5d8d506da2746aa2cbb5cc3e95@group.calendar.google.com",
+   "id": "07fkbs5nla3ks7a2r55def5c5g",
+   "titre": "cours 02",
+   "debut": "2026-09-23T20:00:00+02:00",
+   "fin": "2026-09-23T21:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_cbe7e4ce075231142c2e12a9db4ddd2e6e44d0f201ae3131207d1812c875f013@group.calendar.google.com",
+   "id": "c1a8680fcf4a22753c3a0f98f2c176f22daa6b9ac",
+   "titre": "cours 04",
+   "debut": "2026-09-23T20:15:00+02:00",
+   "fin": "2026-09-23T22:15:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_2df6daa26f81f29d017e2f2d39b603483405045b9be7e43c32432b7d53f6a481@group.calendar.google.com",
+   "id": "ca9b4ea4663c53ff7a4f9fd6b116b6c7844c3ded9",
+   "titre": "cours 07",
+   "debut": "2026-09-24T17:30:00+02:00",
+   "fin": "2026-09-24T18:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_8cf6338884d4800cdaab7f8c1bf7093c25bf93c04f25b1b239d24e20c352fb0d@group.calendar.google.com",
+   "id": "c27500e9fc9f571d62d563ab631d2f5cbcd18c50b",
+   "titre": "cours 07",
+   "debut": "2026-09-24T17:30:00+02:00",
+   "fin": "2026-09-24T18:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_6b9c99d6e6312979a53fc6d3c88daac88b2d5ea24ce8ac9ba098322ece03f95e@group.calendar.google.com",
+   "id": "c8d0e05e1c2c59f3513ff34e139103cd2c6df3b9e",
+   "titre": "cours 07",
+   "debut": "2026-09-24T18:30:00+02:00",
+   "fin": "2026-09-24T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_eba271ebdb67f1eb504a96b2dc1869c52803c7d5e29bf212daa10be5deb05cc6@group.calendar.google.com",
+   "id": "cf67920301390339e86c0f003e802dbb187b3b59e",
+   "titre": "cours 07",
+   "debut": "2026-09-24T18:30:00+02:00",
+   "fin": "2026-09-24T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_544a730950e077b8621846a9b1d40da5adc2ba3bca7151c91d28b5f6d95f4167@group.calendar.google.com",
+   "id": "bn67tnfehv7hu08dh3som0ve0g",
+   "titre": "cours 02",
+   "debut": "2026-09-24T20:00:00+02:00",
+   "fin": "2026-09-24T21:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "admin@lekouttab.com",
+   "id": "o2hgafg4dshvs2innlneqeev88",
+   "titre": "Permanence PSY VENDREDI (Selma Alioui)",
+   "debut": "2026-09-25T10:45:00+02:00",
+   "fin": "2026-09-25T12:15:00+02:00",
+   "journee_entiere": false,
+   "lieu": "55 Rue Charles Delescluze"
+  },
+  {
+   "agenda_id": "admin@lekouttab.com",
+   "id": "lckuk55n43qmujsa0kotasuf38",
+   "titre": "Permanence PSY VENDREDI (Naomou Diaby)",
+   "debut": "2026-09-25T12:30:00+02:00",
+   "fin": "2026-09-25T14:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": "55 Rue Charles Delescluze"
+  },
+  {
+   "agenda_id": "admin@lekouttab.com",
+   "id": "atk1mjn77vkqmv018r4c1mhd30",
+   "titre": "Permanence PSY VENDREDI (Mouflihath ANJORIN)",
+   "debut": "2026-09-25T14:00:00+02:00",
+   "fin": "2026-09-25T15:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": "55 Rue Charles Delescluze"
+  },
+  {
+   "agenda_id": "c_2df6daa26f81f29d017e2f2d39b603483405045b9be7e43c32432b7d53f6a481@group.calendar.google.com",
+   "id": "cd015d1b52dcb63deac09bd1a69374eca2fe95346",
+   "titre": "cours 08",
+   "debut": "2026-09-25T17:30:00+02:00",
+   "fin": "2026-09-25T18:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_8cf6338884d4800cdaab7f8c1bf7093c25bf93c04f25b1b239d24e20c352fb0d@group.calendar.google.com",
+   "id": "caa34a677ff2f3bbaf6ad7b1ad8b89555533d9200",
+   "titre": "cours 08",
+   "debut": "2026-09-25T17:30:00+02:00",
+   "fin": "2026-09-25T18:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_6b9c99d6e6312979a53fc6d3c88daac88b2d5ea24ce8ac9ba098322ece03f95e@group.calendar.google.com",
+   "id": "c97adfaa0934a33cb519a4130cff759a850c9a491",
+   "titre": "cours 08",
+   "debut": "2026-09-25T18:30:00+02:00",
+   "fin": "2026-09-25T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_eba271ebdb67f1eb504a96b2dc1869c52803c7d5e29bf212daa10be5deb05cc6@group.calendar.google.com",
+   "id": "cf4562028802fa5cd4532dbe3fe07c6efa5858c52",
+   "titre": "cours 08",
+   "debut": "2026-09-25T18:30:00+02:00",
+   "fin": "2026-09-25T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_56db6fc4250aa888297a3694f81b908359f801a10770a2471be1616b2cd50824@group.calendar.google.com",
+   "id": "h0afmovhu0fh08gk98get2dvp0",
+   "titre": "cours 05",
+   "debut": "2026-09-26T08:30:00+02:00",
+   "fin": "2026-09-26T12:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_746a4fefc16346480d047ff9cf2148ba84cabd6e4df9326239dba2b3823a6a60@group.calendar.google.com",
+   "id": "33bimb1n1a4e2di83g5lhk7lms",
+   "titre": "Hafiz famille",
+   "debut": "2026-09-26T09:00:00+02:00",
+   "fin": "2026-09-26T11:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_7b10a744fc2a4e17e272c5ac6797f07455bec8ced9c8a9961fe2beab12cfb813@group.calendar.google.com",
+   "id": "c96b7525ad75f8f0c53df11ec67ff9825fafadc68",
+   "titre": "cours 03",
+   "debut": "2026-09-26T09:00:00+02:00",
+   "fin": "2026-09-26T12:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_d3055d626ccc0b469942d5d387af0c2172c2c17ba717ef67d9d255c6d2139289@group.calendar.google.com",
+   "id": "cd903c0d81381310b1f160730c2df03d9014838be",
+   "titre": "cours 03",
+   "debut": "2026-09-26T13:00:00+02:00",
+   "fin": "2026-09-26T17:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_1d6573965b81c01784c5645c5fd9961c4770d2334ecb2dd132813bdffa9b3349@group.calendar.google.com",
+   "id": "cb9c083339863bd64430a2a12528efb15fe7aa999",
+   "titre": "cours 03",
+   "debut": "2026-09-26T17:30:00+02:00",
+   "fin": "2026-09-26T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_f418ab9f5684ec76b0d077e3eabcdb5cc1c23f98a62bda58e52e9e50e3594621@group.calendar.google.com",
+   "id": "c4f9e126e5a4eb8763cf73f763678ca9bd320925a",
+   "titre": "cours 03",
+   "debut": "2026-09-26T17:30:00+02:00",
+   "fin": "2026-09-26T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_8e04e9c0c4f32f99df86908b4fe473e99d913063ea0c209b3d32216b5d40c6d1@group.calendar.google.com",
+   "id": "cf276087436cdfd21558c49152c70f39b99ba9a3e",
+   "titre": "cours 03",
+   "debut": "2026-09-26T19:45:00+02:00",
+   "fin": "2026-09-26T23:15:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_926b63447012027abecb8ba9f1ee74fd586e0b1b33f0d75aebfe4f7428b4fcb0@group.calendar.google.com",
+   "id": "13tdi75atqe3b4ovnec5ht6j4s",
+   "titre": "cours 03",
+   "debut": "2026-09-26T20:00:00+02:00",
+   "fin": "2026-09-26T21:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_56db6fc4250aa888297a3694f81b908359f801a10770a2471be1616b2cd50824@group.calendar.google.com",
+   "id": "4sf6r05jos8rg8hksk5499i0vc",
+   "titre": "cours 06",
+   "debut": "2026-09-27T08:30:00+02:00",
+   "fin": "2026-09-27T12:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_746a4fefc16346480d047ff9cf2148ba84cabd6e4df9326239dba2b3823a6a60@group.calendar.google.com",
+   "id": "mt6hg34k11asanhui4rc38f0bk",
+   "titre": "Hafiz famille",
+   "debut": "2026-09-27T09:00:00+02:00",
+   "fin": "2026-09-27T11:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_ab98c6710f795fc0d2d0e6600c1039a4114e09892ed11acf61c4b173a4681d32@group.calendar.google.com",
+   "id": "c61ac9104b943a47c3de0733140ca0c18d42e8fee",
+   "titre": "cours 03",
+   "debut": "2026-09-27T12:15:00+02:00",
+   "fin": "2026-09-27T15:45:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_ec10dd22ef2857ca1c7b5cf522fb316d12d9fff7c96f56b431dece5d21e5101c@group.calendar.google.com",
+   "id": "cda505c63372c3ed5567023cb79d9352a48e17c72",
+   "titre": "cours 05",
+   "debut": "2026-09-27T13:30:00+02:00",
+   "fin": "2026-09-27T15:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_c3adac9a082a2b880d566c6a676c2bcbab9be2577c4913e2a21a30a41661e1b9@group.calendar.google.com",
+   "id": "c88a379e9d2fcfa2dcc200eaacdc5400f3b4c22e4",
+   "titre": "cours 05",
+   "debut": "2026-09-27T15:45:00+02:00",
+   "fin": "2026-09-27T17:45:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_0e6096cb9a22dfd65fecc3949223f608a6d13caef0aed7456311582dd4aa8326@group.calendar.google.com",
+   "id": "i6vahhdssrk027m83oajibpee0",
+   "titre": "cours 03",
+   "debut": "2026-09-27T16:00:00+02:00",
+   "fin": "2026-09-27T17:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_2101500cc806298801b51993dc93ecc7d27593f2dcdff51f5b63a722168ce39c@group.calendar.google.com",
+   "id": "cdb6f3273b2ddce39ea2f45e7df5083e565b38a43",
+   "titre": "cours 05",
+   "debut": "2026-09-27T18:00:00+02:00",
+   "fin": "2026-09-27T20:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_537edaf99bd3981ec4aee05e7895b8f4987030de91a855b469ededf2cc9b1e16@group.calendar.google.com",
+   "id": "i4d57mgkhdu10m4l9cjk5bmdqg",
+   "titre": "cours 03",
+   "debut": "2026-09-27T20:00:00+02:00",
+   "fin": "2026-09-27T21:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_cbe7e4ce075231142c2e12a9db4ddd2e6e44d0f201ae3131207d1812c875f013@group.calendar.google.com",
+   "id": "cd38669d7e86df67bda55bcbf35f245a8f7b0b6bb",
+   "titre": "cours 05",
+   "debut": "2026-09-27T20:15:00+02:00",
+   "fin": "2026-09-27T22:15:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_d17ca60da8709e267afbf654e0400969769d9964d38e5d021344796c9d9892f1@group.calendar.google.com",
+   "id": "1oj8tls0icmmo981m0c60dar9t_20260927T190000Z",
+   "titre": "Point Hebdo",
+   "debut": "2026-09-27T21:00:00+02:00",
+   "fin": "2026-09-27T22:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_a417782e8c22f64c5d5de225125969368750e23cc52b15a997e69a5416da4e47@group.calendar.google.com",
+   "id": "c3b8ef98a54e51cf90bdd14a962ad58b3a1f91c49",
+   "titre": "cours 03",
+   "debut": "2026-09-28T09:15:00+02:00",
+   "fin": "2026-09-28T11:45:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_2df6daa26f81f29d017e2f2d39b603483405045b9be7e43c32432b7d53f6a481@group.calendar.google.com",
+   "id": "c9c4019b5b108a147dac7b0c4358b6b73f212dfdf",
+   "titre": "cours 09",
+   "debut": "2026-09-28T17:30:00+02:00",
+   "fin": "2026-09-28T18:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_8cf6338884d4800cdaab7f8c1bf7093c25bf93c04f25b1b239d24e20c352fb0d@group.calendar.google.com",
+   "id": "c1744fa4e017119b76751b7abf773871ec4bf7138",
+   "titre": "cours 09",
+   "debut": "2026-09-28T17:30:00+02:00",
+   "fin": "2026-09-28T18:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_6b9c99d6e6312979a53fc6d3c88daac88b2d5ea24ce8ac9ba098322ece03f95e@group.calendar.google.com",
+   "id": "cb42718b96db75d40196130c8bc3d1f75e0bd34a7",
+   "titre": "cours 09",
+   "debut": "2026-09-28T18:30:00+02:00",
+   "fin": "2026-09-28T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_eba271ebdb67f1eb504a96b2dc1869c52803c7d5e29bf212daa10be5deb05cc6@group.calendar.google.com",
+   "id": "c97d26febc1afe54eeccad3905a6c38cc5e883fcf",
+   "titre": "cours 09",
+   "debut": "2026-09-28T18:30:00+02:00",
+   "fin": "2026-09-28T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_02be45aaffbc3912034200826180ca669a9afe1bdebc3753e1fa25ed2cb6d9c7@group.calendar.google.com",
+   "id": "siadorations20260928",
+   "titre": "cours 03",
+   "debut": "2026-09-28T20:00:00+02:00",
+   "fin": "2026-09-28T21:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_ab98c6710f795fc0d2d0e6600c1039a4114e09892ed11acf61c4b173a4681d32@group.calendar.google.com",
+   "id": "cd39cc3cae606046b82d4f375c919aec030790152",
+   "titre": "cours 03",
+   "debut": "2026-09-29T09:15:00+02:00",
+   "fin": "2026-09-29T11:45:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_a9ad1a9f85689deb9b5d85fc56ab7091dc3df6cec3e3d38f64c128d9ec8b54fb@group.calendar.google.com",
+   "id": "c44bedd9b74f4b925eaa16089bab6eae5b5780c09",
+   "titre": "cours 03",
+   "debut": "2026-09-29T13:00:00+02:00",
+   "fin": "2026-09-29T15:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_2df6daa26f81f29d017e2f2d39b603483405045b9be7e43c32432b7d53f6a481@group.calendar.google.com",
+   "id": "cf14d21edc678e66d3279c54c4c49d3fc23c81b7d",
+   "titre": "cours 10",
+   "debut": "2026-09-29T17:30:00+02:00",
+   "fin": "2026-09-29T18:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_8cf6338884d4800cdaab7f8c1bf7093c25bf93c04f25b1b239d24e20c352fb0d@group.calendar.google.com",
+   "id": "cffaa8399db6035c25e0c775f8c99a57bceb40ebe",
+   "titre": "cours 10",
+   "debut": "2026-09-29T17:30:00+02:00",
+   "fin": "2026-09-29T18:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_6b9c99d6e6312979a53fc6d3c88daac88b2d5ea24ce8ac9ba098322ece03f95e@group.calendar.google.com",
+   "id": "cf72cd32670525e3a658811dc599df63453f44ed6",
+   "titre": "cours 10",
+   "debut": "2026-09-29T18:30:00+02:00",
+   "fin": "2026-09-29T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_eba271ebdb67f1eb504a96b2dc1869c52803c7d5e29bf212daa10be5deb05cc6@group.calendar.google.com",
+   "id": "c138738b5b9943d64e104330965f83689cb906aa8",
+   "titre": "cours 10",
+   "debut": "2026-09-29T18:30:00+02:00",
+   "fin": "2026-09-29T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_b721ea586ff1ba7752a1c5c5b482dcbdbffe50ab5c04a561ec207939003a97fc@group.calendar.google.com",
+   "id": "iose0c54o1246k59g8kp8nob40",
+   "titre": "cours 03",
+   "debut": "2026-09-29T20:00:00+02:00",
+   "fin": "2026-09-29T21:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_fcddd6f0d70ac24cd696153a1b8e88bf244c9767eb3c1a1f6546f256ed3c811d@group.calendar.google.com",
+   "id": "hqdacgacslj8p609hlrhab2oh4",
+   "titre": "cours 03",
+   "debut": "2026-09-30T09:00:00+02:00",
+   "fin": "2026-09-30T12:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_9e65f898525f86494a017fd0c15b47ac622007011e0b829654676f80ec41e488@group.calendar.google.com",
+   "id": "0gnvkg5s1e5ktckn1upg7hj520",
+   "titre": "cours 03",
+   "debut": "2026-09-30T13:30:00+02:00",
+   "fin": "2026-09-30T17:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_ec10dd22ef2857ca1c7b5cf522fb316d12d9fff7c96f56b431dece5d21e5101c@group.calendar.google.com",
+   "id": "c87540a52a14767a5b4ac9c30d5ce7ca21b271f12",
+   "titre": "cours 06",
+   "debut": "2026-09-30T13:30:00+02:00",
+   "fin": "2026-09-30T15:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_c3adac9a082a2b880d566c6a676c2bcbab9be2577c4913e2a21a30a41661e1b9@group.calendar.google.com",
+   "id": "c02f1ea3c24587f61f12c40e43c92aa95cedf7412",
+   "titre": "cours 06",
+   "debut": "2026-09-30T15:45:00+02:00",
+   "fin": "2026-09-30T17:45:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_63f45dd0ed0a4c23198ad7d4138b224cf38952aa136cf47cbeda58f7e92b985d@group.calendar.google.com",
+   "id": "c1bf534092e63a9913c4a8def7a8f659435ab62fc",
+   "titre": "cours 03",
+   "debut": "2026-09-30T17:30:00+02:00",
+   "fin": "2026-09-30T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_2101500cc806298801b51993dc93ecc7d27593f2dcdff51f5b63a722168ce39c@group.calendar.google.com",
+   "id": "cf95f9e3ca983bccd35884d2b62c03840f4d2b1db",
+   "titre": "cours 06",
+   "debut": "2026-09-30T18:00:00+02:00",
+   "fin": "2026-09-30T20:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_5daec2155554b99abe0367df400512aad14c0e5d8d506da2746aa2cbb5cc3e95@group.calendar.google.com",
+   "id": "jbt5is86dnd69qqaqn35jmdrn8",
+   "titre": "cours 03",
+   "debut": "2026-09-30T20:00:00+02:00",
+   "fin": "2026-09-30T21:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_cbe7e4ce075231142c2e12a9db4ddd2e6e44d0f201ae3131207d1812c875f013@group.calendar.google.com",
+   "id": "c772055287b41b97df1d552162030f1a3ba69cda1",
+   "titre": "cours 06",
+   "debut": "2026-09-30T20:15:00+02:00",
+   "fin": "2026-09-30T22:15:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_2df6daa26f81f29d017e2f2d39b603483405045b9be7e43c32432b7d53f6a481@group.calendar.google.com",
+   "id": "c83a6f0b4519b3a979f8f9f1f3abf8fff0886d7ff",
+   "titre": "cours 11",
+   "debut": "2026-10-01T17:30:00+02:00",
+   "fin": "2026-10-01T18:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_8cf6338884d4800cdaab7f8c1bf7093c25bf93c04f25b1b239d24e20c352fb0d@group.calendar.google.com",
+   "id": "ccdfa731a00d27580201d30fd01adaecfb376c887",
+   "titre": "cours 11",
+   "debut": "2026-10-01T17:30:00+02:00",
+   "fin": "2026-10-01T18:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_6b9c99d6e6312979a53fc6d3c88daac88b2d5ea24ce8ac9ba098322ece03f95e@group.calendar.google.com",
+   "id": "ca9bba0d25701efa65242619a3e05cdc57f73eaa3",
+   "titre": "cours 11",
+   "debut": "2026-10-01T18:30:00+02:00",
+   "fin": "2026-10-01T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_eba271ebdb67f1eb504a96b2dc1869c52803c7d5e29bf212daa10be5deb05cc6@group.calendar.google.com",
+   "id": "cc350016179ff4dc6f2517b7364a62a804cdc2ec3",
+   "titre": "cours 11",
+   "debut": "2026-10-01T18:30:00+02:00",
+   "fin": "2026-10-01T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_544a730950e077b8621846a9b1d40da5adc2ba3bca7151c91d28b5f6d95f4167@group.calendar.google.com",
+   "id": "p53j5vgv9vg7d8bd6ia8qvj9ac",
+   "titre": "cours 03",
+   "debut": "2026-10-01T20:00:00+02:00",
+   "fin": "2026-10-01T21:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_2df6daa26f81f29d017e2f2d39b603483405045b9be7e43c32432b7d53f6a481@group.calendar.google.com",
+   "id": "ce6b16f7ffa9ec6076741f0ae9b5f62be85d3e540",
+   "titre": "cours 12",
+   "debut": "2026-10-02T17:30:00+02:00",
+   "fin": "2026-10-02T18:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_8cf6338884d4800cdaab7f8c1bf7093c25bf93c04f25b1b239d24e20c352fb0d@group.calendar.google.com",
+   "id": "ce302f3a7f453e1a1bcb990ea57cd238215b1c5a3",
+   "titre": "cours 12",
+   "debut": "2026-10-02T17:30:00+02:00",
+   "fin": "2026-10-02T18:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_6b9c99d6e6312979a53fc6d3c88daac88b2d5ea24ce8ac9ba098322ece03f95e@group.calendar.google.com",
+   "id": "c3ed2023650cd7fa69df3fa8a9b5b372d10ac378b",
+   "titre": "cours 12",
+   "debut": "2026-10-02T18:30:00+02:00",
+   "fin": "2026-10-02T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_eba271ebdb67f1eb504a96b2dc1869c52803c7d5e29bf212daa10be5deb05cc6@group.calendar.google.com",
+   "id": "cb1d196ed73417edf6d03a28537e77838fd823dea",
+   "titre": "cours 12",
+   "debut": "2026-10-02T18:30:00+02:00",
+   "fin": "2026-10-02T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_56db6fc4250aa888297a3694f81b908359f801a10770a2471be1616b2cd50824@group.calendar.google.com",
+   "id": "i6gv2s3m2b3lhnfdbpe852uc2g",
+   "titre": "cours 07",
+   "debut": "2026-10-03T08:30:00+02:00",
+   "fin": "2026-10-03T12:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_746a4fefc16346480d047ff9cf2148ba84cabd6e4df9326239dba2b3823a6a60@group.calendar.google.com",
+   "id": "vhi7i6r2332gshs6fqfe9ku50s",
+   "titre": "Hafiz famille",
+   "debut": "2026-10-03T09:00:00+02:00",
+   "fin": "2026-10-03T11:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_7b10a744fc2a4e17e272c5ac6797f07455bec8ced9c8a9961fe2beab12cfb813@group.calendar.google.com",
+   "id": "c568fe7499a09609c177f3c0dadd158f80afd37b7",
+   "titre": "cours 04",
+   "debut": "2026-10-03T09:00:00+02:00",
+   "fin": "2026-10-03T12:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_d3055d626ccc0b469942d5d387af0c2172c2c17ba717ef67d9d255c6d2139289@group.calendar.google.com",
+   "id": "c77946130fa393abfb33eb92dd8058195a1212777",
+   "titre": "cours 04",
+   "debut": "2026-10-03T13:00:00+02:00",
+   "fin": "2026-10-03T17:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_1d6573965b81c01784c5645c5fd9961c4770d2334ecb2dd132813bdffa9b3349@group.calendar.google.com",
+   "id": "ccb788238b8acb0ad1e955880e10cc2a56b668503",
+   "titre": "cours 04",
+   "debut": "2026-10-03T17:30:00+02:00",
+   "fin": "2026-10-03T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_f418ab9f5684ec76b0d077e3eabcdb5cc1c23f98a62bda58e52e9e50e3594621@group.calendar.google.com",
+   "id": "c514280b52e64bf73e5cb640c716b963bbd2aee85",
+   "titre": "cours 04",
+   "debut": "2026-10-03T17:30:00+02:00",
+   "fin": "2026-10-03T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_8e04e9c0c4f32f99df86908b4fe473e99d913063ea0c209b3d32216b5d40c6d1@group.calendar.google.com",
+   "id": "c26a8990eb72319d6cf31752d4c9475e4ddfe3372",
+   "titre": "cours 04",
+   "debut": "2026-10-03T19:45:00+02:00",
+   "fin": "2026-10-03T23:15:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_926b63447012027abecb8ba9f1ee74fd586e0b1b33f0d75aebfe4f7428b4fcb0@group.calendar.google.com",
+   "id": "lcdoud4kmk533u68jrme0qchfo",
+   "titre": "cours 04",
+   "debut": "2026-10-03T20:00:00+02:00",
+   "fin": "2026-10-03T21:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_56db6fc4250aa888297a3694f81b908359f801a10770a2471be1616b2cd50824@group.calendar.google.com",
+   "id": "mi7buqmhh2dpigqmovqalclgbo",
+   "titre": "cours 08",
+   "debut": "2026-10-04T08:30:00+02:00",
+   "fin": "2026-10-04T12:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_746a4fefc16346480d047ff9cf2148ba84cabd6e4df9326239dba2b3823a6a60@group.calendar.google.com",
+   "id": "cqog4buh61fon6q91j6156tn78",
+   "titre": "Hafiz famille",
+   "debut": "2026-10-04T09:00:00+02:00",
+   "fin": "2026-10-04T11:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_ab98c6710f795fc0d2d0e6600c1039a4114e09892ed11acf61c4b173a4681d32@group.calendar.google.com",
+   "id": "c9c1a996858f84766a6f547484e14d6e7e6d33b07",
+   "titre": "cours 04",
+   "debut": "2026-10-04T12:15:00+02:00",
+   "fin": "2026-10-04T15:45:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_ec10dd22ef2857ca1c7b5cf522fb316d12d9fff7c96f56b431dece5d21e5101c@group.calendar.google.com",
+   "id": "cc14a9597d57621e7f18fce13ba4327e1670d25ed",
+   "titre": "cours 07",
+   "debut": "2026-10-04T13:30:00+02:00",
+   "fin": "2026-10-04T15:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_c3adac9a082a2b880d566c6a676c2bcbab9be2577c4913e2a21a30a41661e1b9@group.calendar.google.com",
+   "id": "cf777aaa96a5835f1d58bebd00b3481607f61c864",
+   "titre": "cours 07",
+   "debut": "2026-10-04T15:45:00+02:00",
+   "fin": "2026-10-04T17:45:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_0e6096cb9a22dfd65fecc3949223f608a6d13caef0aed7456311582dd4aa8326@group.calendar.google.com",
+   "id": "00qggkmkpcg60tms9ppfsqqsj4",
+   "titre": "cours 04",
+   "debut": "2026-10-04T16:00:00+02:00",
+   "fin": "2026-10-04T17:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_2101500cc806298801b51993dc93ecc7d27593f2dcdff51f5b63a722168ce39c@group.calendar.google.com",
+   "id": "ca4f2406b50cbf9b7eff4d669108ec6c58a281f0c",
+   "titre": "cours 07",
+   "debut": "2026-10-04T18:00:00+02:00",
+   "fin": "2026-10-04T20:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_537edaf99bd3981ec4aee05e7895b8f4987030de91a855b469ededf2cc9b1e16@group.calendar.google.com",
+   "id": "sjbm15rfn37kkk65pea4kpjqdk",
+   "titre": "cours 04",
+   "debut": "2026-10-04T20:00:00+02:00",
+   "fin": "2026-10-04T21:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_cbe7e4ce075231142c2e12a9db4ddd2e6e44d0f201ae3131207d1812c875f013@group.calendar.google.com",
+   "id": "c93c5a9034bcb34a2dc8b7e86c2694f3924d356f4",
+   "titre": "cours 07",
+   "debut": "2026-10-04T20:15:00+02:00",
+   "fin": "2026-10-04T22:15:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_d17ca60da8709e267afbf654e0400969769d9964d38e5d021344796c9d9892f1@group.calendar.google.com",
+   "id": "1oj8tls0icmmo981m0c60dar9t_20261004T190000Z",
+   "titre": "Point Hebdo",
+   "debut": "2026-10-04T21:00:00+02:00",
+   "fin": "2026-10-04T22:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_a417782e8c22f64c5d5de225125969368750e23cc52b15a997e69a5416da4e47@group.calendar.google.com",
+   "id": "c47d8ff282177b582593d27c4ba35f468fbb84736",
+   "titre": "cours 04",
+   "debut": "2026-10-05T09:15:00+02:00",
+   "fin": "2026-10-05T11:45:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_2df6daa26f81f29d017e2f2d39b603483405045b9be7e43c32432b7d53f6a481@group.calendar.google.com",
+   "id": "c18a18b937eb4c3f9546272d3656d783bc0c4aada",
+   "titre": "cours 13",
+   "debut": "2026-10-05T17:30:00+02:00",
+   "fin": "2026-10-05T18:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_8cf6338884d4800cdaab7f8c1bf7093c25bf93c04f25b1b239d24e20c352fb0d@group.calendar.google.com",
+   "id": "ca3a101af51b3b2ae42300135cc83d01233d86028",
+   "titre": "cours 13",
+   "debut": "2026-10-05T17:30:00+02:00",
+   "fin": "2026-10-05T18:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_6b9c99d6e6312979a53fc6d3c88daac88b2d5ea24ce8ac9ba098322ece03f95e@group.calendar.google.com",
+   "id": "c407d411cac64bb991de7f82c1f86307ef3f0b1b8",
+   "titre": "cours 13",
+   "debut": "2026-10-05T18:30:00+02:00",
+   "fin": "2026-10-05T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_eba271ebdb67f1eb504a96b2dc1869c52803c7d5e29bf212daa10be5deb05cc6@group.calendar.google.com",
+   "id": "c8af85eab9b49cf7a0bc92afb00119260c8e4bb27",
+   "titre": "cours 13",
+   "debut": "2026-10-05T18:30:00+02:00",
+   "fin": "2026-10-05T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_02be45aaffbc3912034200826180ca669a9afe1bdebc3753e1fa25ed2cb6d9c7@group.calendar.google.com",
+   "id": "siadorations20261005",
+   "titre": "cours 04",
+   "debut": "2026-10-05T20:00:00+02:00",
+   "fin": "2026-10-05T21:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_ab98c6710f795fc0d2d0e6600c1039a4114e09892ed11acf61c4b173a4681d32@group.calendar.google.com",
+   "id": "c343f0b21a495374f2a37dc85059401b74ecbcd62",
+   "titre": "cours 04",
+   "debut": "2026-10-06T09:15:00+02:00",
+   "fin": "2026-10-06T11:45:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_a9ad1a9f85689deb9b5d85fc56ab7091dc3df6cec3e3d38f64c128d9ec8b54fb@group.calendar.google.com",
+   "id": "c07094e816ec279616bb9146927931d59be5ed984",
+   "titre": "cours 04",
+   "debut": "2026-10-06T13:00:00+02:00",
+   "fin": "2026-10-06T15:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_2df6daa26f81f29d017e2f2d39b603483405045b9be7e43c32432b7d53f6a481@group.calendar.google.com",
+   "id": "c149efaa691609f315f65e9357d9fba0161dc7f4d",
+   "titre": "cours 14",
+   "debut": "2026-10-06T17:30:00+02:00",
+   "fin": "2026-10-06T18:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_8cf6338884d4800cdaab7f8c1bf7093c25bf93c04f25b1b239d24e20c352fb0d@group.calendar.google.com",
+   "id": "cf9bfbd98a2afe02eac85f7003a497fe58f8ff8de",
+   "titre": "cours 14",
+   "debut": "2026-10-06T17:30:00+02:00",
+   "fin": "2026-10-06T18:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_6b9c99d6e6312979a53fc6d3c88daac88b2d5ea24ce8ac9ba098322ece03f95e@group.calendar.google.com",
+   "id": "c1567664dd70fc6d74c6476f70929897ea5f2168e",
+   "titre": "cours 14",
+   "debut": "2026-10-06T18:30:00+02:00",
+   "fin": "2026-10-06T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_eba271ebdb67f1eb504a96b2dc1869c52803c7d5e29bf212daa10be5deb05cc6@group.calendar.google.com",
+   "id": "c728f2ee28f00e290d4fbea361791c7e0b511183c",
+   "titre": "cours 14",
+   "debut": "2026-10-06T18:30:00+02:00",
+   "fin": "2026-10-06T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_b721ea586ff1ba7752a1c5c5b482dcbdbffe50ab5c04a561ec207939003a97fc@group.calendar.google.com",
+   "id": "utoeilndc5o01ue5in6nb86fv0",
+   "titre": "cours 04",
+   "debut": "2026-10-06T20:00:00+02:00",
+   "fin": "2026-10-06T21:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_fcddd6f0d70ac24cd696153a1b8e88bf244c9767eb3c1a1f6546f256ed3c811d@group.calendar.google.com",
+   "id": "mm1d9mrchqbnd3ssnt3fjgt2j0",
+   "titre": "cours 04",
+   "debut": "2026-10-07T09:00:00+02:00",
+   "fin": "2026-10-07T12:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_9e65f898525f86494a017fd0c15b47ac622007011e0b829654676f80ec41e488@group.calendar.google.com",
+   "id": "hsuscjt75ut4t324ob0peeamgk",
+   "titre": "cours 04",
+   "debut": "2026-10-07T13:30:00+02:00",
+   "fin": "2026-10-07T17:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_ec10dd22ef2857ca1c7b5cf522fb316d12d9fff7c96f56b431dece5d21e5101c@group.calendar.google.com",
+   "id": "c4094e393a6a9ac286424f99e5f0928c54a640f5a",
+   "titre": "cours 08",
+   "debut": "2026-10-07T13:30:00+02:00",
+   "fin": "2026-10-07T15:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_c3adac9a082a2b880d566c6a676c2bcbab9be2577c4913e2a21a30a41661e1b9@group.calendar.google.com",
+   "id": "ca7ec4b1ea2da927fe004b22fb6c11f86f4f39040",
+   "titre": "cours 08",
+   "debut": "2026-10-07T15:45:00+02:00",
+   "fin": "2026-10-07T17:45:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_63f45dd0ed0a4c23198ad7d4138b224cf38952aa136cf47cbeda58f7e92b985d@group.calendar.google.com",
+   "id": "cc7f668922746336f096a73268b01082850ac5d37",
+   "titre": "cours 04",
+   "debut": "2026-10-07T17:30:00+02:00",
+   "fin": "2026-10-07T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_2101500cc806298801b51993dc93ecc7d27593f2dcdff51f5b63a722168ce39c@group.calendar.google.com",
+   "id": "c170dcff53563654acbc63f6592a996f5cdc70bba",
+   "titre": "cours 08",
+   "debut": "2026-10-07T18:00:00+02:00",
+   "fin": "2026-10-07T20:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_5daec2155554b99abe0367df400512aad14c0e5d8d506da2746aa2cbb5cc3e95@group.calendar.google.com",
+   "id": "u2590ffdetn8qet5hcugf5evh4",
+   "titre": "cours 04",
+   "debut": "2026-10-07T20:00:00+02:00",
+   "fin": "2026-10-07T21:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_cbe7e4ce075231142c2e12a9db4ddd2e6e44d0f201ae3131207d1812c875f013@group.calendar.google.com",
+   "id": "c0e27e83d025d3f6a955e57c4a665935fd057df30",
+   "titre": "cours 08",
+   "debut": "2026-10-07T20:15:00+02:00",
+   "fin": "2026-10-07T22:15:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_2df6daa26f81f29d017e2f2d39b603483405045b9be7e43c32432b7d53f6a481@group.calendar.google.com",
+   "id": "cfe9937489e8c2d29284eeff2a52d170980972353",
+   "titre": "cours 15",
+   "debut": "2026-10-08T17:30:00+02:00",
+   "fin": "2026-10-08T18:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_8cf6338884d4800cdaab7f8c1bf7093c25bf93c04f25b1b239d24e20c352fb0d@group.calendar.google.com",
+   "id": "c62c55ec383e2e310d68cc594177400b11933963b",
+   "titre": "cours 15",
+   "debut": "2026-10-08T17:30:00+02:00",
+   "fin": "2026-10-08T18:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_6b9c99d6e6312979a53fc6d3c88daac88b2d5ea24ce8ac9ba098322ece03f95e@group.calendar.google.com",
+   "id": "c526e9b2aedf21ed4ff2c835053cf15cf38a89d22",
+   "titre": "cours 15",
+   "debut": "2026-10-08T18:30:00+02:00",
+   "fin": "2026-10-08T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_eba271ebdb67f1eb504a96b2dc1869c52803c7d5e29bf212daa10be5deb05cc6@group.calendar.google.com",
+   "id": "cf98de0ef7809f8038467e57c0080cd352a949052",
+   "titre": "cours 15",
+   "debut": "2026-10-08T18:30:00+02:00",
+   "fin": "2026-10-08T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_544a730950e077b8621846a9b1d40da5adc2ba3bca7151c91d28b5f6d95f4167@group.calendar.google.com",
+   "id": "u35a89u18b3kbv8c7q6s73dqa8",
+   "titre": "cours 04",
+   "debut": "2026-10-08T20:00:00+02:00",
+   "fin": "2026-10-08T21:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_2df6daa26f81f29d017e2f2d39b603483405045b9be7e43c32432b7d53f6a481@group.calendar.google.com",
+   "id": "cc558b66f90c41ed168750a6faf0f1bfb2aff827a",
+   "titre": "cours 16",
+   "debut": "2026-10-09T17:30:00+02:00",
+   "fin": "2026-10-09T18:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_8cf6338884d4800cdaab7f8c1bf7093c25bf93c04f25b1b239d24e20c352fb0d@group.calendar.google.com",
+   "id": "cbeba73c6002e00644c82d0b41ad8e5830a92afa3",
+   "titre": "cours 16",
+   "debut": "2026-10-09T17:30:00+02:00",
+   "fin": "2026-10-09T18:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_6b9c99d6e6312979a53fc6d3c88daac88b2d5ea24ce8ac9ba098322ece03f95e@group.calendar.google.com",
+   "id": "ccf14ae0d02e96a09541250a9a36e8da8abbeb35c",
+   "titre": "cours 16",
+   "debut": "2026-10-09T18:30:00+02:00",
+   "fin": "2026-10-09T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_eba271ebdb67f1eb504a96b2dc1869c52803c7d5e29bf212daa10be5deb05cc6@group.calendar.google.com",
+   "id": "c4fab68089cef77cb9b4c75d45d2285e886f865eb",
+   "titre": "cours 16",
+   "debut": "2026-10-09T18:30:00+02:00",
+   "fin": "2026-10-09T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_56db6fc4250aa888297a3694f81b908359f801a10770a2471be1616b2cd50824@group.calendar.google.com",
+   "id": "bqrm5nge2n9ikdpmrgj12b2cs8",
+   "titre": "cours 09",
+   "debut": "2026-10-10T08:30:00+02:00",
+   "fin": "2026-10-10T12:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_746a4fefc16346480d047ff9cf2148ba84cabd6e4df9326239dba2b3823a6a60@group.calendar.google.com",
+   "id": "e7ftu9cihc7v4hb9nrqqmr27n8",
+   "titre": "Hafiz famille",
+   "debut": "2026-10-10T09:00:00+02:00",
+   "fin": "2026-10-10T11:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_7b10a744fc2a4e17e272c5ac6797f07455bec8ced9c8a9961fe2beab12cfb813@group.calendar.google.com",
+   "id": "c9c012e4a08971af22928f485d24ccaeec1c300c7",
+   "titre": "cours 05",
+   "debut": "2026-10-10T09:00:00+02:00",
+   "fin": "2026-10-10T12:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_d3055d626ccc0b469942d5d387af0c2172c2c17ba717ef67d9d255c6d2139289@group.calendar.google.com",
+   "id": "c075c80deb4b1bda0d85db710d286d56019d61f6e",
+   "titre": "cours 05",
+   "debut": "2026-10-10T13:00:00+02:00",
+   "fin": "2026-10-10T17:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_1d6573965b81c01784c5645c5fd9961c4770d2334ecb2dd132813bdffa9b3349@group.calendar.google.com",
+   "id": "cfc5be269f3d04d9ba09a091b1fc9c81db15d57fb",
+   "titre": "cours 05",
+   "debut": "2026-10-10T17:30:00+02:00",
+   "fin": "2026-10-10T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_f418ab9f5684ec76b0d077e3eabcdb5cc1c23f98a62bda58e52e9e50e3594621@group.calendar.google.com",
+   "id": "c9d01d748c9862287202638b1f4236c7f41340e01",
+   "titre": "cours 05",
+   "debut": "2026-10-10T17:30:00+02:00",
+   "fin": "2026-10-10T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_8e04e9c0c4f32f99df86908b4fe473e99d913063ea0c209b3d32216b5d40c6d1@group.calendar.google.com",
+   "id": "c9ec5ce22b21e51b5459acb57df18c508e0a3af9c",
+   "titre": "cours 05",
+   "debut": "2026-10-10T19:45:00+02:00",
+   "fin": "2026-10-10T23:15:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_926b63447012027abecb8ba9f1ee74fd586e0b1b33f0d75aebfe4f7428b4fcb0@group.calendar.google.com",
+   "id": "1ib5dqjkfdh95q6ch6rjnrbf7o",
+   "titre": "cours 05",
+   "debut": "2026-10-10T20:00:00+02:00",
+   "fin": "2026-10-10T21:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_56db6fc4250aa888297a3694f81b908359f801a10770a2471be1616b2cd50824@group.calendar.google.com",
+   "id": "lctg16034pn3kflp3mhr91guks",
+   "titre": "cours 10",
+   "debut": "2026-10-11T08:30:00+02:00",
+   "fin": "2026-10-11T12:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_746a4fefc16346480d047ff9cf2148ba84cabd6e4df9326239dba2b3823a6a60@group.calendar.google.com",
+   "id": "uj9vqtd01vp8go0d5t0u2olug8",
+   "titre": "Hafiz famille",
+   "debut": "2026-10-11T09:00:00+02:00",
+   "fin": "2026-10-11T11:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_ab98c6710f795fc0d2d0e6600c1039a4114e09892ed11acf61c4b173a4681d32@group.calendar.google.com",
+   "id": "c1ad427f259ed0d3bd8ee805374d3884531a739f7",
+   "titre": "cours 05",
+   "debut": "2026-10-11T12:15:00+02:00",
+   "fin": "2026-10-11T15:45:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_ec10dd22ef2857ca1c7b5cf522fb316d12d9fff7c96f56b431dece5d21e5101c@group.calendar.google.com",
+   "id": "c71b04fe9666ca93bdb606dacd2956de749d93e40",
+   "titre": "cours 09",
+   "debut": "2026-10-11T13:30:00+02:00",
+   "fin": "2026-10-11T15:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_c3adac9a082a2b880d566c6a676c2bcbab9be2577c4913e2a21a30a41661e1b9@group.calendar.google.com",
+   "id": "c5bf6bdfb1e5513136c66808e39b82d5817297440",
+   "titre": "cours 09",
+   "debut": "2026-10-11T15:45:00+02:00",
+   "fin": "2026-10-11T17:45:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_0e6096cb9a22dfd65fecc3949223f608a6d13caef0aed7456311582dd4aa8326@group.calendar.google.com",
+   "id": "7a89iaskmpmr0g4kv2fc9use04",
+   "titre": "cours 05",
+   "debut": "2026-10-11T16:00:00+02:00",
+   "fin": "2026-10-11T17:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_2101500cc806298801b51993dc93ecc7d27593f2dcdff51f5b63a722168ce39c@group.calendar.google.com",
+   "id": "c82b89f50e980bd4c310238d4036e43fd0cb785fa",
+   "titre": "cours 09",
+   "debut": "2026-10-11T18:00:00+02:00",
+   "fin": "2026-10-11T20:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_537edaf99bd3981ec4aee05e7895b8f4987030de91a855b469ededf2cc9b1e16@group.calendar.google.com",
+   "id": "qj4nvn8s65d3h0niaed79v9nfc",
+   "titre": "cours 05",
+   "debut": "2026-10-11T20:00:00+02:00",
+   "fin": "2026-10-11T21:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_cbe7e4ce075231142c2e12a9db4ddd2e6e44d0f201ae3131207d1812c875f013@group.calendar.google.com",
+   "id": "ca0f3bb913d6bb9d8e629faf34b26c0bf768024fa",
+   "titre": "cours 09",
+   "debut": "2026-10-11T20:15:00+02:00",
+   "fin": "2026-10-11T22:15:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_d17ca60da8709e267afbf654e0400969769d9964d38e5d021344796c9d9892f1@group.calendar.google.com",
+   "id": "1oj8tls0icmmo981m0c60dar9t_20261011T190000Z",
+   "titre": "Point Hebdo",
+   "debut": "2026-10-11T21:00:00+02:00",
+   "fin": "2026-10-11T22:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_a417782e8c22f64c5d5de225125969368750e23cc52b15a997e69a5416da4e47@group.calendar.google.com",
+   "id": "c4a2ed64639f2997cefe45ae911cbd0e9266ca168",
+   "titre": "cours 05",
+   "debut": "2026-10-12T09:15:00+02:00",
+   "fin": "2026-10-12T11:45:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_2df6daa26f81f29d017e2f2d39b603483405045b9be7e43c32432b7d53f6a481@group.calendar.google.com",
+   "id": "c32f260f65c9cbabec8b3520ff7074271fb6f820f",
+   "titre": "cours 17",
+   "debut": "2026-10-12T17:30:00+02:00",
+   "fin": "2026-10-12T18:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_8cf6338884d4800cdaab7f8c1bf7093c25bf93c04f25b1b239d24e20c352fb0d@group.calendar.google.com",
+   "id": "cdef7e1dede26c68c61f90044a69128bf32834eb3",
+   "titre": "cours 17",
+   "debut": "2026-10-12T17:30:00+02:00",
+   "fin": "2026-10-12T18:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_6b9c99d6e6312979a53fc6d3c88daac88b2d5ea24ce8ac9ba098322ece03f95e@group.calendar.google.com",
+   "id": "c6587757830e927804f20d498d475d2dee5115e65",
+   "titre": "cours 17",
+   "debut": "2026-10-12T18:30:00+02:00",
+   "fin": "2026-10-12T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_eba271ebdb67f1eb504a96b2dc1869c52803c7d5e29bf212daa10be5deb05cc6@group.calendar.google.com",
+   "id": "c74a32eb90163e6aa9b3bda602ac49cf547bc63b7",
+   "titre": "cours 17",
+   "debut": "2026-10-12T18:30:00+02:00",
+   "fin": "2026-10-12T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_02be45aaffbc3912034200826180ca669a9afe1bdebc3753e1fa25ed2cb6d9c7@group.calendar.google.com",
+   "id": "siadorations20261012",
+   "titre": "cours 05",
+   "debut": "2026-10-12T20:00:00+02:00",
+   "fin": "2026-10-12T21:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_ab98c6710f795fc0d2d0e6600c1039a4114e09892ed11acf61c4b173a4681d32@group.calendar.google.com",
+   "id": "c73a213ab74f296ec80ec1ada016809b66b7c47ab",
+   "titre": "cours 05",
+   "debut": "2026-10-13T09:15:00+02:00",
+   "fin": "2026-10-13T11:45:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_a9ad1a9f85689deb9b5d85fc56ab7091dc3df6cec3e3d38f64c128d9ec8b54fb@group.calendar.google.com",
+   "id": "c723e3df66352e803b32734f973d66a663c8fa9af",
+   "titre": "cours 05",
+   "debut": "2026-10-13T13:00:00+02:00",
+   "fin": "2026-10-13T15:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_2df6daa26f81f29d017e2f2d39b603483405045b9be7e43c32432b7d53f6a481@group.calendar.google.com",
+   "id": "c9506a81c85a4e24c25cfbd5c31afce3ba7ea8a78",
+   "titre": "cours 18",
+   "debut": "2026-10-13T17:30:00+02:00",
+   "fin": "2026-10-13T18:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_8cf6338884d4800cdaab7f8c1bf7093c25bf93c04f25b1b239d24e20c352fb0d@group.calendar.google.com",
+   "id": "c9ed93d73ae3dec1a689445a5b140386e40def3f4",
+   "titre": "cours 18",
+   "debut": "2026-10-13T17:30:00+02:00",
+   "fin": "2026-10-13T18:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_6b9c99d6e6312979a53fc6d3c88daac88b2d5ea24ce8ac9ba098322ece03f95e@group.calendar.google.com",
+   "id": "cc869f9764b38f9dc45fa657b36226eea3bd1a10d",
+   "titre": "cours 18",
+   "debut": "2026-10-13T18:30:00+02:00",
+   "fin": "2026-10-13T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_eba271ebdb67f1eb504a96b2dc1869c52803c7d5e29bf212daa10be5deb05cc6@group.calendar.google.com",
+   "id": "c1ab95506c27d829018d5db0ad677be8ca9671469",
+   "titre": "cours 18",
+   "debut": "2026-10-13T18:30:00+02:00",
+   "fin": "2026-10-13T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_b721ea586ff1ba7752a1c5c5b482dcbdbffe50ab5c04a561ec207939003a97fc@group.calendar.google.com",
+   "id": "0999p7mudioto20ekg5ccq058o",
+   "titre": "cours 05",
+   "debut": "2026-10-13T20:00:00+02:00",
+   "fin": "2026-10-13T21:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_fcddd6f0d70ac24cd696153a1b8e88bf244c9767eb3c1a1f6546f256ed3c811d@group.calendar.google.com",
+   "id": "86cjojb19jk3vbg9tjmuors1ic",
+   "titre": "cours 05",
+   "debut": "2026-10-14T09:00:00+02:00",
+   "fin": "2026-10-14T12:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_9e65f898525f86494a017fd0c15b47ac622007011e0b829654676f80ec41e488@group.calendar.google.com",
+   "id": "mjfoi39askf7e3hdtfpe4rh0dc",
+   "titre": "cours 05",
+   "debut": "2026-10-14T13:30:00+02:00",
+   "fin": "2026-10-14T17:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_ec10dd22ef2857ca1c7b5cf522fb316d12d9fff7c96f56b431dece5d21e5101c@group.calendar.google.com",
+   "id": "c51764a067395466a36977818abf04e38de8d54c4",
+   "titre": "cours 10",
+   "debut": "2026-10-14T13:30:00+02:00",
+   "fin": "2026-10-14T15:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_c3adac9a082a2b880d566c6a676c2bcbab9be2577c4913e2a21a30a41661e1b9@group.calendar.google.com",
+   "id": "c8aa32cafe0ced510fcb61f36f7219f8fb857fea6",
+   "titre": "cours 10",
+   "debut": "2026-10-14T15:45:00+02:00",
+   "fin": "2026-10-14T17:45:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_63f45dd0ed0a4c23198ad7d4138b224cf38952aa136cf47cbeda58f7e92b985d@group.calendar.google.com",
+   "id": "c27c3ee4da1d9cbd6905e38abb22060fc39e034df",
+   "titre": "cours 05",
+   "debut": "2026-10-14T17:30:00+02:00",
+   "fin": "2026-10-14T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_2101500cc806298801b51993dc93ecc7d27593f2dcdff51f5b63a722168ce39c@group.calendar.google.com",
+   "id": "c6ab9bafc2a61e43246a71fbcf37654a7821aa5f7",
+   "titre": "cours 10",
+   "debut": "2026-10-14T18:00:00+02:00",
+   "fin": "2026-10-14T20:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_5daec2155554b99abe0367df400512aad14c0e5d8d506da2746aa2cbb5cc3e95@group.calendar.google.com",
+   "id": "fg6kbk5drqhgtslehu609316f0",
+   "titre": "cours 05",
+   "debut": "2026-10-14T20:00:00+02:00",
+   "fin": "2026-10-14T21:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_cbe7e4ce075231142c2e12a9db4ddd2e6e44d0f201ae3131207d1812c875f013@group.calendar.google.com",
+   "id": "c1940f8af75510144778e666c79074b6deb9393f6",
+   "titre": "cours 10",
+   "debut": "2026-10-14T20:15:00+02:00",
+   "fin": "2026-10-14T22:15:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_2df6daa26f81f29d017e2f2d39b603483405045b9be7e43c32432b7d53f6a481@group.calendar.google.com",
+   "id": "c5a4019d11eecef1b783347d860a2b0caff460c63",
+   "titre": "cours 19",
+   "debut": "2026-10-15T17:30:00+02:00",
+   "fin": "2026-10-15T18:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_8cf6338884d4800cdaab7f8c1bf7093c25bf93c04f25b1b239d24e20c352fb0d@group.calendar.google.com",
+   "id": "cc6697aad531749a88453d7a8c74c41701f08c16d",
+   "titre": "cours 19",
+   "debut": "2026-10-15T17:30:00+02:00",
+   "fin": "2026-10-15T18:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_6b9c99d6e6312979a53fc6d3c88daac88b2d5ea24ce8ac9ba098322ece03f95e@group.calendar.google.com",
+   "id": "c015eaa31b10b6cb009d44883f153075c1bc494dc",
+   "titre": "cours 19",
+   "debut": "2026-10-15T18:30:00+02:00",
+   "fin": "2026-10-15T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_eba271ebdb67f1eb504a96b2dc1869c52803c7d5e29bf212daa10be5deb05cc6@group.calendar.google.com",
+   "id": "cf8393f065db6aeec9d9c6b24f3cd429993e0c24b",
+   "titre": "cours 19",
+   "debut": "2026-10-15T18:30:00+02:00",
+   "fin": "2026-10-15T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_544a730950e077b8621846a9b1d40da5adc2ba3bca7151c91d28b5f6d95f4167@group.calendar.google.com",
+   "id": "cvba386a3s6ldqqvebqvg2jssc",
+   "titre": "cours 05",
+   "debut": "2026-10-15T20:00:00+02:00",
+   "fin": "2026-10-15T21:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_2df6daa26f81f29d017e2f2d39b603483405045b9be7e43c32432b7d53f6a481@group.calendar.google.com",
+   "id": "c62f9ae768f2f029027034b2faf965f11d6ade376",
+   "titre": "cours 20",
+   "debut": "2026-10-16T17:30:00+02:00",
+   "fin": "2026-10-16T18:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_8cf6338884d4800cdaab7f8c1bf7093c25bf93c04f25b1b239d24e20c352fb0d@group.calendar.google.com",
+   "id": "c10d607b6b2e30566095d3ba2d9dc9a8761c59620",
+   "titre": "cours 20",
+   "debut": "2026-10-16T17:30:00+02:00",
+   "fin": "2026-10-16T18:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_6b9c99d6e6312979a53fc6d3c88daac88b2d5ea24ce8ac9ba098322ece03f95e@group.calendar.google.com",
+   "id": "cd479ab3e5e6966e31e8443fd2dd2de0cae5b1241",
+   "titre": "cours 20",
+   "debut": "2026-10-16T18:30:00+02:00",
+   "fin": "2026-10-16T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_eba271ebdb67f1eb504a96b2dc1869c52803c7d5e29bf212daa10be5deb05cc6@group.calendar.google.com",
+   "id": "c9b8272ec86f1abba19d07cb870a2e66b454ccc01",
+   "titre": "cours 20",
+   "debut": "2026-10-16T18:30:00+02:00",
+   "fin": "2026-10-16T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_56db6fc4250aa888297a3694f81b908359f801a10770a2471be1616b2cd50824@group.calendar.google.com",
+   "id": "qhcnvn7kgo3ve45ijhfko6h4bc",
+   "titre": "cours 11",
+   "debut": "2026-10-17T08:30:00+02:00",
+   "fin": "2026-10-17T12:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_746a4fefc16346480d047ff9cf2148ba84cabd6e4df9326239dba2b3823a6a60@group.calendar.google.com",
+   "id": "l8dg50e3q5iovp1k9f56qk4kck",
+   "titre": "Hafiz famille",
+   "debut": "2026-10-17T09:00:00+02:00",
+   "fin": "2026-10-17T11:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_7b10a744fc2a4e17e272c5ac6797f07455bec8ced9c8a9961fe2beab12cfb813@group.calendar.google.com",
+   "id": "c175119455657d16f9991ae968eb12e01f7fa8059",
+   "titre": "cours 06",
+   "debut": "2026-10-17T09:00:00+02:00",
+   "fin": "2026-10-17T12:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_d3055d626ccc0b469942d5d387af0c2172c2c17ba717ef67d9d255c6d2139289@group.calendar.google.com",
+   "id": "cccea5f09e48217078c688012bf2fa477ab0c73f0",
+   "titre": "cours 06",
+   "debut": "2026-10-17T13:00:00+02:00",
+   "fin": "2026-10-17T17:00:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_1d6573965b81c01784c5645c5fd9961c4770d2334ecb2dd132813bdffa9b3349@group.calendar.google.com",
+   "id": "c23b45c1c9a62666256617915395b84fa63a877f1",
+   "titre": "cours 06",
+   "debut": "2026-10-17T17:30:00+02:00",
+   "fin": "2026-10-17T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_f418ab9f5684ec76b0d077e3eabcdb5cc1c23f98a62bda58e52e9e50e3594621@group.calendar.google.com",
+   "id": "c3ebe3ec016173be8fe991724bf28d545e3fb5118",
+   "titre": "cours 06",
+   "debut": "2026-10-17T17:30:00+02:00",
+   "fin": "2026-10-17T19:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_8e04e9c0c4f32f99df86908b4fe473e99d913063ea0c209b3d32216b5d40c6d1@group.calendar.google.com",
+   "id": "c58172fe3ff597572eabcbdf11bebcfeeff836df9",
+   "titre": "cours 06",
+   "debut": "2026-10-17T19:45:00+02:00",
+   "fin": "2026-10-17T23:15:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  },
+  {
+   "agenda_id": "c_926b63447012027abecb8ba9f1ee74fd586e0b1b33f0d75aebfe4f7428b4fcb0@group.calendar.google.com",
+   "id": "dj2ha091egdmv2ghfnrg38ai70",
+   "titre": "cours 06",
+   "debut": "2026-10-17T20:00:00+02:00",
+   "fin": "2026-10-17T21:30:00+02:00",
+   "journee_entiere": false,
+   "lieu": null
+  }
+ ]
+}

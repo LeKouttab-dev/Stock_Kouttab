@@ -24,6 +24,7 @@ from app.schemas.calendar import (
     EtatCalendrierOut,
     EvenementOut,
 )
+from app.services import calendrier_instantane
 from app.services.google_calendar import (
     agendas_en_cache,
     evenements_en_cache,
@@ -42,6 +43,22 @@ _LECTURE = require_roles(*ROLES_COMPLETS)
 # semaines ; au-dela de l'annee, ce sont 42 agendas multiplies par autant de
 # mois, et Google facture ses quotas a la requete.
 _FENETRE_MAX_JOURS = 400
+
+
+def _sur_instantane() -> bool:
+    """Vrai quand l'onglet doit servir le relevé figé plutôt que Google.
+
+    L'ordre n'est pas négociable : dès que Google est configuré, c'est Google
+    qui parle. Un instantané resté sur le disque ne doit jamais masquer la
+    source vivante — il se tairait en silence à chaque horaire corrigé.
+    """
+    return not settings.google_calendar_configured and calendrier_instantane.disponible()
+
+
+async def _tous_les_agendas() -> list[dict[str, Any]]:
+    if _sur_instantane():
+        return calendrier_instantane.agendas()
+    return await agendas_en_cache(get_google_calendar_client())
 
 
 def _agendas_visibles(agendas: list[dict[str, Any]], user: Admin) -> list[dict[str, Any]]:
@@ -106,8 +123,7 @@ def _en_evenement(brut: dict[str, Any], agenda: dict[str, Any]) -> EvenementOut 
 @router.get("/agendas", response_model=list[AgendaOut])
 async def lister_agendas(user: Admin = Depends(_LECTURE)) -> Any:
     """Les agendas consultables par le compte connecte."""
-    client = get_google_calendar_client()
-    agendas = _agendas_visibles(await agendas_en_cache(client), user)
+    agendas = _agendas_visibles(await _tous_les_agendas(), user)
     restreints = set(settings.google_calendar_restricted)
     return sorted(
         (_en_agenda(a, restreints) for a in agendas),
@@ -140,8 +156,7 @@ async def lister_evenements(
             detail=f"Fenetre limitee a {_FENETRE_MAX_JOURS} jours.",
         )
 
-    client = get_google_calendar_client()
-    autorises = _agendas_visibles(await agendas_en_cache(client), user)
+    autorises = _agendas_visibles(await _tous_les_agendas(), user)
     par_id = {a.get("id"): a for a in autorises}
 
     if agendas:
@@ -151,9 +166,17 @@ async def lister_evenements(
     else:
         demandes = list(par_id)
 
-    brut, echecs = await evenements_en_cache(
-        client, demandes, debut, fin, ttl=settings.google_calendar_cache_seconds
-    )
+    if _sur_instantane():
+        brut = calendrier_instantane.evenements(demandes, debut, fin)
+        echecs: list[str] = []
+    else:
+        brut, echecs = await evenements_en_cache(
+            get_google_calendar_client(),
+            demandes,
+            debut,
+            fin,
+            ttl=settings.google_calendar_cache_seconds,
+        )
 
     evenements: list[EvenementOut] = []
     for calendar_id, items in brut.items():
@@ -167,7 +190,14 @@ async def lister_evenements(
     noms_en_erreur = [
         par_id[c].get("summary", c) for c in echecs if c in par_id
     ]
-    return CalendrierOut(evenements=evenements, agendas_en_erreur=noms_en_erreur)
+    return CalendrierOut(
+        evenements=evenements,
+        agendas_en_erreur=noms_en_erreur,
+        # L'écran DOIT pouvoir le dire : un planning figé qui se présente comme
+        # le direct ferait manquer un cours déplacé.
+        instantane=_sur_instantane(),
+        genere_le=calendrier_instantane.genere_le() if _sur_instantane() else None,
+    )
 
 
 @router.get(
@@ -183,7 +213,14 @@ async def etat_calendrier() -> Any:
     deux — le meme constat que pour la sante du circuit d'envoi.
     """
     if not settings.google_calendar_configured:
-        return EtatCalendrierOut(configure=False)
+        return EtatCalendrierOut(
+            configure=False,
+            instantane=_sur_instantane(),
+            genere_le=calendrier_instantane.genere_le() if _sur_instantane() else None,
+            nombre_agendas=len(calendrier_instantane.agendas()) or None
+            if _sur_instantane()
+            else None,
+        )
     client = get_google_calendar_client()
     try:
         agendas = await agendas_en_cache(client)

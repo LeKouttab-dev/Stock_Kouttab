@@ -82,6 +82,13 @@ def google(monkeypatch) -> _ClientDouble:
     monkeypatch.setattr(
         settings, "google_calendar_restricted_raw", AGENDA_RESTREINT["id"], raising=False
     )
+    # Google est repute configure : sinon l'endpoint servirait l'instantane
+    # fige (app/data/calendrier_instantane.json) et ces tests porteraient sur
+    # lui. Ce sont deux sources, elles ont leurs propres tests.
+    monkeypatch.setattr(settings, "google_service_account_json", "{}", raising=False)
+    monkeypatch.setattr(
+        settings, "google_calendar_subject", "admin@lekouttab.com", raising=False
+    )
     # Le cache est partage par le processus : sans purge, un test heriterait
     # des agendas d'un autre.
     google_service._cache._valeurs.clear()
@@ -192,6 +199,8 @@ def test_l_etat_est_reserve_au_super_admin(
     )
     reponse = client.get("/api/v1/calendar/etat", headers=auth_headers(super_admin_user))
     assert reponse.status_code == 200
-    # Sans cle de compte de service, l'etat dit « pas configure » plutot que
-    # de laisser croire a un agenda vide.
-    assert reponse.json()["configure"] is False
+    etat = reponse.json()
+    assert etat["configure"] is True
+    assert etat["nombre_agendas"] == 2
+    # Le direct repond : aucune raison de se dire « fige ».
+    assert etat["instantane"] is False
