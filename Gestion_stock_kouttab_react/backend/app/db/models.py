@@ -19,6 +19,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.mysql import LONGBLOB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -916,6 +917,27 @@ class BuvetteProduct(Base):
         String(32), nullable=True, unique=True, index=True
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Photo du produit, EN BASE comme les justificatifs : le disque du VPS
+    # n'est pas sauvegarde, la base l'est. `deferred` par principe — lister le
+    # catalogue ne doit pas rapatrier les octets de toutes les photos depuis
+    # une base distante.
+    photo: Mapped[bytes | None] = mapped_column(
+        LargeBinary().with_variant(LONGBLOB(), "mysql"), nullable=True, deferred=True
+    )
+    photo_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Adresse publique de la photo (`/buvette/photos/{jeton}`). Un jeton NEUF a
+    # chaque depot : la tablette met les photos en cache par URL en ignorant les
+    # en-tetes, une photo remplacee a la meme adresse y resterait l'ancienne.
+    photo_jeton: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, unique=True, index=True
+    )
+    # Leve des qu'un champ que HelloAsso ecrit aussi est modifie a la main
+    # (nom, description, prix, photo). La synchronisation le respecte, sinon
+    # elle annulerait le travail de la personne au passage suivant.
+    edite_manuellement: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("0")
+    )
+
     # Onglet de la tablette de caisse : `sucre_sale`, `boissons`, `cafe` ou `epicerie`.
     # NULL = absent de la tablette. Les produits importes de HelloAsso arrivent
     # sans categorie : c'est ce qui permet de choisir ce que la caisse vend.

@@ -436,6 +436,10 @@ export interface BuvetteProduct {
   barcode?: string | null;
   // Même remarque : garanti côté backend, absent des fixtures antérieures.
   caisse_category?: CaisseCategory | null;
+  /** Vrai dès qu'un champ écrit aussi par HelloAsso a été modifié à la main. */
+  edite_manuellement?: boolean;
+  /** Une photo a été déposée : l'écran propose de la remplacer ou de la retirer. */
+  a_une_photo?: boolean;
 }
 
 export interface BuvetteProductUpdate {

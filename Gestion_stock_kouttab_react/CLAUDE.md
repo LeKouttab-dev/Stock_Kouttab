@@ -191,7 +191,7 @@ Gestion_stock_kouttab_react/
 | **TicketsJustificatif** | Demande de pièce manquante : `libelle` (seul obligatoire), `montant_attendu`, `date_achat`, `fournisseur`, `statut` (`ouvert`·`clos`·`annule`), `rappels_envoyes`, `dernier_rappel_at` | `id_user`, `cree_par`, `closed_by`, `id_facture → Factures.id` |
 | **Remboursements** | Un versement à un bénévole soldant N notes : `date_remboursement`, `moyen`, `etablissement`, `approuve_par`, `montant_total` (**instantané**), `chemin_pdf`, `chemin_xlsx` | `id_user`, `cree_par → Admins.id` |
 | **CategoriesDepense** | Référentiel administrable de la **nature des dépenses**, demandée sous tous les pôles (`Courses`, `Stock goûter`, `Achat buvette`, `Achat matériel`, `Mobilier, immobilier et petit équipement`, `Fournitures administratives`, `Entretien`, `Réceptions (repas, déplacements, nourriture)`, `Autre`) : `nom` UNIQUE, `is_default`, `is_active`, `ordre` — `Autre` porte `ordre = 99` pour rester en fin de liste | — |
-| **BuvetteProducts** | Produits de la buvette (saisis, scannés ou synchronisés HelloAsso) : `helloasso_tier_id` UNIQUE, `name`, `price_cents`, `quantity`, `seuil_alerte`, `emoji`, `image_url`, `alert_sent`, `last_synced_at`, `is_active`, **`caisse_category`** (onglet de la tablette `sucre_sale`·`boissons`·`cafe`·`epicerie` ; NULL = absent de la tablette) | — |
+| **BuvetteProducts** | Produits de la buvette (saisis, scannés ou synchronisés HelloAsso) : `helloasso_tier_id` UNIQUE, `name`, `price_cents`, `quantity`, `seuil_alerte`, `emoji`, `image_url`, `alert_sent`, `last_synced_at`, `is_active`, **`caisse_category`** (onglet de la tablette `sucre_sale`·`boissons`·`cafe`·`epicerie` ; NULL = absent de la tablette), **`photo`/`photo_type`/`photo_jeton`** (photo déposée, en base, servie sous une adresse publique renouvelée à chaque dépôt), **`edite_manuellement`** (la synchro HelloAsso n'écrase plus nom, description, prix ni photo) | — |
 | **Conversations** | Fil de discussion : `id_user` (auteur), `destinataire` (`compta`·`admin`), `sujet`, `statut` (`ouverte`·`en_cours`·`traitee`), `attente_equipe`, `non_lu_demandeur` (**dénormalisés**, cf. §6) | `id_user`, `closed_by` |
 | **ConversationMessages** | Un message : `corps`, `auteur_nom` et `de_l_equipe` **figés à l'écriture** — un compte supprimé laisserait des messages anonymes, un bénévole promu comptable ferait passer ses anciennes questions pour des réponses | `id_conversation` (CASCADE), `id_auteur` |
 | **BuvetteSales** | Log idempotent des ventes : **`source`** (`helloasso`·`caisse`), `helloasso_order_id`, `helloasso_payment_id`, `helloasso_item_id`, `caisse_tx_id` (id de transaction de la tablette), `caisse_line`, `sumup_tx_code`, snapshot `product_name_snapshot`, `quantity_sold`, `amount_cents`, infos client, `raw_event` JSON | `buvette_product_id → BuvetteProducts.id` (SET NULL) ; UNIQUE (`helloasso_payment_id`, `helloasso_item_id`) ; UNIQUE (`caisse_tx_id`, `caisse_line`) |
@@ -257,7 +257,8 @@ le démarrage en production. Les valeurs en clair héritées restent lisibles
 | Admin — Import CSV inventaire | — | ✅ | — | ✅ |
 | Buvette — consulter stock & ventes | — | ✅ | ✅ | ✅ |
 | Buvette — synchroniser produits HelloAsso | — | ✅ | — | ✅ |
-| Buvette — CRUD produits / ajuster stock | — | ✅ | — | ✅ |
+| Buvette — CRUD produits / fiche complète (nom, prix, stock, photo) | — | ✅ | — | ✅ |
+| Buvette — voir la photo d'un produit | adresse publique (la tablette n'envoie aucun en-tête sur ses images) | | | |
 | Buvette — configurer/supprimer webhook HelloAsso | — | — | — | ✅ |
 | Buvette — ranger un produit dans un onglet de la tablette | — | ✅ | — | ✅ |
 | Calendrier — consulter les agendas Google | — | ✅ | ✅ | ✅ |
@@ -714,7 +715,13 @@ remplacer la boîte de réception.
 ### Buvette (HelloAsso)
 - `GET /buvette/products` — liste produits buvette + stock (AdminBenevoles+ et Compta)
 - `POST /buvette/products` — créer un produit manuel (AdminBenevoles+)
-- `PATCH /buvette/products/{id}` — ajuster stock / seuil / emoji (AdminBenevoles+)
+- `PATCH /buvette/products/{id}` — la fiche complète : **nom, prix, stock, seuil,
+  emoji, onglet de la tablette** (AdminBenevoles+). Le nom et le prix ne se
+  corrigeaient qu'en supprimant le produit pour le recréer — impossible depuis
+  que la tablette est la caisse et que la boutique HelloAsso n'est plus la source.
+- `POST|DELETE /buvette/products/{id}/photo` — **la photo du produit**, prise au
+  téléphone ou choisie sur l'ordinateur (AdminBenevoles+)
+- `GET /buvette/photos/{jeton}` — **endpoint public** qui sert la photo
 - `DELETE /buvette/products/{id}` — supprimer (AdminBenevoles+)
 - `POST /buvette/sync` — pull les tiers depuis HelloAsso et upsert (AdminBenevoles+)
 - `GET /buvette/sales?limit=&offset=` — historique des ventes (AdminBenevoles+ et Compta)
@@ -1107,6 +1114,44 @@ personne : c'est la tablette qui appelle l'API.
   (`alert_sent`), envoyé en tâche de fond.
 - `get_sales_activity` **ne compte que `source = helloasso`** : c'est la preuve
   que le webhook fonctionne, les ventes de la tablette la fausseraient.
+
+### Photo d'un produit, et ce qu'elle protège
+
+La tablette affiche `image_url` — jusqu'ici la seule adresse fournie par
+HelloAsso ou par le scan. Un produit saisi à la main n'avait donc aucune photo,
+et aucune ne se corrigeait.
+
+- **La photo vit en base** (`BuvetteProducts.photo`, `deferred`), comme les
+  justificatifs et le RIB : le disque du VPS n'est pas sauvegardé, la base l'est.
+  Elle est **réduite à 600 px et convertie en JPEG** avant l'enregistrement
+  (`services/images.py`) — la tablette l'affiche dans une fiche de 168 dp et
+  précharge toutes les photos d'un nouveau catalogue d'un coup.
+- **Un jeton NEUF à chaque dépôt** (`photo_jeton`), et l'adresse en découle.
+  Ce n'est pas un détail : la tablette met les photos en cache **par URL en
+  ignorant les en-têtes de cache**, si bien qu'une photo remplacée à la même
+  adresse y resterait l'ancienne, parfois des jours.
+- **`GET /buvette/photos/{jeton}` est public**, volontairement : le chargeur
+  d'images de la tablette (Coil) ne porte ni session ni `X-Caisse-Key`, exiger
+  un en-tête n'afficherait aucune photo en caisse. Le jeton tire au hasard tient
+  lieu d'adresse secrète, et une photo de canette n'est pas une donnée à
+  protéger. Réponse `immutable` : l'adresse ne changera jamais de contenu.
+- **L'adresse est construite à la réponse** (`_url_photo`), jamais stockée :
+  `BACKEND_URL` peut changer, les jetons déjà en base doivent suivre.
+
+### `edite_manuellement` : la synchro n'écrase plus le travail fait à la main
+
+`POST /buvette/sync` réécrivait `name`, `description`, `price_cents` et
+`image_url` à chaque passage. Rendre ces champs modifiables sans garde-fou aurait
+fait disparaître le travail de la personne au premier clic sur « Synchroniser ».
+
+Le drapeau se lève **tout seul** dès qu'un de ces quatre champs est modifié, ou
+qu'une photo est déposée (`_CHAMPS_HELLOASSO` dans `crud/buvette.py`). La
+synchronisation saute alors ces champs et compte le produit en `skipped` ; **le
+stock et `last_synced_at` continuent** de se mettre à jour — le garde-fou porte
+sur ce que la boutique décrit, pas sur ce qu'elle vend.
+
+Le webhook HelloAsso reste actif : il ne fait que des ventes, jamais des
+descriptions.
 
 ---
 

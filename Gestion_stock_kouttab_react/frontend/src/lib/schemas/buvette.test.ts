@@ -22,12 +22,29 @@ describe('onglet de la tablette de caisse', () => {
   });
 
   it('l’ajustement refuse un onglet inconnu', () => {
-    const base = { quantity: 3, seuil_alerte: 1, emoji: '☕' };
+    // La fiche porte le nom et le prix depuis que la tablette a remplacé la
+    // boutique HelloAsso : ils ne se corrigeaient qu'en recréant le produit.
+    const base = { name: 'Café', price_euros: 1.5, quantity: 3, seuil_alerte: 1, emoji: '☕' };
     expect(adjustBuvetteProductSchema.safeParse({ ...base, onglet_caisse: 'cafe' }).success).toBe(
       true,
     );
     expect(
       adjustBuvetteProductSchema.safeParse({ ...base, onglet_caisse: 'alcool' }).success,
     ).toBe(false);
+  });
+
+  it('la fiche exige un nom et un prix', () => {
+    const base = { quantity: 3, seuil_alerte: 1, emoji: '☕', onglet_caisse: 'cafe' };
+    expect(
+      adjustBuvetteProductSchema.safeParse({ ...base, name: '', price_euros: 1.5 }).success,
+    ).toBe(false);
+    // Un prix négatif n'existe pas en caisse : ce serait un encaissement à l'envers.
+    expect(
+      adjustBuvetteProductSchema.safeParse({ ...base, name: 'Café', price_euros: -1 }).success,
+    ).toBe(false);
+    // La gratuité, elle, est légitime (verre d'eau, dégustation).
+    expect(
+      adjustBuvetteProductSchema.safeParse({ ...base, name: 'Eau', price_euros: 0 }).success,
+    ).toBe(true);
   });
 });

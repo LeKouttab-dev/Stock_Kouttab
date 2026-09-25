@@ -102,6 +102,38 @@ export function useUpdateBuvetteProduct() {
   });
 }
 
+/**
+ * Dépose la photo d'un produit : prise au téléphone, ou choisie sur l'ordinateur.
+ *
+ * Le serveur la réduit à 600 px et lui donne une adresse NEUVE à chaque dépôt —
+ * la tablette met les photos en cache par URL en ignorant les en-têtes, une
+ * même adresse y garderait l'ancienne image.
+ */
+export function useUploadBuvettePhoto() {
+  const qc = useQueryClient();
+  return useApiMutation({
+    mutationFn: async ({ id, file }: { id: number; file: File }) => {
+      const corps = new FormData();
+      corps.append('file', file);
+      const { data } = await api.post<BuvetteProduct>(`/buvette/products/${id}/photo`, corps);
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: buvetteQueryKeys.products() }),
+  });
+}
+
+/** Retire la photo : la tablette reprend l'emoji, jamais une case vide. */
+export function useDeleteBuvettePhoto() {
+  const qc = useQueryClient();
+  return useApiMutation({
+    mutationFn: async (id: number) => {
+      const { data } = await api.delete<BuvetteProduct>(`/buvette/products/${id}/photo`);
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: buvetteQueryKeys.products() }),
+  });
+}
+
 export function useDeleteBuvetteProduct() {
   const qc = useQueryClient();
   return useApiMutation({

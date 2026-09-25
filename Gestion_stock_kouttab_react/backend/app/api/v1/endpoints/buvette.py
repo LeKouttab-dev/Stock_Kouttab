@@ -7,7 +7,17 @@ from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import quote
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Header, Query, Request, Response
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    Header,
+    Query,
+    Request,
+    Response,
+    UploadFile,
+)
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_roles
@@ -35,6 +45,7 @@ from app.schemas.buvette import (
     WebhookStatusOut,
 )
 from app.services import email as email_service
+from app.services import files as files_service
 from app.services.helloasso import get_helloasso_client
 
 
@@ -55,13 +66,43 @@ _VIEW_ROLES = ("AdminBenevoles", "Super Admin", "Compta")
 # ---------------------------------------------------------------------------
 
 
+def _url_photo(product: Any) -> str | None:
+    """Adresse publique de la photo d'un produit, ou son `image_url` d'origine.
+
+    Construite a la reponse et non stockee : `BACKEND_URL` peut changer (recette,
+    nouveau domaine) et les jetons deja en base doivent suivre sans migration.
+
+    La photo deposee l'emporte sur l'adresse venue de HelloAsso ou du scan :
+    c'est le choix explicite de quelqu'un contre une valeur heritee.
+    """
+    jeton = getattr(product, "photo_jeton", None)
+    if jeton:
+        return f"{settings.backend_url.rstrip('/')}/v1/buvette/photos/{jeton}"
+    return product.image_url
+
+
+
+def _en_produit_out(product: Any) -> BuvetteProductOut:
+    """`BuvetteProductOut` dont `image_url` porte la photo deposee, si elle existe.
+
+    L'ecran web et la tablette doivent montrer la meme image : deux chemins de
+    resolution finiraient par diverger.
+    """
+    sortie = BuvetteProductOut.model_validate(product)
+    sortie.image_url = _url_photo(product)
+    # Deduit du jeton, jamais de la colonne `photo` : elle est `deferred`, et la
+    # lire ici ferait une requete de plus par produit vers une base distante.
+    sortie.a_une_photo = bool(getattr(product, "photo_jeton", None))
+    return sortie
+
+
 @router.get(
     "/products",
     response_model=list[BuvetteProductOut],
     dependencies=[Depends(require_roles(*_VIEW_ROLES))],
 )
 def list_products(db: Session = Depends(get_db)) -> Any:
-    return [BuvetteProductOut.model_validate(p) for p in buvette_crud.list_products(db)]
+    return [_en_produit_out(p) for p in buvette_crud.list_products(db)]
 
 
 @router.post(
@@ -72,7 +113,7 @@ def list_products(db: Session = Depends(get_db)) -> Any:
 )
 def create_product(payload: BuvetteProductCreate, db: Session = Depends(get_db)) -> Any:
     product = buvette_crud.create_product(db, payload)
-    return BuvetteProductOut.model_validate(product)
+    return _en_produit_out(product)
 
 
 @router.patch(
@@ -86,7 +127,7 @@ def update_product(
     db: Session = Depends(get_db),
 ) -> Any:
     product = buvette_crud.update_product(db, product_id, payload)
-    return BuvetteProductOut.model_validate(product)
+    return _en_produit_out(product)
 
 
 @router.delete(
@@ -109,7 +150,72 @@ def get_product_by_barcode(
     product = buvette_crud.get_product_by_barcode(db, barcode.strip())
     if product is None:
         raise AppException(ErrorCode.BUVETTE_PRODUCT_NOT_FOUND)
-    return BuvetteProductOut.model_validate(product)
+    return _en_produit_out(product)
+
+
+
+# ---------------------------------------------------------------------------
+# Photo d'un produit
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/products/{product_id}/photo",
+    response_model=BuvetteProductOut,
+    dependencies=[Depends(require_roles(*_ADMIN_ROLES))],
+)
+async def deposer_photo(
+    product_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+) -> Any:
+    """Depose la photo d'un produit, prise au telephone ou choisie sur l'ordinateur.
+
+    Le fichier est valide comme tout depot (signature, extension, taille), puis
+    **reduit a 600 px** et converti en JPEG avant d'entrer en base : la tablette
+    l'affiche dans une fiche de 168 dp et precharge toutes les photos d'un
+    nouveau catalogue d'un coup.
+
+    Le produit passe en « edite a la main » : la synchronisation HelloAsso ne
+    remplacera plus sa photo par celle de la boutique.
+    """
+    depot = await files_service.lire_en_memoire(file, "expenses")
+    product = buvette_crud.enregistrer_photo(db, product_id, depot["contenu"])  # type: ignore[arg-type]
+    return _en_produit_out(product)
+
+
+@router.delete(
+    "/products/{product_id}/photo",
+    response_model=BuvetteProductOut,
+    dependencies=[Depends(require_roles(*_ADMIN_ROLES))],
+)
+def retirer_photo(product_id: int, db: Session = Depends(get_db)) -> Any:
+    """Retire la photo. La tablette reprend l'emoji, jamais une case vide."""
+    return _en_produit_out(buvette_crud.supprimer_photo(db, product_id))
+
+
+@router.get("/photos/{jeton}")
+def servir_photo(jeton: str, db: Session = Depends(get_db)) -> Response:
+    """Sert la photo d'un produit. **Sans authentification, et c'est voulu.**
+
+    La tablette charge les images avec son propre chargeur (Coil), qui ne porte
+    ni jeton de session ni cle de caisse : exiger un en-tete ici reviendrait a
+    n'afficher aucune photo en caisse. Le jeton de 32 caracteres tire au hasard
+    tient lieu d'adresse secrete, et une photo de canette de soda n'est pas une
+    donnee a proteger.
+
+    `immutable` : le jeton change a chaque depot, donc cette adresse-la ne
+    changera jamais de contenu. C'est ce qui permet a la tablette de garder ses
+    photos hors ligne sans jamais afficher une image perimee.
+    """
+    product = buvette_crud.get_product_by_photo_jeton(db, jeton)
+    if product is None or not product.photo:
+        raise AppException(ErrorCode.FILE_NOT_FOUND)
+    return Response(
+        content=product.photo,
+        media_type=product.photo_type or "image/jpeg",
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -188,6 +294,7 @@ def _verifier_cle_caisse(
         raise AppException(ErrorCode.TOKEN_INVALID)
 
 
+
 @router.get(
     "/caisse/catalogue",
     response_model=CaisseCatalogueOut,
@@ -205,7 +312,7 @@ def caisse_catalogue(request: Request, db: Session = Depends(get_db)) -> Any:
                 price_cents=p.price_cents,
                 category=p.caisse_category,
                 emoji=p.emoji,
-                image_url=p.image_url,
+                image_url=_url_photo(p),
                 quantity=p.quantity,
                 low_stock=p.low_stock,
             )

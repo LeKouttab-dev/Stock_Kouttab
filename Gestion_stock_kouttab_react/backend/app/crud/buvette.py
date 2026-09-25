@@ -3,17 +3,19 @@
 from __future__ import annotations
 
 import json
+import secrets
 from datetime import datetime
 from typing import Any
 
 from sqlalchemy import and_, func, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, undefer
 
 from app.core.errors import ErrorCode
 from app.core.exceptions import AppException
 from app.core.logger import get_logger
 from app.db.models import BuvetteProduct, BuvetteSale
+from app.services import images
 from app.schemas.buvette import (
     BuvetteProductCreate,
     BuvetteProductUpdate,
@@ -150,6 +152,12 @@ def update_product(
     if "caisse_category" in payload:
         product.caisse_category = payload["caisse_category"]
 
+    # HelloAsso ecrit ces quatre champs a chaque synchronisation. Une
+    # modification a la main les lui retire, sinon le prochain « Synchroniser »
+    # annulerait le travail de la personne sans rien dire.
+    if any(champ in payload for champ in _CHAMPS_HELLOASSO):
+        product.edite_manuellement = True
+
     barcode_clean: str | None = None
     if "barcode" in payload:
         barcode_clean = validate_barcode(payload["barcode"])
@@ -168,6 +176,67 @@ def update_product(
             attempted_barcode=barcode_clean,
             attempted_tier_id=None,
         )
+    db.refresh(product)
+    return product
+
+
+# Les champs que la synchronisation HelloAsso ecrit — et qu'elle cesse d'ecrire
+# des qu'ils ont ete modifies a la main.
+_CHAMPS_HELLOASSO = ("name", "description", "price_cents", "image_url")
+
+
+def get_product_by_photo_jeton(db: Session, jeton: str) -> BuvetteProduct | None:
+    """Le produit dont la photo est servie sous ce jeton, photo comprise.
+
+    `photo` est `deferred` : il faut la demander explicitement, sinon la lecture
+    de l'image declencherait une seconde requete vers une base distante.
+    """
+    if not jeton:
+        return None
+    return db.execute(
+        select(BuvetteProduct)
+        .where(BuvetteProduct.photo_jeton == jeton)
+        .options(undefer(BuvetteProduct.photo))
+    ).scalars().first()
+
+
+def enregistrer_photo(db: Session, product_id: int, contenu: bytes) -> BuvetteProduct:
+    """Reduit la photo, l'enregistre en base, et lui donne une adresse NEUVE.
+
+    Le jeton est retire au hasard a chaque depot. La tablette met les photos en
+    cache par URL en ignorant les en-tetes de cache : reutiliser la meme adresse
+    laisserait l'ancienne image affichee en caisse, parfois des jours.
+    """
+    product = get_product(db, product_id)
+    if not product:
+        raise AppException(ErrorCode.BUVETTE_PRODUCT_NOT_FOUND)
+
+    octets, type_mime = images.preparer_photo(contenu)
+    product.photo = octets
+    product.photo_type = type_mime
+    product.photo_jeton = secrets.token_urlsafe(24)
+    # La photo est un des champs que HelloAsso ecrase : deposer la sienne vaut
+    # decision, elle ne doit pas sauter a la synchronisation suivante.
+    product.edite_manuellement = True
+    db.commit()
+    db.refresh(product)
+    logger.info(
+        "Photo enregistree pour le produit buvette %s (%s octets).",
+        product_id,
+        len(octets),
+    )
+    return product
+
+
+def supprimer_photo(db: Session, product_id: int) -> BuvetteProduct:
+    """Retire la photo. La tablette reprend alors l'emoji, jamais une case vide."""
+    product = get_product(db, product_id)
+    if not product:
+        raise AppException(ErrorCode.BUVETTE_PRODUCT_NOT_FOUND)
+    product.photo = None
+    product.photo_type = None
+    product.photo_jeton = None
+    db.commit()
     db.refresh(product)
     return product
 
@@ -331,15 +400,22 @@ def sync_from_helloasso(db: Session, tiers: list[dict[str, Any]]) -> SyncResult:
                 db.add(product)
                 result.created += 1
             else:
-                existing.name = label
-                existing.description = description
-                # Un prix introuvable ne doit pas ecraser le prix connu : sinon
-                # une synchronisation remet a 0 EUR tout le catalogue, y compris
-                # les prix corriges a la main.
-                if price_cents is not None:
-                    existing.price_cents = price_cents
-                if image_url is not None:
-                    existing.image_url = image_url
+                # Un produit repris en main dans l'application n'est plus
+                # alimente par HelloAsso pour ces champs : nom, description,
+                # prix et photo. Sans cela, « Synchroniser » effacait un
+                # libelle corrige, un prix ajuste et une photo deposee.
+                # Le stock et l'horodatage continuent, eux, de se mettre a jour.
+                if not existing.edite_manuellement:
+                    existing.name = label
+                    existing.description = description
+                    # Un prix introuvable ne doit pas ecraser le prix connu :
+                    # sinon une synchronisation remet a 0 EUR tout le catalogue.
+                    if price_cents is not None:
+                        existing.price_cents = price_cents
+                    if image_url is not None:
+                        existing.image_url = image_url
+                else:
+                    result.skipped += 1
                 # Only seed the quantity if local stock is still 0 (initial state).
                 # Once the user has set a real quantity, we trust the local count.
                 if existing.quantity == 0 and helloasso_qty is not None and helloasso_qty > 0:
