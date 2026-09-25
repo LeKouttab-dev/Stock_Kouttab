@@ -143,6 +143,26 @@ class CaisseCatalogueOut(BaseModel):
     generated_at: datetime
 
 
+class CaisseVersionOut(BaseModel):
+    """Ce que la tablette lit pour decider si elle doit se mettre a jour.
+
+    Elle n'agit que si `version_code` **depasse** celui qu'elle execute, et
+    verifie `sha256` avant d'installer : une empreinte qui ne correspond pas
+    fait supprimer le telechargement sans rien installer.
+    """
+
+    version_code: int
+    version_name: str
+    sha256: str
+
+
+class CaisseVersionAdminOut(CaisseVersionOut):
+    """La meme chose pour l'ecran d'administration, avec de quoi se reperer."""
+
+    taille: int
+    depose_le: str
+
+
 class CaisseLigneIn(BaseModel):
     """Une ligne du panier encaisse.
 

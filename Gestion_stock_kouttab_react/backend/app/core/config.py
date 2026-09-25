@@ -127,6 +127,11 @@ class Settings(BaseSettings):
     # inexistantes (404), comme le passage signe.
     # Generer avec : python -c "import secrets; print(secrets.token_urlsafe(48))"
     caisse_api_key: str = Field(default="", alias="CAISSE_API_KEY")
+    # Plafond DEDIE a l'APK de la tablette : un APK pese des dizaines de Mo,
+    # la ou `MAX_UPLOAD_MB` (10) borne des justificatifs. Les deux limites
+    # restent separees — relever celle des tickets pour livrer une
+    # application serait une porte ouverte sans rapport.
+    caisse_apk_max_mb: int = Field(default=150, alias="CAISSE_APK_MAX_MB")
 
     # Google Agenda (onglet Calendrier) — compte de service Google Cloud avec
     # delegation a l'echelle du domaine, en LECTURE SEULE.

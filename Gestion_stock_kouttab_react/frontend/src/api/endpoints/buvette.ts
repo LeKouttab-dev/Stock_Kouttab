@@ -3,6 +3,7 @@ import { useApiMutation } from '@/hooks/useApiMutation';
 import { api } from '../client';
 import type {
   BuvetteProduct,
+  CaisseAppVersion,
   BuvetteProductCreate,
   BuvetteProductUpdate,
   BuvetteSale,
@@ -170,5 +171,64 @@ export function useDeleteWebhook() {
   return useApiMutation({
     mutationFn: deleteWebhook,
     onSuccess: () => qc.invalidateQueries({ queryKey: buvetteQueryKeys.webhook() }),
+  });
+}
+
+/* ---- Application de la tablette de caisse ------------------------------- */
+
+export const caisseAppQueryKey = ['buvette', 'app-caisse'] as const;
+
+/** La version servie aux tablettes, ou `null` si rien n'a été publié. */
+export function useCaisseAppVersion(actif = true) {
+  return useQuery({
+    queryKey: caisseAppQueryKey,
+    enabled: actif,
+    queryFn: async () => {
+      const { data } = await api.get<CaisseAppVersion | null>('/buvette/app');
+      return data;
+    },
+  });
+}
+
+/**
+ * Publie l'APK que les tablettes installeront à leur prochain réveil.
+ *
+ * Délai généreux : le fichier pèse des dizaines de mégaoctets, là où les
+ * autres appels de l'application se comptent en kilo-octets.
+ */
+export function usePublierCaisseApp() {
+  const qc = useQueryClient();
+  return useApiMutation({
+    mutationFn: async ({
+      file,
+      version_code,
+      version_name,
+    }: {
+      file: File;
+      version_code: number;
+      version_name: string;
+    }) => {
+      const corps = new FormData();
+      corps.append('file', file);
+      corps.append('version_code', String(version_code));
+      corps.append('version_name', version_name);
+      const { data } = await api.post<CaisseAppVersion>('/buvette/app', corps, {
+        timeout: 300_000,
+      });
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: caisseAppQueryKey }),
+  });
+}
+
+/** Retire la version publiée. Les tablettes gardent celle qu'elles exécutent. */
+export function useRetirerCaisseApp() {
+  const qc = useQueryClient();
+  return useApiMutation({
+    mutationFn: async () => {
+      const { data } = await api.delete('/buvette/app');
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: caisseAppQueryKey }),
   });
 }

@@ -122,15 +122,23 @@ app.add_middleware(SlowAPIMiddleware)
 async def _limit_request_size(request: Request, call_next):
     content_length = request.headers.get("content-length")
     if content_length is not None:
+        # La publication de l'application de caisse a son propre plafond : un
+        # APK pese des dizaines de Mo, la limite generale (50) le refuserait
+        # des qu'il grossit un peu, avec un 413 incomprehensible.
+        plafond_mb = (
+            settings.caisse_apk_max_mb
+            if request.url.path.endswith("/buvette/app")
+            else settings.max_request_mb
+        )
         try:
-            if int(content_length) > settings.max_request_mb * 1024 * 1024:
+            if int(content_length) > plafond_mb * 1024 * 1024:
                 _, message = ERROR_MESSAGES[ErrorCode.FILE_TOO_LARGE]
                 return JSONResponse(
                     status_code=413,
                     content={
                         "code": ErrorCode.FILE_TOO_LARGE.value,
                         "message": message,
-                        "extras": {"max_mb": settings.max_request_mb},
+                        "extras": {"max_mb": plafond_mb},
                     },
                 )
         except ValueError:
