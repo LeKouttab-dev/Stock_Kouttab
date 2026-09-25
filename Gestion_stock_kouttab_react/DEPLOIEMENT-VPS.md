@@ -540,3 +540,55 @@ docker compose logs --tail=50 caddy   # TLS, accès
 docker compose restart api            # redémarrage ciblé
 docker compose exec api python scripts/process_outbound_emails.py   # forcer la file
 ```
+
+---
+
+## Publier une nouvelle version de l'application de caisse
+
+La tablette tourne en mode borne : elle vient chercher son APK auprès de l'API,
+une minute après son démarrage puis toutes les demi-heures, et seulement au
+repos. Deux chemins mènent au même endroit.
+
+### Depuis l'application web — aucun accès serveur requis
+
+*Stock buvette → **Application tablette*** (Super Admin). Trois champs : le
+fichier, le `versionCode` et le nom de version. C'est la voie normale, et la
+seule qui fonctionne depuis un téléphone.
+
+### Depuis le VPS — pour une chaîne de compilation
+
+**Ne pas écrire directement dans le volume Docker.** Ce que l'API sert n'est pas
+l'APK seul mais **l'APK plus son manifeste** (`version.json` : numéro de
+version, nom, empreinte SHA-256). Un APK déposé seul n'est servi à personne et
+rien ne le signale ; une empreinte recopiée de travers fait refuser
+l'installation par la tablette, sans message non plus. Le volume appartient par
+ailleurs à root sur l'hôte, alors que les fichiers doivent appartenir à
+l'utilisateur `kouttab` du conteneur.
+
+```bash
+docker compose cp buvette.apk api:/tmp/buvette.apk
+docker compose exec -T api python scripts/publier_app_caisse.py /tmp/buvette.apk 3 0.3.0
+```
+
+Le script calcule l'empreinte, écrit l'APK en deux temps (fichier temporaire
+puis renommage atomique — une tablette qui télécharge pendant le dépôt recevrait
+sinon un fichier tronqué) et n'écrit le manifeste qu'ensuite, pour qu'il
+n'annonce jamais une version absente.
+
+`--depuis-json app.json` remplace les deux derniers arguments quand la chaîne de
+compilation produit déjà un descripteur (`{"version_code": …, "version_name": …}`).
+
+**Ajouter `</dev/null` à toute commande lancée à distance par SSH** : `docker
+compose` avale l'entrée standard, et le script qui suit disparaît en silence —
+c'est ce qui a laissé trois versions de retard en production, avec un
+déploiement en succès.
+
+### Ce que la tablette fait de tout cela
+
+Elle n'installe que si le `versionCode` servi **dépasse** le sien, et vérifie
+l'empreinte avant : une empreinte qui ne correspond pas fait supprimer le
+téléchargement sans rien installer. Une seule version est conservée côté
+serveur — elle ne demande jamais une version précise.
+
+L'APK n'est **jamais** servi sans l'en-tête `X-Caisse-Key` : il porte en clair la
+clé affiliée SumUp et `CAISSE_API_KEY`.

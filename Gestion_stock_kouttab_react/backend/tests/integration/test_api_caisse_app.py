@@ -181,3 +181,44 @@ def test_un_manifeste_illisible_vaut_aucune_version(
 
     assert caisse_app.version_publiee() is None
     assert client.get("/api/v1/buvette/caisse/app", headers=entetes_caisse).status_code == 404
+
+
+def test_le_script_de_publication_depuis_le_vps(tmp_path, monkeypatch, caisse):
+    """Le script du VPS et l'ecran web aboutissent au meme endroit.
+
+    C'est ce que la chaine de compilation de l'application appelle apres avoir
+    copie l'APK dans le conteneur : il calcule l'empreinte et ecrit le manifeste
+    lui-meme, parce qu'un APK depose seul ne serait servi a personne.
+    """
+    import json
+    import sys
+
+    sys.path.insert(0, "scripts")
+    from publier_app_caisse import main  # noqa: PLC0415
+
+    apk = tmp_path / "buvette.apk"
+    apk.write_bytes(_apk(b"depuis-le-vps"))
+    descripteur = tmp_path / "app.json"
+    descripteur.write_text(
+        json.dumps({"version_code": 7, "version_name": "0.7.0"}), encoding="utf-8"
+    )
+
+    monkeypatch.setattr(
+        sys, "argv", ["publier", str(apk), "--depuis-json", str(descripteur)]
+    )
+    assert main() == 0
+
+    version = caisse_app.version_publiee()
+    assert version is not None
+    assert (version.version_code, version.version_name) == (7, "0.7.0")
+    assert version.sha256 == hashlib.sha256(apk.read_bytes()).hexdigest()
+
+
+def test_le_script_refuse_un_apk_introuvable(tmp_path, monkeypatch, caisse):
+    import sys
+
+    sys.path.insert(0, "scripts")
+    from publier_app_caisse import main  # noqa: PLC0415
+
+    monkeypatch.setattr(sys, "argv", ["publier", str(tmp_path / "absent.apk"), "3", "0.3.0"])
+    assert main() == 1
