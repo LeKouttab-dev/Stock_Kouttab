@@ -722,6 +722,10 @@ remplacer la boîte de réception.
 - `POST|DELETE /buvette/products/{id}/photo` — **la photo du produit**, prise au
   téléphone ou choisie sur l'ordinateur (AdminBenevoles+)
 - `GET /buvette/photos/{jeton}` — **endpoint public** qui sert la photo
+- `POST|GET|DELETE /buvette/app` — publier / relire / retirer l'**APK de la
+  tablette** (publier et retirer : Super Admin ; relire : AdminBenevoles+)
+- `GET /buvette/caisse/app` — la version servie, pour la tablette (`X-Caisse-Key`)
+- `GET /buvette/caisse/app/apk` — le fichier (`X-Caisse-Key`)
 - `DELETE /buvette/products/{id}` — supprimer (AdminBenevoles+)
 - `POST /buvette/sync` — pull les tiers depuis HelloAsso et upsert (AdminBenevoles+)
 - `GET /buvette/sales?limit=&offset=` — historique des ventes (AdminBenevoles+ et Compta)
@@ -942,6 +946,8 @@ GOOGLE_CALENDAR_CACHE_SECONDS=180
 # Tablette de caisse (buvette encaissée par SumUp). Vide = routes /caisse en 404.
 # 32 caractères minimum en production, distincte des autres secrets.
 CAISSE_API_KEY=               # python -c "import secrets; print(secrets.token_urlsafe(48))"
+# Plafond DÉDIÉ à l'APK de la tablette, séparé de MAX_UPLOAD_MB (10 Mo).
+CAISSE_APK_MAX_MB=150
 ```
 
 ### Frontend (`.env`)
@@ -1137,6 +1143,39 @@ et aucune ne se corrigeait.
   protéger. Réponse `immutable` : l'adresse ne changera jamais de contenu.
 - **L'adresse est construite à la réponse** (`_url_photo`), jamais stockée :
   `BACKEND_URL` peut changer, les jetons déjà en base doivent suivre.
+
+### Mise à jour de la tablette, à distance
+
+La tablette tourne en **mode borne** : aucune autre application ne peut s'y
+ouvrir, personne ne va au magasin d'applications. Elle est propriétaire de
+l'appareil, donc Android la laisse installer un APK sans confirmation — c'est le
+seul chemin possible, et il suppose que l'API serve le fichier.
+
+- **L'APK n'est JAMAIS public**, contrairement aux photos de produits : il porte
+  en clair la clé affiliée SumUp **et** `CAISSE_API_KEY`. Servi librement, il
+  donnerait à quiconque le droit de poster des ventes et de lire le catalogue.
+  Les deux routes que la tablette appelle exigent `X-Caisse-Key`.
+- **Publier est réservé au Super Admin** : distribuer cet APK, c'est distribuer
+  de quoi encaisser.
+- **Sur le disque, pas en base** (`services/caisse_app.py`, volume `uploads`
+  déjà monté — aucune ligne à ajouter au `compose.yml`, qui se recopie à la main
+  sur le VPS). Les justificatifs vivent en base parce qu'une pièce comptable ne
+  se reconstruit pas ; un APK se rebâtit depuis les sources, et 40 Mo dans une
+  base MySQL distante coûteraient un aller-retour complet par lecture.
+- **L'empreinte SHA-256 est calculée par le serveur** et annoncée à la tablette,
+  qui la vérifie avant d'installer : une empreinte qui ne correspond pas fait
+  supprimer le téléchargement sans rien installer. Écriture du fichier en deux
+  temps (temporaire puis renommage atomique) — une tablette qui télécharge
+  pendant un dépôt recevrait sinon un fichier tronqué.
+- **Le numéro de version est saisi, pas déduit** : le lire dans l'APK
+  supposerait de décoder le manifeste binaire d'Android, fragile et sans rapport
+  avec le métier. La tablette n'installe que s'il **dépasse** le sien.
+- **Une seule version conservée** : la tablette ne demande jamais une version
+  précise. Un manifeste illisible vaut « aucune version » — servir un APK sans
+  empreinte vérifiable serait pire que ne rien servir.
+- `CAISSE_APK_MAX_MB` (150 par défaut) est un plafond **dédié**, séparé de
+  `MAX_UPLOAD_MB` (10, les justificatifs) : relever la limite des tickets pour
+  livrer une application serait une porte ouverte sans rapport.
 
 ### `edite_manuellement` : la synchro n'écrase plus le travail fait à la main
 

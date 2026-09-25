@@ -12,12 +12,14 @@ from fastapi import (
     BackgroundTasks,
     Depends,
     File,
+    Form,
     Header,
     Query,
     Request,
     Response,
     UploadFile,
 )
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_roles
@@ -31,6 +33,8 @@ from app.db.models import Admin
 from app.db.session import SessionLocal, get_db
 from app.schemas.auth import MessageOut
 from app.schemas.buvette import (
+    CaisseVersionAdminOut,
+    CaisseVersionOut,
     BuvetteProductCreate,
     BuvetteProductOut,
     BuvetteProductUpdate,
@@ -44,6 +48,7 @@ from app.schemas.buvette import (
     WebhookConfigureIn,
     WebhookStatusOut,
 )
+from app.services import caisse_app
 from app.services import email as email_service
 from app.services import files as files_service
 from app.services.helloasso import get_helloasso_client
@@ -218,6 +223,7 @@ def servir_photo(jeton: str, db: Session = Depends(get_db)) -> Response:
     )
 
 
+
 # ---------------------------------------------------------------------------
 # Sync (HelloAsso shop tiers -> local products)
 # ---------------------------------------------------------------------------
@@ -293,6 +299,105 @@ def _verifier_cle_caisse(
     if not secrets.compare_digest((x_caisse_key or "").encode(), attendue.encode()):
         raise AppException(ErrorCode.TOKEN_INVALID)
 
+
+
+# ---------------------------------------------------------------------------
+# Application de la tablette (mise a jour a distance)
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/app",
+    response_model=CaisseVersionAdminOut,
+    dependencies=[Depends(require_roles("Super Admin"))],
+)
+async def publier_application(
+    file: UploadFile = File(...),
+    version_code: int = Form(..., ge=1),
+    version_name: str = Form(..., min_length=1, max_length=32),
+) -> Any:
+    """Publie l'APK que les tablettes installeront a leur prochain reveil.
+
+    **Super Admin seul.** Cet APK porte en clair la cle affiliee SumUp et
+    `CAISSE_API_KEY` : le publier, c'est distribuer de quoi encaisser.
+
+    Le numero de version est saisi et non devine : le lire dans l'APK
+    supposerait de decoder le manifeste binaire d'Android, fragile et sans
+    rapport avec le metier. L'empreinte, elle, est calculee ici — c'est ce que
+    la tablette verifiera avant d'installer.
+    """
+    contenu = await file.read()
+    version = caisse_app.publier(
+        contenu,
+        version_code=version_code,
+        version_name=version_name.strip(),
+        depose_le=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    )
+    return CaisseVersionAdminOut(**vars(version))
+
+
+@router.get(
+    "/app",
+    response_model=CaisseVersionAdminOut | None,
+    dependencies=[Depends(require_roles(*_ADMIN_ROLES))],
+)
+def version_application() -> Any:
+    """La version actuellement servie aux tablettes, ou `null` si aucune."""
+    version = caisse_app.version_publiee()
+    return CaisseVersionAdminOut(**vars(version)) if version else None
+
+
+@router.delete(
+    "/app",
+    response_model=MessageOut,
+    dependencies=[Depends(require_roles("Super Admin"))],
+)
+def retirer_application() -> Any:
+    """Retire la version publiee. Les tablettes gardent celle qu'elles executent."""
+    caisse_app.retirer()
+    return MessageOut(message="Application de caisse retiree.")
+
+
+@router.get(
+    "/caisse/app",
+    response_model=CaisseVersionOut,
+    dependencies=[Depends(_verifier_cle_caisse)],
+)
+# La tablette interroge une minute apres le demarrage puis toutes les 30 min,
+# et seulement au repos : quelques requetes par jour et par appareil.
+@limiter.limit("60/minute")
+def caisse_version(request: Request) -> Any:
+    """Ce que la tablette lit pour savoir si une mise a jour l'attend."""
+    version = caisse_app.version_publiee()
+    if version is None:
+        # Aucune version publiee : 404, et la tablette n'insiste pas.
+        raise AppException(ErrorCode.NOT_FOUND)
+    return CaisseVersionOut(
+        version_code=version.version_code,
+        version_name=version.version_name,
+        sha256=version.sha256,
+    )
+
+
+@router.get("/caisse/app/apk", dependencies=[Depends(_verifier_cle_caisse)])
+@limiter.limit("30/minute")
+def caisse_apk(request: Request) -> FileResponse:
+    """Sert l'APK. **Jamais sans authentification.**
+
+    Contrairement aux photos de produits, ce fichier porte la cle affiliee
+    SumUp et `CAISSE_API_KEY` en clair : servi publiquement, il donnerait a
+    quiconque le droit de poster des ventes et de lire le catalogue. D'ou
+    l'en-tete `X-Caisse-Key`, comme pour le catalogue et les ventes.
+    """
+    version = caisse_app.version_publiee()
+    chemin = caisse_app.chemin_apk()
+    if version is None or not chemin.exists():
+        raise AppException(ErrorCode.NOT_FOUND)
+    return FileResponse(
+        chemin,
+        media_type="application/vnd.android.package-archive",
+        filename=f"caisse-{version.version_name}.apk",
+    )
 
 
 @router.get(

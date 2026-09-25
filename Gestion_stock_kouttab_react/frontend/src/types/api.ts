@@ -732,3 +732,12 @@ export interface EtatCalendrier {
   agendas_restreints: string[];
   erreur?: string | null;
 }
+
+/** Version de l'application de la tablette de caisse, servie aux appareils. */
+export interface CaisseAppVersion {
+  version_code: number;
+  version_name: string;
+  sha256: string;
+  taille: number;
+  depose_le: string;
+}

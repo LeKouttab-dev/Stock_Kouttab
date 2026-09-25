@@ -22,6 +22,7 @@ import { formatCents } from '@/lib/format';
 import { AdjustStockModal } from './modals/AdjustStockModal';
 import { CreateProductModal } from './modals/CreateProductModal';
 import { WebhookConfigModal } from './modals/WebhookConfigModal';
+import { AppCaisseModal } from './modals/AppCaisseModal';
 import { AddBuvetteFromBarcodeModal } from './modals/AddBuvetteFromBarcodeModal';
 import { BarcodeScanner } from '@/components/scanner/BarcodeScanner';
 import type { BarcodeLookupResponse, BuvetteProduct } from '@/types/api';
@@ -49,6 +50,7 @@ export function BuvettePage() {
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [webhookOpen, setWebhookOpen] = useState(false);
+  const [appCaisseOpen, setAppCaisseOpen] = useState(false);
   const [selected, setSelected] = useState<BuvetteProduct | null>(null);
 
   // Scanner flow state
@@ -153,6 +155,13 @@ export function BuvettePage() {
               {fr.buvette.webhook}
             </Button>
           )}
+          {/* Même cercle que le webhook : publier cet APK, c'est distribuer de
+              quoi encaisser — il porte la clé SumUp et la clé de caisse. */}
+          {canWebhook && (
+            <Button variant="ghost" onClick={() => setAppCaisseOpen(true)}>
+              Application tablette
+            </Button>
+          )}
         </div>
       )}
 
@@ -217,6 +226,7 @@ export function BuvettePage() {
       <AdjustStockModal open={adjustOpen} onOpenChange={setAdjustOpen} product={selected} />
       <CreateProductModal open={createOpen} onOpenChange={setCreateOpen} />
       <WebhookConfigModal open={webhookOpen} onOpenChange={setWebhookOpen} />
+      <AppCaisseModal open={appCaisseOpen} onOpenChange={setAppCaisseOpen} />
 
       <BarcodeScanner
         open={scannerOpen}
