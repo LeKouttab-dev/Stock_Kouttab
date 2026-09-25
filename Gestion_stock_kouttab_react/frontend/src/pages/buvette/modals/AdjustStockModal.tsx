@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
@@ -13,8 +13,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useUpdateBuvetteProduct } from '@/api/endpoints/buvette';
+import {
+  useDeleteBuvettePhoto,
+  useUpdateBuvetteProduct,
+  useUploadBuvettePhoto,
+} from '@/api/endpoints/buvette';
 import { OngletCaisseSelect } from '@/components/buvette/OngletCaisseSelect';
+import { PhotoProduitField } from '@/components/buvette/PhotoProduitField';
 import {
   adjustBuvetteProductSchema,
   categorieVersOnglet,
@@ -24,7 +29,7 @@ import {
 import { useToast } from '@/hooks/useToast';
 import { fr } from '@/lib/i18n/fr';
 import { EMOJI_OPTIONS } from '@/lib/constants';
-import { formatCents } from '@/lib/format';
+import { centsToEuros, eurosToCents } from '@/lib/money';
 import type { BuvetteProduct } from '@/types/api';
 
 interface AdjustStockModalProps {
@@ -35,16 +40,29 @@ interface AdjustStockModalProps {
 
 export function AdjustStockModal({ open, onOpenChange, product }: AdjustStockModalProps) {
   const update = useUpdateBuvetteProduct();
+  const deposerPhoto = useUploadBuvettePhoto();
+  const retirerPhoto = useDeleteBuvettePhoto();
+  const [photo, setPhoto] = useState<File | null>(null);
   const toast = useToast();
 
   const form = useForm<AdjustBuvetteProductFormValues>({
     resolver: zodResolver(adjustBuvetteProductSchema),
-    defaultValues: { quantity: 0, seuil_alerte: 0, emoji: '📦', onglet_caisse: 'aucun' },
+    defaultValues: {
+      name: '',
+      price_euros: 0,
+      quantity: 0,
+      seuil_alerte: 0,
+      emoji: '📦',
+      onglet_caisse: 'aucun',
+    },
   });
 
   useEffect(() => {
     if (product) {
+      setPhoto(null);
       form.reset({
+        name: product.name,
+        price_euros: centsToEuros(product.price_cents),
         quantity: product.quantity,
         seuil_alerte: product.seuil_alerte,
         emoji: product.emoji || '📦',
@@ -53,12 +71,33 @@ export function AdjustStockModal({ open, onOpenChange, product }: AdjustStockMod
     }
   }, [product, form]);
 
-  const onSubmit = ({ onglet_caisse, ...values }: AdjustBuvetteProductFormValues) => {
+  const onSubmit = ({ onglet_caisse, price_euros, ...values }: AdjustBuvetteProductFormValues) => {
     if (!product) return;
     update.mutate(
-      { id: product.id, data: { ...values, caisse_category: ongletVersCategorie(onglet_caisse) } },
+      {
+        id: product.id,
+        data: {
+          ...values,
+          price_cents: eurosToCents(price_euros),
+          caisse_category: ongletVersCategorie(onglet_caisse),
+        },
+      },
       {
         onSuccess: () => {
+          // La photo part APRÈS la fiche : elle est facultative, et un échec de
+          // son envoi ne doit pas faire perdre un prix corrigé.
+          if (photo) {
+            deposerPhoto.mutate(
+              { id: product.id, file: photo },
+              {
+                onSuccess: () => {
+                  toast.success(fr.buvette.productUpdated);
+                  onOpenChange(false);
+                },
+              },
+            );
+            return;
+          }
           toast.success(fr.buvette.productUpdated);
           onOpenChange(false);
         },
@@ -74,7 +113,7 @@ export function AdjustStockModal({ open, onOpenChange, product }: AdjustStockMod
         <DialogHeader>
           <DialogTitle>{fr.buvette.adjustStock}</DialogTitle>
           <DialogDescription>
-            <strong>{product.name}</strong> — {formatCents(product.price_cents)}
+            Nom, prix, stock, photo et onglet de la caisse.
           </DialogDescription>
         </DialogHeader>
 
@@ -84,6 +123,37 @@ export function AdjustStockModal({ open, onOpenChange, product }: AdjustStockMod
               Quantité actuelle : <strong>{product.quantity}</strong>
             </AlertDescription>
           </Alert>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="name" required>
+              {fr.buvette.name}
+            </Label>
+            <Input
+              id="name"
+              hasError={Boolean(form.formState.errors.name)}
+              {...form.register('name')}
+            />
+            {form.formState.errors.name && (
+              <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="price_euros" required>
+              {fr.buvette.price}
+            </Label>
+            <Input
+              id="price_euros"
+              type="number"
+              step="0.01"
+              min={0}
+              hasError={Boolean(form.formState.errors.price_euros)}
+              {...form.register('price_euros', { valueAsNumber: true })}
+            />
+            {form.formState.errors.price_euros && (
+              <p className="text-xs text-destructive">{form.formState.errors.price_euros.message}</p>
+            )}
+          </div>
 
           <div className="space-y-1.5">
             <Label htmlFor="quantity" required>
@@ -148,6 +218,14 @@ export function AdjustStockModal({ open, onOpenChange, product }: AdjustStockMod
             )}
           </div>
 
+          <PhotoProduitField
+            photoActuelle={product.a_une_photo ? product.image_url : null}
+            emoji={form.watch('emoji')}
+            onFichier={setPhoto}
+            onRetirer={() => retirerPhoto.mutate(product.id)}
+            occupe={deposerPhoto.isPending || retirerPhoto.isPending}
+          />
+
           <OngletCaisseSelect
             value={form.watch('onglet_caisse')}
             onChange={(onglet) => form.setValue('onglet_caisse', onglet, { shouldDirty: true })}
@@ -157,7 +235,7 @@ export function AdjustStockModal({ open, onOpenChange, product }: AdjustStockMod
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               {fr.common.cancel}
             </Button>
-            <Button type="submit" loading={update.isPending}>
+            <Button type="submit" loading={update.isPending || deposerPhoto.isPending}>
               {fr.common.update}
             </Button>
           </DialogFooter>

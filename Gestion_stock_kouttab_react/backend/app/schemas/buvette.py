@@ -72,6 +72,13 @@ class BuvetteProductOut(BaseModel):
     barcode: str | None = None
     is_active: bool = True
     caisse_category: CaisseCategory | None = None
+    # Vrai des qu'un champ ecrit aussi par HelloAsso a ete modifie a la main
+    # (nom, description, prix, photo). L'ecran l'affiche : sans cela, personne
+    # ne peut savoir pourquoi « Synchroniser » ne change plus ce produit.
+    edite_manuellement: bool = False
+    # Present quand une photo a ete deposee : l'ecran propose alors de la
+    # remplacer ou de la retirer, plutot que seulement d'en ajouter une.
+    a_une_photo: bool = False
     alert_sent: bool = False
     last_synced_at: datetime | None = None
     created_at: datetime | None = None

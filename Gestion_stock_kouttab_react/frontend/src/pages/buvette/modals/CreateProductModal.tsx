@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
@@ -12,7 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useCreateBuvetteProduct } from '@/api/endpoints/buvette';
+import { useCreateBuvetteProduct, useUploadBuvettePhoto } from '@/api/endpoints/buvette';
 import { OngletCaisseSelect } from '@/components/buvette/OngletCaisseSelect';
 import {
   createBuvetteProductSchema,
@@ -23,6 +23,7 @@ import { useToast } from '@/hooks/useToast';
 import { fr } from '@/lib/i18n/fr';
 import { eurosToCents } from '@/lib/money';
 import { EMOJI_OPTIONS } from '@/lib/constants';
+import { PhotoProduitField } from '@/components/buvette/PhotoProduitField';
 
 interface CreateProductModalProps {
   open: boolean;
@@ -31,6 +32,8 @@ interface CreateProductModalProps {
 
 export function CreateProductModal({ open, onOpenChange }: CreateProductModalProps) {
   const create = useCreateBuvetteProduct();
+  const deposerPhoto = useUploadBuvettePhoto();
+  const [photo, setPhoto] = useState<File | null>(null);
   const toast = useToast();
 
   const form = useForm<CreateBuvetteProductFormValues>({
@@ -47,7 +50,10 @@ export function CreateProductModal({ open, onOpenChange }: CreateProductModalPro
   });
 
   useEffect(() => {
-    if (!open) form.reset();
+    if (!open) {
+      form.reset();
+      setPhoto(null);
+    }
   }, [open, form]);
 
   const onSubmit = (values: CreateBuvetteProductFormValues) => {
@@ -62,7 +68,21 @@ export function CreateProductModal({ open, onOpenChange }: CreateProductModalPro
         caisse_category: ongletVersCategorie(values.onglet_caisse),
       },
       {
-        onSuccess: () => {
+        // La photo ne peut partir qu'APRÈS la création : elle s'attache à un
+        // produit, qui n'a d'identifiant qu'une fois enregistré.
+        onSuccess: (produit) => {
+          if (photo) {
+            deposerPhoto.mutate(
+              { id: produit.id, file: photo },
+              {
+                onSuccess: () => {
+                  toast.success(fr.buvette.productCreated);
+                  onOpenChange(false);
+                },
+              },
+            );
+            return;
+          }
           toast.success(fr.buvette.productCreated);
           onOpenChange(false);
         },
@@ -181,6 +201,12 @@ export function CreateProductModal({ open, onOpenChange }: CreateProductModalPro
             />
           </div>
 
+          <PhotoProduitField
+            emoji={form.watch('emoji')}
+            onFichier={setPhoto}
+            occupe={deposerPhoto.isPending}
+          />
+
           <OngletCaisseSelect
             value={form.watch('onglet_caisse')}
             onChange={(onglet) => form.setValue('onglet_caisse', onglet, { shouldDirty: true })}
@@ -190,7 +216,7 @@ export function CreateProductModal({ open, onOpenChange }: CreateProductModalPro
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               {fr.common.cancel}
             </Button>
-            <Button type="submit" loading={create.isPending}>
+            <Button type="submit" loading={create.isPending || deposerPhoto.isPending}>
               {fr.common.submit}
             </Button>
           </DialogFooter>
