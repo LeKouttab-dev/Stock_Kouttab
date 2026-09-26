@@ -592,3 +592,63 @@ serveur — elle ne demande jamais une version précise.
 
 L'APK n'est **jamais** servi sans l'en-tête `X-Caisse-Key` : il porte en clair la
 clé affiliée SumUp et `CAISSE_API_KEY`.
+
+---
+
+## fail2ban : `ssh-keyscan` depuis un workflow fait bannir le runner
+
+**L'incident.** La chaîne de compilation de l'application de caisse lançait un
+`ssh-keyscan` sur le VPS avant de se connecter, pour remplir son
+`known_hosts`. fail2ban a compté ces sondes comme des tentatives et **a banni
+l'adresse du runner GitHub**. Le déploiement automatique de la tablette s'est
+arrêté là.
+
+C'est le deuxième bannissement de ce serveur, après les neuf essais de clé du
+2026-08-11 qui avaient coupé le port 22 à tout le bureau (§0). La règle connue
+parlait des échecs d'authentification ; celle-ci vient de sondes parfaitement
+légitimes, ce qui la rend plus facile à déclencher sans y penser.
+
+**Ce qu'il faut faire à la place.** Relever l'empreinte **une fois**, depuis un
+poste déjà autorisé, et la ranger dans un secret du dépôt :
+
+```bash
+ssh-keyscan -H <hôte>            # UNE fois, en local
+```
+
+puis, dans le workflow :
+
+```yaml
+- run: |
+    mkdir -p ~/.ssh && chmod 700 ~/.ssh
+    printf '%s\n' "${{ secrets.VPS_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+    chmod 644 ~/.ssh/known_hosts
+```
+
+C'est déjà ce que fait `deploy.yml` de ce dépôt — le piège n'était pas documenté,
+il l'est maintenant.
+
+### Débannir une adresse
+
+Depuis le VPS (SSH s'il répond encore, sinon la console distante IONOS, cf. §0) :
+
+```bash
+sudo fail2ban-client status sshd                 # les adresses bannies
+sudo fail2ban-client set sshd unbanip <IP>       # en libérer une
+sudo fail2ban-client unban --all                 # tout libérer, en dernier recours
+```
+
+**Une adresse de runner GitHub ne vaut pas la peine d'être débannie** : chaque
+exécution part d'une adresse différente, tirée de plages immenses, et le
+bannissement expire de lui-même. Ce qui compte, c'est de ne plus déclencher la
+règle — donc de supprimer le `ssh-keyscan`.
+
+En revanche, une adresse **fixe** — le bureau, un poste d'administration — mérite
+d'être mise hors d'atteinte de la règle, pour ne pas revivre le 11 août :
+
+```bash
+sudo nano /etc/fail2ban/jail.local     # ignoreip = 127.0.0.1/8 ::1 <IP fixe>
+sudo systemctl reload fail2ban
+```
+
+Vérifier après coup que la règle protège encore quelque chose :
+`sudo fail2ban-client status sshd` doit continuer de compter des échecs.
