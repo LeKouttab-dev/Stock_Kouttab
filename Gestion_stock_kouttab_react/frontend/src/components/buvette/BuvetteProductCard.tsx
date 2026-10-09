@@ -1,4 +1,4 @@
-import { Edit3, Eye, EyeOff, Link2, PackagePlus, Tablet, Trash2 } from 'lucide-react';
+import { Barcode, Edit3, Eye, EyeOff, Link2, PackagePlus, Tablet, Trash2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -65,6 +65,18 @@ export function BuvetteProductCard({
               {product.name}
             </h3>
             <p className="text-sm font-bold text-primary">{formatCents(product.price_cents)}</p>
+            {/* Pour voir d'un coup d'œil ce qui reste à répertorier au scan. */}
+            <p
+              className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground"
+              data-testid="carte-code-barres"
+            >
+              <Barcode className="h-3 w-3" aria-hidden />
+              {product.barcode ? (
+                <span className="font-mono">{product.barcode}</span>
+              ) : (
+                <span className="italic">{fr.buvette.codeBarres.sansCode}</span>
+              )}
+            </p>
           </div>
           {getStockBadge(product)}
         </div>

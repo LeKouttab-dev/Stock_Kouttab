@@ -54,6 +54,13 @@ export const modifierBuvetteProductSchema = z.object({
   seuil_alerte: z.coerce.number().int().min(0, 'Doit être ≥ 0'),
   emoji: z.string().min(1, 'Emoji obligatoire').max(8),
   onglet_caisse: z.enum(ONGLETS_CAISSE),
+  // Vide = sans code-barres (le serveur le retire). Même règle que le serveur
+  // (`validate_barcode`) : 8 à 14 chiffres, EAN-8 à ITF-14.
+  barcode: z
+    .string()
+    .trim()
+    .regex(/^(\d{8,14})?$/, 'Code-barres invalide (8 à 14 chiffres).')
+    .default(''),
 });
 
 export type ModifierBuvetteProductFormValues = z.infer<typeof modifierBuvetteProductSchema>;

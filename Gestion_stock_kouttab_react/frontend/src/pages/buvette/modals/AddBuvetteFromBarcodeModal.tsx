@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useCreateBuvetteProduct } from '@/api/endpoints/buvette';
 import {
   buvetteProductFromBarcodeSchema,
@@ -41,6 +42,9 @@ export function AddBuvetteFromBarcodeModal({
 }: AddBuvetteFromBarcodeModalProps) {
   const create = useCreateBuvetteProduct();
   const toast = useToast();
+  // Décochée par défaut : les photos Open Food Facts sont de qualité très
+  // inégale, mieux vaut l'emoji (ou une vraie photo déposée ensuite).
+  const [utiliserPhotoOff, setUtiliserPhotoOff] = useState(false);
 
   const form = useForm<BuvetteProductFromBarcodeFormValues>({
     resolver: zodResolver(buvetteProductFromBarcodeSchema),
@@ -56,6 +60,7 @@ export function AddBuvetteFromBarcodeModal({
 
   useEffect(() => {
     if (!open || !lookup) return;
+    setUtiliserPhotoOff(false);
     const off = lookup.openfoodfacts;
     const offName = pickFirst(off?.name);
     const offBrand = pickFirst(off?.brand);
@@ -82,9 +87,8 @@ export function AddBuvetteFromBarcodeModal({
         quantity: values.quantity,
         seuil_alerte: values.seuil_alerte,
         emoji: values.emoji,
-        // Même oubli que côté stock : la carte sait afficher une photo, mais
-        // seuls les produits synchronisés depuis HelloAsso en avaient une.
-        image_url: off?.image_url ?? null,
+        // Photo Open Food Facts seulement si la case est cochée.
+        image_url: utiliserPhotoOff ? (off?.image_url ?? null) : null,
         helloasso_tier_id: null,
         barcode: values.barcode,
       },
@@ -113,7 +117,7 @@ export function AddBuvetteFromBarcodeModal({
         <ScannedBarcodeLine barcode={lookup.barcode} />
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          <ScannedProductRow lookup={lookup}>
+          <ScannedProductRow lookup={lookup} afficherPhoto={utiliserPhotoOff}>
             <Label htmlFor="name" required>
               {fr.buvette.name}
             </Label>
@@ -200,6 +204,19 @@ export function AddBuvetteFromBarcodeModal({
               </button>
             ))}
           </div>
+
+          {off?.image_url && (
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="utiliser-photo-off"
+                checked={utiliserPhotoOff}
+                onCheckedChange={(v) => setUtiliserPhotoOff(v === true)}
+              />
+              <Label htmlFor="utiliser-photo-off" className="text-sm font-normal">
+                {fr.buvette.codeBarres.utiliserPhotoOff}
+              </Label>
+            </div>
+          )}
 
           {hasOff && <p className="text-xs text-muted-foreground">{fr.scanner.enrichedFromOFF}</p>}
 

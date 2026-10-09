@@ -73,6 +73,22 @@ def get_product_by_barcode(db: Session, barcode: str) -> BuvetteProduct | None:
     ).scalar_one_or_none()
 
 
+def _erreur_code_barres_pris(existing: BuvetteProduct) -> AppException:
+    """409 explicite : le message nomme le produit qui porte deja ce code.
+
+    Affiche tel quel par l'ecran : la personne qui scanne doit savoir a quel
+    produit le code est deja relie, pour corriger la bonne fiche.
+    """
+    return AppException(
+        ErrorCode.BARCODE_DUPLICATE,
+        detail=f"Ce code-barres est déjà associé à {existing.name}.",
+        extras={
+            "existing_product_id": existing.id,
+            "existing_product_name": existing.name,
+        },
+    )
+
+
 def _handle_product_integrity_error(
     db: Session,
     exc: IntegrityError,
@@ -85,17 +101,7 @@ def _handle_product_integrity_error(
     if attempted_barcode:
         existing = get_product_by_barcode(db, attempted_barcode)
         if existing is not None:
-            raise AppException(
-                ErrorCode.BARCODE_DUPLICATE,
-                detail=(
-                    "Ce code-barres est deja associe a un autre produit "
-                    f"buvette : {existing.name}."
-                ),
-                extras={
-                    "existing_product_id": existing.id,
-                    "existing_product_name": existing.name,
-                },
-            ) from exc
+            raise _erreur_code_barres_pris(existing) from exc
     if attempted_tier_id is not None:
         raise AppException(
             ErrorCode.CONFLICT,
@@ -196,9 +202,20 @@ def update_product(
     if any(champ in payload for champ in _CHAMPS_HELLOASSO):
         product.edite_manuellement = True
 
+    # Le code-barres n'est PAS un champ HelloAsso : relier un code scanne a un
+    # produit importe ne doit ni marquer `edite_manuellement`, ni toucher a la
+    # photo, au nom ou au prix. `null` ou "" retire le code.
     barcode_clean: str | None = None
     if "barcode" in payload:
         barcode_clean = validate_barcode(payload["barcode"])
+        if barcode_clean is not None:
+            # Controle avant ecriture : le message nomme le produit deja relie,
+            # sans dependre de la contrainte UNIQUE (et de l'autoflush).
+            with db.no_autoflush:
+                existing = get_product_by_barcode(db, barcode_clean)
+            if existing is not None and existing.id != product.id:
+                db.rollback()
+                raise _erreur_code_barres_pris(existing)
         product.barcode = barcode_clean
 
     # Reset alert flag if quantity now meets threshold.
