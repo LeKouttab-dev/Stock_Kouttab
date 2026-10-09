@@ -77,3 +77,147 @@ export function lireEuros(saisie: string): number | null {
 export function emailValide(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 }
+
+/* ---- Inventaire ------------------------------------------------------------ */
+
+/** « +2 » / « −3 » / « 0 » : écart d'un produit en unités. */
+export function formatEcartUnites(ecart: number): string {
+  if (ecart > 0) return `+${ecart}`;
+  if (ecart < 0) return `−${Math.abs(ecart)}`;
+  return '0';
+}
+
+/** Plafond accepté par le serveur pour une quantité comptée. */
+export const QUANTITE_MAX = 100_000;
+
+/** Ramène une quantité dans les bornes acceptées (0 à `QUANTITE_MAX`). */
+export function bornerQuantite(n: number): number {
+  return Math.min(QUANTITE_MAX, Math.max(0, n));
+}
+
+/** Quantité saisie au compteur : entier positif ou nul, jamais négatif, plafonné. */
+export function lireQuantite(saisie: string): number {
+  const chiffres = saisie.replace(/\D/g, '');
+  if (chiffres === '') return 0;
+  const n = Number.parseInt(chiffres, 10);
+  return Number.isFinite(n) ? bornerQuantite(n) : 0;
+}
+
+const FUSEAU_PARIS = 'Europe/Paris';
+
+/** « 09/10/2026 22:03 » en heure de Paris, quel que soit le fuseau du navigateur. */
+export function formatDateHeureParis(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d
+    .toLocaleString('fr-FR', {
+      timeZone: FUSEAU_PARIS,
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+    .replace(',', '');
+}
+
+/** Jour (`YYYY-MM-DD`) d'un horodatage, en heure de Paris. */
+export function jourParis(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-CA', { timeZone: FUSEAU_PARIS });
+}
+
+/** Nom de secours de l'export de l'historique, calqué sur celui du serveur. */
+export function nomExportInventaires(debut: string, fin: string): string {
+  if (debut && fin) return `inventaires-${debut}_${fin}.xlsx`;
+  if (debut) return `inventaires-depuis-${debut}.xlsx`;
+  if (fin) return `inventaires-jusqu-au-${fin}.xlsx`;
+  return 'inventaires-tout.xlsx';
+}
+
+export interface LigneComptee {
+  id: number;
+  nom: string;
+  emoji: string | null;
+  prix_cents: number;
+  stock: number;
+  compte: number;
+  /** compté − stock en base. */
+  ecart: number;
+  valeur_cents: number;
+}
+
+export interface RecapComptage {
+  ecarts: LigneComptee[];
+  ecartUnites: number;
+  valeurCents: number;
+  /** Somme des valeurs négatives, en positif. */
+  perteCents: number;
+}
+
+/**
+ * Récapitulatif avant validation : on compare le compté au stock en base
+ * maintenant (le serveur refige ce stock à l'instant de la validation).
+ * Un produit supprimé entre-temps (`stock_actuel` nul) n'a plus de stock à corriger.
+ */
+export function recapComptage(
+  lignes: {
+    id: number;
+    nom: string;
+    emoji: string | null;
+    prix_cents: number;
+    stock_actuel: number | null;
+  }[],
+  comptes: Record<number, number>,
+): RecapComptage {
+  const ecarts: LigneComptee[] = [];
+  for (const l of lignes) {
+    if (l.stock_actuel === null) continue;
+    const compte = comptes[l.id] ?? 0;
+    const ecart = compte - l.stock_actuel;
+    if (ecart === 0) continue;
+    ecarts.push({
+      id: l.id,
+      nom: l.nom,
+      emoji: l.emoji,
+      prix_cents: l.prix_cents,
+      stock: l.stock_actuel,
+      compte,
+      ecart,
+      valeur_cents: ecart * l.prix_cents,
+    });
+  }
+  const ecartUnites = ecarts.reduce((s, e) => s + e.ecart, 0);
+  const valeurCents = ecarts.reduce((s, e) => s + e.valeur_cents, 0);
+  const perteCents = ecarts.reduce((s, e) => s + (e.valeur_cents < 0 ? -e.valeur_cents : 0), 0);
+  return { ecarts, ecartUnites, valeurCents, perteCents };
+}
+
+/** « Compte juste » / « Surplus de 2,50 € » / « Manque 3,00 € » (écart = compté − attendu). */
+export function libelleEcartEspeces(ecartCents: number): string {
+  const montant = `${(Math.abs(ecartCents) / 100).toFixed(2).replace('.', ',')} €`;
+  if (ecartCents > 0) return `Surplus de ${montant}`;
+  if (ecartCents < 0) return `Manque ${montant}`;
+  return 'Compte juste';
+}
+
+/**
+ * Nom du fichier annoncé par `Content-Disposition` (`filename*=UTF-8''…` ou
+ * `filename="…"`). `null` si l'en-tête est absent (non exposé par CORS, par exemple).
+ */
+export function nomFichierDepuisEntete(entete: string | null | undefined): string | null {
+  if (!entete) return null;
+  const etendu = /filename\*\s*=\s*(?:[\w-]+'[^']*')?([^;]+)/i.exec(entete);
+  if (etendu) {
+    try {
+      const nom = decodeURIComponent(etendu[1].trim().replace(/^"|"$/g, ''));
+      if (nom) return nom;
+    } catch {
+      // encodage invalide : on se rabat sur `filename=`
+    }
+  }
+  const simple = /filename\s*=\s*"?([^";]+)"?/i.exec(entete);
+  return simple ? simple[1].trim() || null : null;
+}

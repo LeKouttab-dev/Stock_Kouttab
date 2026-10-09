@@ -1,5 +1,13 @@
 import { Fragment, useState } from 'react';
-import { Banknote, ChevronDown, ChevronRight, Coins, CreditCard, Link2 } from 'lucide-react';
+import {
+  Banknote,
+  ChevronDown,
+  ChevronRight,
+  Coins,
+  CreditCard,
+  FileSpreadsheet,
+  Link2,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -24,7 +32,12 @@ import {
 import { EmptyState } from '@/components/shared/EmptyState';
 import { ErrorAlert } from '@/components/shared/ErrorAlert';
 import { KpiCard } from '@/components/shared/KpiCard';
-import { useBuvettePaiements } from '@/api/endpoints/buvette';
+import {
+  paramsExportPaiements,
+  useBuvettePaiements,
+  useTelechargerExcel,
+} from '@/api/endpoints/buvette';
+import { useToast } from '@/hooks/useToast';
 import { jourIso } from '@/lib/buvette';
 import { formatCents, formatDateTime } from '@/lib/format';
 import { fr } from '@/lib/i18n/fr';
@@ -63,11 +76,21 @@ export function PaiementsTab() {
   const [moyen, setMoyen] = useState<MoyenPaiement | typeof TOUS>(TOUS);
   const [ouverts, setOuverts] = useState<Set<string>>(new Set());
 
-  const { data, isLoading, isError, error } = useBuvettePaiements({
-    debut,
-    fin,
-    moyen: moyen === TOUS ? null : moyen,
-  });
+  const filtres = { debut, fin, moyen: moyen === TOUS ? null : moyen };
+  const { data, isLoading, isError, error } = useBuvettePaiements(filtres);
+  const telecharger = useTelechargerExcel();
+  const toast = useToast();
+
+  // Exactement les filtres affichés : le classeur reprend ce que l'écran montre.
+  const exporter = () =>
+    telecharger.mutate(
+      {
+        chemin: '/buvette/paiements/export.xlsx',
+        params: paramsExportPaiements(filtres),
+        nomParDefaut: `paiements-${debut}_${fin}.xlsx`,
+      },
+      { onSuccess: (nom) => toast.success(fr.buvette.paiements.exporte(nom)) },
+    );
 
   const basculer = (cle: string) =>
     setOuverts((prev) => {
@@ -120,6 +143,10 @@ export function PaiementsTab() {
             </SelectContent>
           </Select>
         </div>
+        <Button variant="outline" onClick={exporter} loading={telecharger.isPending}>
+          <FileSpreadsheet className="h-4 w-4" />
+          {t.exporter}
+        </Button>
       </div>
 
       {isError ? (

@@ -580,6 +580,82 @@ export interface ClotureCreate {
   commentaire: string | null;
 }
 
+/* ---- Inventaire de la buvette (stock + espèces) --------------------------- */
+
+export type InventaireStatut = 'en_cours' | 'stock_valide' | 'termine';
+
+export interface InventaireLigne {
+  id: number;
+  product_id: number | null;
+  nom: string;
+  categorie: string | null;
+  emoji: string | null;
+  image_url: string | null;
+  prix_cents: number;
+  /** Quantité en base maintenant (null si le produit a été supprimé). */
+  stock_actuel: number | null;
+  quantite_comptee: number;
+  /** Figée à la validation du stock. */
+  quantite_theorique: number | null;
+  /** compté − théorique. */
+  ecart: number | null;
+  valeur_ecart_cents: number | null;
+}
+
+export interface InventaireSynthese {
+  nb_produits: number;
+  nb_ecarts: number;
+  ecart_unites: number;
+  valeur_ecart_cents: number;
+  /** Somme des valeurs négatives, en positif. */
+  perte_cents: number;
+}
+
+/** Un inventaire sans ses lignes : une ligne de l'historique. */
+export interface InventaireResume {
+  id: number;
+  statut: InventaireStatut;
+  debut_le: string;
+  stock_valide_le: string | null;
+  termine_le: string | null;
+  cree_par: string | null;
+  periode_especes_debut: string | null;
+  periode_especes_fin: string | null;
+  especes_attendues_cents: number | null;
+  especes_comptees_cents: number | null;
+  /** compté − attendu : négatif = il manque de l'argent dans la boîte. */
+  ecart_especes_cents: number | null;
+  nb_ventes_especes: number | null;
+  commentaire: string | null;
+  resume: InventaireSynthese;
+}
+
+export interface Inventaire extends InventaireResume {
+  lignes: InventaireLigne[];
+}
+
+export interface InventaireVenteEspeces {
+  cle: string;
+  sold_at: string;
+  total_cents: number;
+  articles: PaiementArticle[];
+}
+
+export interface InventaireEspeces {
+  periode_debut: string | null;
+  periode_fin: string;
+  premier_inventaire: boolean;
+  attendu_cents: number;
+  nb_ventes: number;
+  ventes: InventaireVenteEspeces[];
+}
+
+export interface InventaireTerminer {
+  especes_comptees_cents: number;
+  commentaire: string | null;
+  debut: string | null;
+}
+
 export interface CaisseEtat {
   batterie_pct: number | null;
   en_charge: boolean | null;

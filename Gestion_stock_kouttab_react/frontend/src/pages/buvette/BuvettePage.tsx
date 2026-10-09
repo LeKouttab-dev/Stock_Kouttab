@@ -10,6 +10,7 @@ import {
   BarChart3,
   Lock,
   Tablet,
+  ClipboardList,
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -40,6 +41,7 @@ import { AddBuvetteFromBarcodeModal } from './modals/AddBuvetteFromBarcodeModal'
 import { PaiementsTab } from './tabs/PaiementsTab';
 import { StatistiquesTab } from './tabs/StatistiquesTab';
 import { ClotureTab } from './tabs/ClotureTab';
+import { InventaireTab } from './tabs/InventaireTab';
 import { TabletteTab } from './tabs/TabletteTab';
 import { BarcodeScanner } from '@/components/scanner/BarcodeScanner';
 import type { BarcodeLookupResponse, BuvetteProduct } from '@/types/api';
@@ -50,7 +52,14 @@ function startOfTodayIso(): string {
   return d.toISOString();
 }
 
-const ONGLETS = ['produits', 'paiements', 'statistiques', 'cloture', 'tablette'] as const;
+const ONGLETS = [
+  'produits',
+  'paiements',
+  'statistiques',
+  'cloture',
+  'inventaire',
+  'tablette',
+] as const;
 type Onglet = (typeof ONGLETS)[number];
 
 function estOnglet(v: string | null): v is Onglet {
@@ -207,6 +216,10 @@ export function BuvettePage() {
             <Lock className="h-4 w-4" aria-hidden />
             {fr.buvette.tabs.cloture}
           </TabsTrigger>
+          <TabsTrigger value="inventaire" className="gap-1.5">
+            <ClipboardList className="h-4 w-4" aria-hidden />
+            {fr.buvette.tabs.inventaire}
+          </TabsTrigger>
           <TabsTrigger value="tablette" className="gap-1.5">
             <Tablet className="h-4 w-4" aria-hidden />
             {fr.buvette.tabs.tablette}
@@ -321,6 +334,9 @@ export function BuvettePage() {
         </TabsContent>
         <TabsContent value="cloture">
           <ClotureTab />
+        </TabsContent>
+        <TabsContent value="inventaire">
+          <InventaireTab />
         </TabsContent>
         <TabsContent value="tablette">
           <TabletteTab />

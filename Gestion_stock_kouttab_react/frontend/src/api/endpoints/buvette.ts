@@ -9,6 +9,10 @@ import type {
   Cloture,
   ClotureAttendu,
   ClotureCreate,
+  Inventaire,
+  InventaireEspeces,
+  InventaireResume,
+  InventaireTerminer,
   MoyenPaiement,
   PaiementsResponse,
   CaisseAppVersion,
@@ -19,6 +23,7 @@ import type {
   WebhookConfigureRequest,
   WebhookStatus,
 } from '@/types/api';
+import { nomFichierDepuisEntete } from '@/lib/buvette';
 
 export const buvetteQueryKeys = {
   all: ['buvette'] as const,
@@ -35,6 +40,13 @@ export const buvetteQueryKeys = {
     [...buvetteQueryKeys.clotures(), 'historique', limit] as const,
   caisseEtat: () => [...buvetteQueryKeys.all, 'caisse-etat'] as const,
   reglages: () => [...buvetteQueryKeys.all, 'reglages'] as const,
+  inventaires: () => [...buvetteQueryKeys.all, 'inventaires'] as const,
+  inventaireEnCours: () => [...buvetteQueryKeys.inventaires(), 'en-cours'] as const,
+  inventaire: (id: number) => [...buvetteQueryKeys.inventaires(), 'detail', id] as const,
+  inventaireEspeces: (id: number, debut: string | null) =>
+    [...buvetteQueryKeys.inventaires(), 'especes', id, debut] as const,
+  inventairesHistorique: (filtres: Record<string, unknown>) =>
+    [...buvetteQueryKeys.inventaires(), 'historique', filtres] as const,
 };
 
 /* ---------- Products ---------- */
@@ -376,4 +388,187 @@ export function useUpdateBuvetteReglages() {
     },
     onSuccess: (data) => qc.setQueryData(buvetteQueryKeys.reglages(), data),
   });
+}
+
+/* ---- Inventaire (stock + espèces) ----------------------------------------- */
+
+/** L'inventaire non terminé (en cours ou stock validé), ou `null`. */
+export function useInventaireEnCours() {
+  return useQuery({
+    queryKey: buvetteQueryKeys.inventaireEnCours(),
+    queryFn: async () => {
+      const { data } = await api.get<{ inventaire: Inventaire | null }>(
+        '/buvette/inventaires/en-cours',
+      );
+      return data.inventaire;
+    },
+  });
+}
+
+export function useInventaire(id: number | null) {
+  return useQuery({
+    queryKey: buvetteQueryKeys.inventaire(id ?? 0),
+    enabled: id !== null,
+    queryFn: async () => {
+      const { data } = await api.get<Inventaire>(`/buvette/inventaires/${id}`);
+      return data;
+    },
+  });
+}
+
+export interface InventairesFiltres {
+  debut?: string;
+  fin?: string;
+}
+
+function paramsPeriode(filtres: InventairesFiltres): Record<string, string> {
+  const params: Record<string, string> = {};
+  if (filtres.debut) params.debut = filtres.debut;
+  if (filtres.fin) params.fin = filtres.fin;
+  return params;
+}
+
+export function useInventaires(filtres: InventairesFiltres) {
+  const params = paramsPeriode(filtres);
+  return useQuery({
+    queryKey: buvetteQueryKeys.inventairesHistorique(params),
+    queryFn: async () => {
+      const { data } = await api.get<InventaireResume[]>('/buvette/inventaires', { params });
+      return data;
+    },
+  });
+}
+
+/** Ventes espèces de la période ; `debut` n'est demandé qu'au premier inventaire. */
+export function useInventaireEspeces(id: number, debut: string | null, actif = true) {
+  return useQuery({
+    queryKey: buvetteQueryKeys.inventaireEspeces(id, debut),
+    enabled: actif,
+    queryFn: async () => {
+      const { data } = await api.get<InventaireEspeces>(`/buvette/inventaires/${id}/especes`, {
+        params: debut ? { debut } : {},
+      });
+      return data;
+    },
+  });
+}
+
+/** Range l'inventaire renvoyé par le serveur et rafraîchit l'en-cours et l'historique. */
+function useApresInventaire() {
+  const qc = useQueryClient();
+  return (inv: Inventaire) => {
+    qc.setQueryData(buvetteQueryKeys.inventaire(inv.id), inv);
+    void qc.invalidateQueries({ queryKey: buvetteQueryKeys.inventaireEnCours() });
+    void qc.invalidateQueries({ queryKey: [...buvetteQueryKeys.inventaires(), 'historique'] });
+  };
+}
+
+export function useDemarrerInventaire() {
+  const apres = useApresInventaire();
+  return useApiMutation({
+    mutationFn: async () => {
+      const { data } = await api.post<Inventaire>('/buvette/inventaires');
+      return data;
+    },
+    onSuccess: apres,
+  });
+}
+
+/** Brouillon du comptage : le cache n'est pas réécrit, la saisie en cours reste maîtresse. */
+export function useEnregistrerComptage() {
+  return useApiMutation({
+    mutationFn: async ({
+      id,
+      lignes,
+    }: {
+      id: number;
+      lignes: { id: number; quantite_comptee: number }[];
+    }) => {
+      const { data } = await api.put<Inventaire>(`/buvette/inventaires/${id}/lignes`, { lignes });
+      return data;
+    },
+  });
+}
+
+export function useValiderStockInventaire() {
+  const qc = useQueryClient();
+  const apres = useApresInventaire();
+  return useApiMutation({
+    mutationFn: async (id: number) => {
+      const { data } = await api.post<Inventaire>(`/buvette/inventaires/${id}/valider-stock`);
+      return data;
+    },
+    onSuccess: (inv) => {
+      apres(inv);
+      // Le stock de chaque produit vient d'être remplacé.
+      void qc.invalidateQueries({ queryKey: buvetteQueryKeys.products() });
+    },
+  });
+}
+
+export function useTerminerInventaire() {
+  const apres = useApresInventaire();
+  return useApiMutation({
+    mutationFn: async ({ id, ...corps }: InventaireTerminer & { id: number }) => {
+      const { data } = await api.post<Inventaire>(`/buvette/inventaires/${id}/terminer`, corps);
+      return data;
+    },
+    onSuccess: apres,
+  });
+}
+
+export function useAbandonnerInventaire() {
+  const qc = useQueryClient();
+  return useApiMutation({
+    mutationFn: async (id: number) => {
+      await api.delete(`/buvette/inventaires/${id}`);
+      return id;
+    },
+    onSuccess: (id) => {
+      qc.removeQueries({ queryKey: buvetteQueryKeys.inventaire(id) });
+      void qc.invalidateQueries({ queryKey: buvetteQueryKeys.inventaires() });
+    },
+  });
+}
+
+/* ---- Exports Excel ---------------------------------------------------------- */
+
+export interface TelechargementExcel {
+  chemin: string;
+  params?: Record<string, string>;
+  /** Utilisé si le serveur n'annonce pas de nom (en-tête absent ou non exposé). */
+  nomParDefaut: string;
+}
+
+async function telechargerExcel({
+  chemin,
+  params,
+  nomParDefaut,
+}: TelechargementExcel): Promise<string> {
+  const reponse = await api.get(chemin, { params, responseType: 'blob' });
+  const entete = reponse.headers['content-disposition'] as string | undefined;
+  const nom = nomFichierDepuisEntete(entete) ?? nomParDefaut;
+  const url = window.URL.createObjectURL(reponse.data as Blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = nom;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  window.URL.revokeObjectURL(url);
+  return nom;
+}
+
+export function useTelechargerExcel() {
+  return useApiMutation({ mutationFn: telechargerExcel });
+}
+
+export function paramsExportPaiements(filtres: PaiementsFiltres): Record<string, string> {
+  const params: Record<string, string> = { debut: filtres.debut, fin: filtres.fin };
+  if (filtres.moyen) params.moyen = filtres.moyen;
+  return params;
+}
+
+export function paramsExportInventaires(filtres: InventairesFiltres): Record<string, string> {
+  return paramsPeriode(filtres);
 }

@@ -864,13 +864,16 @@ def _client(lignes: list[BuvetteSale]) -> str | None:
     return None
 
 
-def paiements(
-    db: Session, debut: date, fin: date, moyen: str | None = None
-) -> dict[str, Any]:
-    """Ventes regroupees de la periode, plus recentes d'abord, avec totaux."""
-    _verifier_periode(debut, fin)
+def ventes_regroupees(
+    lignes_vente: list[BuvetteSale], moyen: str | None = None
+) -> list[dict[str, Any]]:
+    """Lignes de vente regroupees par vente (cf. `_cle_vente`), plus recentes d'abord.
+
+    Seule definition d'une « vente » et de son moyen de paiement : l'onglet
+    Paiements, l'inventaire (especes) et les exports Excel la partagent.
+    """
     ventes: list[dict[str, Any]] = []
-    for cle, lignes in _grouper(lignes_de_la_periode(db, debut, fin)).items():
+    for cle, lignes in _grouper(lignes_vente).items():
         premiere = lignes[0]
         moyen_vente = moyen_de_paiement(premiere)
         if moyen and moyen_vente != moyen:
@@ -897,6 +900,15 @@ def paiements(
             }
         )
     ventes.sort(key=lambda v: (v["sold_at"], v["cle"]), reverse=True)
+    return ventes
+
+
+def paiements(
+    db: Session, debut: date, fin: date, moyen: str | None = None
+) -> dict[str, Any]:
+    """Ventes regroupees de la periode, plus recentes d'abord, avec totaux."""
+    _verifier_periode(debut, fin)
+    ventes = ventes_regroupees(lignes_de_la_periode(db, debut, fin), moyen)
 
     totaux: dict[str, int] = {f"{m}_cents": 0 for m in MOYENS}
     for vente in ventes:

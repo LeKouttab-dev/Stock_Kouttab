@@ -1099,6 +1099,91 @@ class BuvetteReglage(Base):
     )
 
 
+class Inventaire(Base):
+    """Inventaire de la buvette : comptage du stock puis des especes.
+
+    Trois etats : `en_cours` (comptage, brouillon repris si on quitte la page),
+    `stock_valide` (stock remplace par les quantites comptees, ecarts figes),
+    `termine` (especes comptees, inventaire fige).
+
+    `verrou_actif` vaut 1 tant que l'inventaire n'est pas termine, NULL ensuite :
+    l'index unique garantit en base qu'il n'y en a jamais deux ouverts a la fois,
+    meme si deux personnes cliquent « Demarrer » au meme instant (plusieurs NULL
+    ne se heurtent pas dans un index unique, MySQL comme SQLite).
+
+    Horodatages en UTC naif, comme `processed_at`.
+    """
+
+    __tablename__ = "Inventaires"
+    __table_args__ = (
+        UniqueConstraint("verrou_actif", name="uq_inventaire_verrou_actif"),
+        Index("idx_inventaire_debut", "debut_le"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    statut: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="en_cours", server_default="en_cours"
+    )
+    verrou_actif: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    debut_le: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, nullable=False, server_default=func.now()
+    )
+    stock_valide_le: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    termine_le: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Nom fige a l'ecriture : un compte supprime ne rend pas l'inventaire anonyme.
+    cree_par: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    periode_especes_debut: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    periode_especes_fin: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    especes_attendues_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    especes_comptees_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ecart_especes_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    nb_ventes_especes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    commentaire: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    lignes: Mapped[list["InventaireLigne"]] = relationship(
+        "InventaireLigne",
+        back_populates="inventaire",
+        cascade="all, delete-orphan",
+        order_by="InventaireLigne.id",
+    )
+
+
+class InventaireLigne(Base):
+    """Une ligne d'inventaire : un produit, compte puis compare au stock en base.
+
+    Nom, prix et onglet sont des INSTANTANES : un produit renomme, reprice ou
+    supprime ensuite ne doit pas changer un ecart deja constate.
+    `quantite_theorique` est figee a la validation du stock, pas au demarrage :
+    une vente passee pendant le comptage est ainsi prise en compte.
+    """
+
+    __tablename__ = "InventaireLignes"
+    __table_args__ = (
+        Index("idx_inventaire_ligne_inventaire", "inventaire_id"),
+        Index("idx_inventaire_ligne_produit", "buvette_product_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    inventaire_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("Inventaires.id", ondelete="CASCADE"), nullable=False
+    )
+    buvette_product_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("BuvetteProducts.id", ondelete="SET NULL"), nullable=True
+    )
+    nom_snapshot: Mapped[str] = mapped_column(String(255), nullable=False)
+    prix_cents_snapshot: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    categorie_snapshot: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    quantite_theorique: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    quantite_comptee: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    ecart: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    valeur_ecart_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    inventaire: Mapped["Inventaire"] = relationship("Inventaire", back_populates="lignes")
+    produit: Mapped["BuvetteProduct | None"] = relationship("BuvetteProduct")
+
+
 class Conversation(Base):
     """Fil de discussion entre un benevole et l'equipe.
 
