@@ -613,6 +613,13 @@ export const fr = {
       epicerie: 'Épicerie',
     },
     surLaTablette: 'Tablette',
+    // Interrupteur de visibilité sur la tablette (is_active) : désactivé, le produit
+    // disparaît complètement de la caisse, en gardant son onglet pour la réactivation.
+    masquerTablette: 'Masquer de la tablette',
+    afficherTablette: 'Afficher sur la tablette',
+    masqueTablette: 'Masqué de la tablette',
+    produitMasque: 'Produit masqué de la tablette.',
+    produitAffiche: 'Produit de nouveau affiché sur la tablette.',
     soldAt: 'Date de vente',
     amount: 'Montant',
     qtySold: 'Qté',
