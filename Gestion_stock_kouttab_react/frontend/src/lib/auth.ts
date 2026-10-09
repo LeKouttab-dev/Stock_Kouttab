@@ -26,6 +26,8 @@ export const ACTIONS = {
   BUVETTE_SYNC: 'buvette:sync',
   BUVETTE_CRUD: 'buvette:crud',
   BUVETTE_WEBHOOK: 'buvette:webhook',
+  // Destinataires du récap et des alertes : le serveur les réserve à _ADMIN_ROLES (pas AdminStock).
+  BUVETTE_REGLAGES: 'buvette:reglages',
   POLES_MANAGE: 'poles:manage',
   EVENTS_MANAGE: 'events:manage',
   COMPTA_RESEND_EMAIL: 'compta:resend_email',
@@ -62,10 +64,12 @@ const PERMISSIONS: Record<Action, Role[]> = {
   // administrateurs bénévoles qui la tiennent, et la comptabilité qui en suit
   // les recettes. Un simple bénévole n'y a pas accès.
   // Doit refléter `_VIEW_ROLES` dans endpoints/buvette.py.
-  [ACTIONS.BUVETTE_VIEW]: ['Super Admin', 'AdminBenevoles', 'Compta'],
-  [ACTIONS.BUVETTE_SYNC]: ['Super Admin', 'AdminBenevoles'],
-  [ACTIONS.BUVETTE_CRUD]: ['Super Admin', 'AdminBenevoles'],
+  // 'AdminStock' n'a que ces trois actions : la buvette, et rien d'autre.
+  [ACTIONS.BUVETTE_VIEW]: ['Super Admin', 'AdminBenevoles', 'Compta', 'AdminStock'],
+  [ACTIONS.BUVETTE_SYNC]: ['Super Admin', 'AdminBenevoles', 'AdminStock'],
+  [ACTIONS.BUVETTE_CRUD]: ['Super Admin', 'AdminBenevoles', 'AdminStock'],
   [ACTIONS.BUVETTE_WEBHOOK]: ['Super Admin'],
+  [ACTIONS.BUVETTE_REGLAGES]: ['Super Admin', 'AdminBenevoles'],
   // Doivent refléter exactement les dépendances de rôle côté serveur :
   // _POLE_ADMIN_ROLES et _EVENT_ADMIN_ROLES dans les endpoints correspondants.
   [ACTIONS.POLES_MANAGE]: ['Super Admin'],
@@ -101,7 +105,10 @@ export function canAccess(role: Role | null | undefined, action: Action): boolea
  */
 export function pageParDefaut(role: Role | null | undefined): string {
   if (!role) return '/login';
-  return canAccess(role, ACTIONS.DASHBOARD_VIEW) ? '/dashboard' : '/expenses';
+  if (canAccess(role, ACTIONS.DASHBOARD_VIEW)) return '/dashboard';
+  // Un AdminStock n'a ni tableau de bord ni notes de frais : sa page, c'est la buvette.
+  if (canAccess(role, ACTIONS.BUVETTE_VIEW)) return '/buvette';
+  return '/expenses';
 }
 
 export function hasAnyRole(role: Role | null | undefined, allowed: Role[]): boolean {

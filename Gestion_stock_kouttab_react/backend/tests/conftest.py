@@ -315,6 +315,12 @@ def admin_benevoles_user(db_session: Session):
 
 
 @pytest.fixture()
+def admin_stock_user(db_session: Session):
+    """Active AdminStock user (l'admin stock de la buvette)."""
+    return _make_user(db_session, role="AdminStock", prefix="as")
+
+
+@pytest.fixture()
 def compta_user(db_session: Session):
     """Active Compta user."""
     return _make_user(db_session, role="Compta", prefix="cp")

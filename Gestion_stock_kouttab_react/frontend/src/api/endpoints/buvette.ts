@@ -3,6 +3,14 @@ import { useApiMutation } from '@/hooks/useApiMutation';
 import { api } from '../client';
 import type {
   BuvetteProduct,
+  BuvetteReglages,
+  BuvetteStats,
+  CaisseEtatResponse,
+  Cloture,
+  ClotureAttendu,
+  ClotureCreate,
+  MoyenPaiement,
+  PaiementsResponse,
   CaisseAppVersion,
   BuvetteProductCreate,
   BuvetteProductUpdate,
@@ -18,6 +26,15 @@ export const buvetteQueryKeys = {
   sales: (filters?: Record<string, unknown>) =>
     [...buvetteQueryKeys.all, 'sales', filters ?? {}] as const,
   webhook: () => [...buvetteQueryKeys.all, 'webhook'] as const,
+  paiements: (filters: Record<string, unknown>) =>
+    [...buvetteQueryKeys.all, 'paiements', filters] as const,
+  stats: (filters: Record<string, unknown>) => [...buvetteQueryKeys.all, 'stats', filters] as const,
+  clotures: () => [...buvetteQueryKeys.all, 'clotures'] as const,
+  clotureAttendu: (jour: string) => [...buvetteQueryKeys.clotures(), 'attendu', jour] as const,
+  clotureHistorique: (limit: number) =>
+    [...buvetteQueryKeys.clotures(), 'historique', limit] as const,
+  caisseEtat: () => [...buvetteQueryKeys.all, 'caisse-etat'] as const,
+  reglages: () => [...buvetteQueryKeys.all, 'reglages'] as const,
 };
 
 /* ---------- Products ---------- */
@@ -230,5 +247,133 @@ export function useRetirerCaisseApp() {
       return data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: caisseAppQueryKey }),
+  });
+}
+
+/* ---- Réapprovisionnement ------------------------------------------------- */
+
+/**
+ * Ajoute `delta` au stock d'un produit. L'incrément est fait par le serveur
+ * (`quantity = quantity + delta`) : deux réappros simultanés s'additionnent,
+ * là où un PATCH de la quantité lue écraserait l'un par l'autre.
+ */
+export function useReapproBuvetteProduct() {
+  const qc = useQueryClient();
+  return useApiMutation({
+    mutationFn: async ({ id, delta }: { id: number; delta: number }) => {
+      const { data } = await api.post<BuvetteProduct>(`/buvette/products/${id}/reappro`, {
+        delta,
+      });
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: buvetteQueryKeys.products() }),
+  });
+}
+
+/* ---- Paiements ----------------------------------------------------------- */
+
+export interface PaiementsFiltres {
+  debut: string;
+  fin: string;
+  moyen?: MoyenPaiement | null;
+}
+
+export function useBuvettePaiements(filtres: PaiementsFiltres) {
+  const params: Record<string, string> = { debut: filtres.debut, fin: filtres.fin };
+  if (filtres.moyen) params.moyen = filtres.moyen;
+  return useQuery({
+    queryKey: buvetteQueryKeys.paiements(params),
+    queryFn: async () => {
+      const { data } = await api.get<PaiementsResponse>('/buvette/paiements', { params });
+      return data;
+    },
+  });
+}
+
+/* ---- Statistiques -------------------------------------------------------- */
+
+export function useBuvetteStats(debut: string, fin: string) {
+  return useQuery({
+    queryKey: buvetteQueryKeys.stats({ debut, fin }),
+    queryFn: async () => {
+      const { data } = await api.get<BuvetteStats>('/buvette/stats', {
+        params: { debut, fin },
+      });
+      return data;
+    },
+  });
+}
+
+/* ---- Clôture de caisse espèces ------------------------------------------- */
+
+export function useClotureAttendu(jour: string) {
+  return useQuery({
+    queryKey: buvetteQueryKeys.clotureAttendu(jour),
+    queryFn: async () => {
+      const { data } = await api.get<ClotureAttendu>('/buvette/clotures/attendu', {
+        params: { jour },
+      });
+      return data;
+    },
+  });
+}
+
+export function useClotures(limit = 30) {
+  return useQuery({
+    queryKey: buvetteQueryKeys.clotureHistorique(limit),
+    queryFn: async () => {
+      const { data } = await api.get<Cloture[]>('/buvette/clotures', { params: { limit } });
+      return data;
+    },
+  });
+}
+
+export function useCreateCloture() {
+  const qc = useQueryClient();
+  return useApiMutation({
+    mutationFn: async (payload: ClotureCreate) => {
+      const { data } = await api.post<Cloture>('/buvette/clotures', payload);
+      return data;
+    },
+    // 409 (déjà clôturé) compris : l'écran relit l'état du jour dans les deux cas.
+    onSettled: () => qc.invalidateQueries({ queryKey: buvetteQueryKeys.clotures() }),
+  });
+}
+
+/* ---- Tablette : état et réglages ------------------------------------------ */
+
+/** Dernier signe de vie de la tablette, relu toutes les 30 s. */
+export function useCaisseEtat() {
+  return useQuery({
+    queryKey: buvetteQueryKeys.caisseEtat(),
+    queryFn: async () => {
+      const { data } = await api.get<CaisseEtatResponse>('/buvette/caisse/etat');
+      return data;
+    },
+    refetchInterval: 30_000,
+  });
+}
+
+export function useBuvetteReglages(actif = true) {
+  return useQuery({
+    queryKey: buvetteQueryKeys.reglages(),
+    enabled: actif,
+    queryFn: async () => {
+      const { data } = await api.get<BuvetteReglages>('/buvette/reglages');
+      return data;
+    },
+  });
+}
+
+export function useUpdateBuvetteReglages() {
+  const qc = useQueryClient();
+  return useApiMutation({
+    mutationFn: async (recap_destinataires: string[]) => {
+      const { data } = await api.put<BuvetteReglages>('/buvette/reglages', {
+        recap_destinataires,
+      });
+      return data;
+    },
+    onSuccess: (data) => qc.setQueryData(buvetteQueryKeys.reglages(), data),
   });
 }

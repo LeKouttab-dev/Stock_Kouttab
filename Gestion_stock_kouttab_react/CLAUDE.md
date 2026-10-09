@@ -197,7 +197,7 @@ Gestion_stock_kouttab_react/
 | **BuvetteSales** | Log idempotent des ventes : **`source`** (`helloasso`·`caisse`), `helloasso_order_id`, `helloasso_payment_id`, `helloasso_item_id`, `caisse_tx_id` (id de transaction de la tablette), `caisse_line`, `sumup_tx_code`, snapshot `product_name_snapshot`, `quantity_sold`, `amount_cents`, infos client, `raw_event` JSON | `buvette_product_id → BuvetteProducts.id` (SET NULL) ; UNIQUE (`helloasso_payment_id`, `helloasso_item_id`) ; UNIQUE (`caisse_tx_id`, `caisse_line`) |
 
 **Énumérations (string)**
-- `Admins.role` : `Super Admin` · `AdminBenevoles` · `Compta` · `Benevole`
+- `Admins.role` : `Super Admin` · `AdminBenevoles` · `Compta` · `Benevole` · `BenevoleFrais` · **`AdminStock`** (09/10/2026 : l'admin stock de la buvette, confiné à `/buvette` : consulter, CRUD produits, photos, synchro, réappro, clôture de caisse ; reçoit les courriels de la buvette ; ni réglages, ni webhook, ni APK, ni aucun autre écran. Aucune migration : `role` est un VARCHAR libre, la liste vit dans `schemas/user.py` / `schemas/auth.py`)
 - `Admins.validation_status` : `pending` · `active` · `rejected`
 - `NotesDeFrais.status` : `En attente` · `Approuvée` · `Refusée` · `Remboursée`
   — **`Remboursée` ne se déclare pas** : elle est posée par `POST /reimbursements`,
@@ -265,6 +265,11 @@ le démarrage en production. Les valeurs en clair héritées restent lisibles
 | Calendrier — agendas déclarés réservés (`GOOGLE_CALENDAR_RESTRICTED`) | — | — | — | ✅ |
 | Calendrier — état de l'intégration | — | — | — | ✅ |
 | Caisse — lire le catalogue, envoyer une vente | clé `CAISSE_API_KEY` (la tablette), aucun rôle | | | |
+| Caisse — envoyer son état, réappro depuis l'écran « Personnel » | clé `CAISSE_API_KEY` | | | |
+
+**`AdminStock`** (hors tableau) : mêmes droits buvette qu'`AdminBenevoles`
+(consulter, CRUD, photos, synchro, réappro, clôture), sauf les réglages des
+courriels, le webhook et l'APK ; aucun droit hors de la buvette.
 
 ---
 
@@ -735,6 +740,13 @@ remplacer la boîte de réception.
 - `DELETE /buvette/webhook` — désinscrit le webhook (Super Admin)
 - `GET /buvette/caisse/catalogue` — produits actifs **et** rangés dans un onglet, pour la tablette (en-tête `X-Caisse-Key`)
 - `POST /buvette/caisse/ventes` — une vente payée par SumUp : enregistrée et stock décrémenté ; 201, ou 200 `already_recorded` si la tablette la renvoie (en-tête `X-Caisse-Key`)
+- `POST /buvette/caisse/etat` (204) / `GET /buvette/caisse/etat` — relevé d'état de la tablette, une fois par minute (clé) ; lecture admin avec `secondes_depuis`. Table `CaisseEtats`, une ligne.
+- `POST /buvette/products/{id}/reappro {delta}` (AdminBenevoles+, AdminStock) et `POST /buvette/caisse/reappro {product_id, delta}` (clé) — **incrément atomique** `quantity = quantity + delta`, delta 1 à 500. Les ventes décrémentent elles aussi en SQL (`_decrementer`) : l'ancienne écriture d'une valeur absolue effaçait un réappro concurrent.
+- `GET /buvette/paiements?debut&fin&moyen` — ventes regroupées (panier tablette `caisse_tx_id`, commande HelloAsso `ha-<order_id>`) avec articles et totaux ; moyen **déduit** (`crud.buvette.moyen_de_paiement`) : carte = caisse + `sumup_tx_code`, espèces = caisse sans code, helloasso.
+- `GET /buvette/stats?debut&fin` — par jour (jours vides inclus), heure, produit (15), moyen ; 30 jours par défaut.
+- `GET /buvette/clotures/attendu?jour`, `GET /buvette/clotures`, `POST /buvette/clotures` (AdminBenevoles+, AdminStock ; 409 si déjà faite) — clôture espèces, attendu calculé et figé par le serveur. Table `CloturesCaisse`.
+- `GET|PUT /buvette/reglages` (AdminBenevoles+) — `recap_destinataires` (table `BuvetteReglages`, clé/valeur JSON) et comptes `AdminStock` en lecture seule.
+- **Destinataires des courriels buvette** (alertes de stock bas ET récap du soir) : comptes `AdminStock` actifs ∪ `recap_destinataires`, dédoublonnés (`crud.buvette.destinataires_buvette`). Une alerte = **un** courriel par vente. Récap du soir : `services/recap_buvette.py`, greffé sur `scripts/process_outbound_emails.py`, à partir de 23 h (Paris), une fois par jour (`recap_dernier_envoi`) ; essai manuel : `python scripts/process_outbound_emails.py --recap-essai adresse@exemple.fr [--recap-jour AAAA-MM-JJ]`.
 
 ### Calendrier (Google Agenda)
 

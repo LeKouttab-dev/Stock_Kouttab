@@ -512,6 +512,98 @@ export interface WebhookConfigureRequest {
   url?: string;
 }
 
+/* Buvette : suivi des paiements, statistiques, clôture, tablette */
+
+/** Déduit par le serveur : carte = caisse + code SumUp, espèces = caisse sans code. */
+export type MoyenPaiement = 'carte' | 'especes' | 'helloasso';
+
+export interface PaiementArticle {
+  nom: string;
+  quantite: number;
+  montant_cents: number;
+}
+
+export interface Paiement {
+  /** caisse_tx_id (tablette) ou « ha-<order_id> » (HelloAsso). */
+  cle: string;
+  moyen: MoyenPaiement;
+  sold_at: string;
+  total_cents: number;
+  sumup_tx_code: string | null;
+  helloasso_order_id: number | null;
+  client: string | null;
+  articles: PaiementArticle[];
+}
+
+export interface PaiementsTotaux {
+  carte_cents: number;
+  especes_cents: number;
+  helloasso_cents: number;
+  total_cents: number;
+  nb_ventes: number;
+}
+
+export interface PaiementsResponse {
+  paiements: Paiement[];
+  totaux: PaiementsTotaux;
+}
+
+export interface BuvetteStats {
+  par_jour: { jour: string; ca_cents: number; ventes: number }[];
+  par_heure: { heure: number; ca_cents: number; ventes: number }[];
+  par_produit: { nom: string; quantite: number; ca_cents: number }[];
+  par_moyen: { moyen: string; ca_cents: number; ventes: number }[];
+}
+
+export interface Cloture {
+  id: number;
+  jour: string;
+  attendu_cents: number;
+  compte_cents: number;
+  /** compté − attendu : négatif = il manque de l'argent dans la caisse. */
+  ecart_cents: number;
+  commentaire: string | null;
+  saisi_par: string | null;
+  created_at: string;
+}
+
+export interface ClotureAttendu {
+  jour: string;
+  attendu_cents: number;
+  nb_ventes_especes: number;
+  cloture: Cloture | null;
+}
+
+export interface ClotureCreate {
+  jour: string;
+  compte_cents: number;
+  commentaire: string | null;
+}
+
+export interface CaisseEtat {
+  batterie_pct: number | null;
+  en_charge: boolean | null;
+  version_code: number;
+  version_name: string;
+  sumup_connecte: boolean;
+  lecteur_connecte: boolean;
+  lecteur_batterie_pct: number | null;
+  ventes_en_attente: number;
+  ventes_rejetees: number;
+  ecran: string;
+  recu_at: string;
+  secondes_depuis: number;
+}
+
+export interface CaisseEtatResponse {
+  etat: CaisseEtat | null;
+}
+
+export interface BuvetteReglages {
+  recap_destinataires: string[];
+  comptes_admin_stock: { id: number; email: string; nom: string }[];
+}
+
 /* Scan de justificatifs */
 
 /** Un coin du document, en pixels de la photo d'origine. */

@@ -52,10 +52,6 @@ const InvoiceListPage = lazyNamed(
   'InvoiceListPage',
 );
 const BuvettePage = lazyNamed(() => import('@/pages/buvette/BuvettePage'), 'BuvettePage');
-const BuvetteSalesPage = lazyNamed(
-  () => import('@/pages/buvette/BuvetteSalesPage'),
-  'BuvetteSalesPage',
-);
 // La page embarque FullCalendar : elle pèse plus que les autres, et seul
 // celui qui ouvre l'onglet la télécharge.
 const CalendarPage = lazyNamed(() => import('@/pages/calendar/CalendarPage'), 'CalendarPage');
@@ -151,9 +147,9 @@ export default function App() {
                 <Route path="/buvette" element={
                   <ProtectedRoute requiredAction={ACTIONS.BUVETTE_VIEW}><BuvettePage /></ProtectedRoute>
                 } />
-                <Route path="/buvette/sales" element={
-                  <ProtectedRoute requiredAction={ACTIONS.BUVETTE_VIEW}><BuvetteSalesPage /></ProtectedRoute>
-                } />
+                {/* L'ancienne liste des ventes est devenue l'onglet Paiements : les
+                    liens et favoris existants y mènent toujours. */}
+                <Route path="/buvette/sales" element={<Navigate to="/buvette?onglet=paiements" replace />} />
 
                 <Route
                   path="/admin"

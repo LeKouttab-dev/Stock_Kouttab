@@ -44,6 +44,8 @@ def get_current_user(
 # Tous les rôles SAUF BenevoleFrais, qui est confiné aux notes de frais.
 # À poser sur tout router hors de ce périmètre : le menu ne protège rien,
 # c'est cette liste qui fait le confinement côté serveur.
+# AdminStock n'y figure pas non plus : il est confiné à la buvette
+# (cf. `endpoints/buvette.py`, `_VIEW_ROLES` / `_GESTION_ROLES`).
 ROLES_COMPLETS = ("Super Admin", "AdminBenevoles", "Compta", "Benevole")
 
 
