@@ -135,6 +135,35 @@ def test_une_vente_sans_cle_ou_avec_la_mauvaise_est_refusee(
 # ---------------------------------------------------------------------------
 
 
+def test_desactiver_un_produit_le_masque_de_la_tablette(
+    client: TestClient,
+    db_session: Session,
+    client_authenticated_as: Any,
+    admin_benevoles_user: Any,
+) -> None:
+    """Le bouton « Masquer de la tablette » de l'app stock (PATCH is_active).
+
+    Cas d'origine : Cappuccino et Latte macchiato, qui demandent de mettre le
+    lait, ne doivent apparaître que lorsqu'on les active. Masqué ne veut pas
+    dire grisé : le produit disparaît du catalogue, onglet conservé, et
+    revient d'un clic.
+    """
+    produit = _produit(db_session, nom="Cappucino", categorie="cafe")
+    admin = client_authenticated_as(admin_benevoles_user)
+
+    reponse = admin.patch(f"/api/v1/buvette/products/{produit.id}", json={"is_active": False})
+    assert reponse.status_code == 200
+    assert reponse.json()["is_active"] is False
+    assert reponse.json()["caisse_category"] == "cafe"
+    noms = [p["name"] for p in client.get(CATALOGUE, headers=_entetes()).json()["products"]]
+    assert "Cappucino" not in noms
+
+    reponse = admin.patch(f"/api/v1/buvette/products/{produit.id}", json={"is_active": True})
+    assert reponse.status_code == 200
+    noms = [p["name"] for p in client.get(CATALOGUE, headers=_entetes()).json()["products"]]
+    assert "Cappucino" in noms
+
+
 def test_le_catalogue_ne_montre_que_les_produits_actifs_et_classes(
     client: TestClient, db_session: Session
 ) -> None:

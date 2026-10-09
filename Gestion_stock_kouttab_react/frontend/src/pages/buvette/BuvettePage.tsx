@@ -16,6 +16,7 @@ import {
   useBuvetteSales,
   useDeleteBuvetteProduct,
   useSyncBuvette,
+  useUpdateBuvetteProduct,
 } from '@/api/endpoints/buvette';
 import { useBarcodeLookup } from '@/api/endpoints/stock';
 import { formatCents } from '@/lib/format';
@@ -46,6 +47,7 @@ export function BuvettePage() {
   const sales = useBuvetteSales(200, 0);
   const sync = useSyncBuvette();
   const remove = useDeleteBuvetteProduct();
+  const update = useUpdateBuvetteProduct();
 
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -106,6 +108,18 @@ export function BuvettePage() {
         }
       },
     });
+  };
+
+  // Masqué = absent du catalogue de la tablette (le serveur filtre is_active), onglet conservé.
+  const handleToggleActive = (p: BuvetteProduct) => {
+    update.mutate(
+      { id: p.id, data: { is_active: !p.is_active } },
+      {
+        onSuccess: () =>
+          toast.success(p.is_active ? fr.buvette.produitMasque : fr.buvette.produitAffiche),
+        onError: (e) => toast.error(extractErrorMessage(e)),
+      },
+    );
   };
 
   const handleDelete = (p: BuvetteProduct) => {
@@ -218,6 +232,7 @@ export function BuvettePage() {
               canEdit={canCrud}
               onAdjust={handleAdjust}
               onDelete={handleDelete}
+              onToggleActive={handleToggleActive}
             />
           ))}
         </div>

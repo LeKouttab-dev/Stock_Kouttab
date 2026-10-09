@@ -1,4 +1,4 @@
-import { Edit3, Link2, Tablet, Trash2 } from 'lucide-react';
+import { Edit3, Eye, EyeOff, Link2, Tablet, Trash2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +11,8 @@ interface BuvetteProductCardProps {
   canEdit: boolean;
   onAdjust: (product: BuvetteProduct) => void;
   onDelete: (product: BuvetteProduct) => void;
+  /** Bascule `is_active` : désactivé, le produit disparaît de la tablette de caisse. */
+  onToggleActive: (product: BuvetteProduct) => void;
 }
 
 function getStockBadge(product: BuvetteProduct) {
@@ -28,11 +30,15 @@ export function BuvetteProductCard({
   canEdit,
   onAdjust,
   onDelete,
+  onToggleActive,
 }: BuvetteProductCardProps) {
   const isHelloAsso = product.helloasso_tier_id !== null;
+  const masque = !product.is_active;
 
   return (
-    <Card className="flex flex-col overflow-hidden transition-shadow hover:shadow-md">
+    <Card
+      className={`flex flex-col overflow-hidden transition-shadow hover:shadow-md ${masque ? 'opacity-60' : ''}`}
+    >
       <div className="flex items-center justify-center bg-muted/30 p-6">
         {product.image_url ? (
           <img
@@ -59,7 +65,7 @@ export function BuvetteProductCard({
           {getStockBadge(product)}
         </div>
 
-        {(isHelloAsso || product.caisse_category) && (
+        {(isHelloAsso || product.caisse_category || masque) && (
           <div className="flex flex-wrap gap-1.5">
             {isHelloAsso && (
               <Badge variant="outline" className="w-fit text-[10px]">
@@ -69,11 +75,18 @@ export function BuvetteProductCard({
             )}
             {/* Sans ce badge, rien ne distingue un produit vendu par la tablette
                 d'un produit qui n'y apparaît pas. */}
-            {product.caisse_category && (
+            {masque ? (
               <Badge variant="outline" className="w-fit text-[10px]">
-                <Tablet className="h-3.5 w-3.5" aria-hidden />
-                {fr.buvette.surLaTablette} : {fr.buvette.onglets[product.caisse_category]}
+                <EyeOff className="h-3.5 w-3.5" aria-hidden />
+                {fr.buvette.masqueTablette}
               </Badge>
+            ) : (
+              product.caisse_category && (
+                <Badge variant="outline" className="w-fit text-[10px]">
+                  <Tablet className="h-3.5 w-3.5" aria-hidden />
+                  {fr.buvette.surLaTablette} : {fr.buvette.onglets[product.caisse_category]}
+                </Badge>
+              )
             )}
           </div>
         )}
@@ -93,6 +106,19 @@ export function BuvetteProductCard({
             <Button variant="outline" size="sm" fullWidth onClick={() => onAdjust(product)}>
               <Edit3 className="h-3.5 w-3.5" />
               Ajuster
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={masque ? fr.buvette.afficherTablette : fr.buvette.masquerTablette}
+              title={masque ? fr.buvette.afficherTablette : fr.buvette.masquerTablette}
+              onClick={() => onToggleActive(product)}
+            >
+              {masque ? (
+                <EyeOff className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
             </Button>
             <Button
               variant="ghost"
