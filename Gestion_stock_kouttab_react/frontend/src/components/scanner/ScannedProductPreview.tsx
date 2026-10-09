@@ -25,11 +25,17 @@ interface ScannedProductRowProps {
   lookup: BarcodeLookupResponse;
   /** Champ « nom », dont l'identifiant diffère selon le formulaire. */
   children: ReactNode;
+  /** Faux : la vignette Open Food Facts est masquée (photo non retenue). */
+  afficherPhoto?: boolean;
 }
 
 /** Vignette OpenFoodFacts (si disponible) accolée au champ du nom. */
-export function ScannedProductRow({ lookup, children }: ScannedProductRowProps) {
-  const imageUrl = lookup.openfoodfacts?.image_url;
+export function ScannedProductRow({
+  lookup,
+  children,
+  afficherPhoto = true,
+}: ScannedProductRowProps) {
+  const imageUrl = afficherPhoto ? lookup.openfoodfacts?.image_url : null;
   return (
     <div className="flex gap-3">
       {imageUrl ? (

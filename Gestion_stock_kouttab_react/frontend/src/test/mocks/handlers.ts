@@ -125,6 +125,22 @@ export const handlers = [
 
   // ----- Buvette -----
   http.get(`${BASE_URL}/buvette/products`, () => HttpResponse.json([])),
+  // Fiche d'un produit : le serveur renvoie le produit à jour. Par défaut, on
+  // renvoie le corps reçu (les tests qui vérifient l'envoi le surchargent).
+  http.patch(`${BASE_URL}/buvette/products/:id`, async ({ params, request }) => {
+    const corps = (await request.json()) as Record<string, unknown>;
+    return HttpResponse.json({ id: Number(params.id), ...corps });
+  }),
+  // Code-barres inconnu partout, sans fiche Open Food Facts.
+  http.get(`${BASE_URL}/stock/lookup-barcode/:code`, ({ params }) =>
+    HttpResponse.json({
+      barcode: String(params.code),
+      found_in: null,
+      stock_item: null,
+      buvette_product: null,
+      openfoodfacts: null,
+    }),
+  ),
   http.get(`${BASE_URL}/buvette/sales`, () => HttpResponse.json([])),
   http.get(`${BASE_URL}/buvette/webhook/status`, () =>
     HttpResponse.json({

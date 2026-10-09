@@ -1218,6 +1218,40 @@ sur ce que la boutique décrit, pas sur ce qu'elle vend.
 Le webhook HelloAsso reste actif : il ne fait que des ventes, jamais des
 descriptions.
 
+### Scan d'un code-barres et liaison aux produits existants
+
+Les produits de la buvette viennent de HelloAsso et n'avaient jamais été
+scannés. Créer un produit à chaque code inconnu dédoublait le catalogue, avec
+des photos Open Food Facts de mauvaise qualité. Le flux (`BuvettePage.handleDetected`) :
+
+- **Code connu** (`found_in === 'buvette'`) : ouvre directement la fenêtre
+  **Réapprovisionner** (on scanne en rangeant une livraison).
+- **Code inconnu** : fenêtre **« Code-barres inconnu »**
+  (`modals/CodeBarresInconnuModal.tsx`), deux choix :
+  1. **« Associer à un produit existant »** (en premier) : liste des produits
+     **sans** code-barres, avec recherche (sans accents ni casse). Le clic envoie
+     `PATCH /buvette/products/{id}` avec **`{ barcode }` seul**, puis toast
+     « Code-barres associé à … » et ouverture du réappro de ce produit.
+  2. **« Créer un nouveau produit »** : `AddBuvetteFromBarcodeModal`, avec la
+     case **« Utiliser la photo Open Food Facts » décochée par défaut**
+     (`image_url: null` sauf case cochée).
+- **Fiche produit** (`ModifierProduitModal`) : champ « Code-barres », boutons
+  « Scanner » (ouvre `BarcodeScanner`, remplit le champ) et « Retirer » (vide =
+  `barcode: null`). **N'envoie que les champs modifiés** (`champsModifies`) :
+  renvoyer un nom ou un prix inchangé lèverait `edite_manuellement`.
+- **Carte produit** : mention du code ou « Sans code-barres » ; bouton-filtre
+  « Sans code-barres (N) » dans l'onglet Produits, pour voir ce qui reste à
+  répertorier.
+
+Côté serveur (`crud.update_product`) : `barcode` **n'est pas** un champ
+HelloAsso, il ne lève donc pas `edite_manuellement` et ne touche ni photo, ni
+nom, ni prix. Un code déjà porté par un autre produit est refusé **avant
+écriture** en **409** `BARCODE_DUPLICATE`, message « Ce code-barres est déjà
+associé à <produit>. » (l'écran l'affiche tel quel). `null` ou `""` retire le
+code. `sync_from_helloasso` ne touche jamais `barcode`. Tests :
+`tests/integration/test_api_buvette_code_barres.py`,
+`frontend/src/pages/buvette/__tests__/CodeBarres.test.tsx`.
+
 ---
 
 ## 13. Roadmap & priorités

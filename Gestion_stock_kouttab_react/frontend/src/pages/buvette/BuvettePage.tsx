@@ -12,6 +12,7 @@ import {
   Tablet,
   ClipboardList,
   PackagePlus,
+  Barcode,
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -39,6 +40,7 @@ import { CreateProductModal } from './modals/CreateProductModal';
 import { WebhookConfigModal } from './modals/WebhookConfigModal';
 import { AppCaisseModal } from './modals/AppCaisseModal';
 import { AddBuvetteFromBarcodeModal } from './modals/AddBuvetteFromBarcodeModal';
+import { CodeBarresInconnuModal } from './modals/CodeBarresInconnuModal';
 import { PaiementsTab } from './tabs/PaiementsTab';
 import { ReapprosTab } from './tabs/ReapprosTab';
 import { StatistiquesTab } from './tabs/StatistiquesTab';
@@ -107,6 +109,8 @@ export function BuvettePage() {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannedNew, setScannedNew] = useState<BarcodeLookupResponse | null>(null);
   const [addNewOpen, setAddNewOpen] = useState(false);
+  const [inconnuOpen, setInconnuOpen] = useState(false);
+  const [filtreSansCode, setFiltreSansCode] = useState(false);
 
   const handleDetected = async (barcode: string) => {
     setScannerOpen(false);
@@ -117,8 +121,11 @@ export function BuvettePage() {
         setSelected(res.buvette_product);
         setReapproOpen(true);
       } else {
+        // Code inconnu de la buvette : le plus souvent, il appartient à un
+        // produit importé de HelloAsso jamais scanné. On propose de l'y relier
+        // avant de proposer une création.
         setScannedNew(res);
-        setAddNewOpen(true);
+        setInconnuOpen(true);
       }
     } catch (e) {
       toast.error(fr.scanner.lookupError, extractErrorMessage(e));
@@ -126,6 +133,20 @@ export function BuvettePage() {
   };
 
   const list = products.data ?? [];
+  const nbSansCode = list.filter((p) => !p.barcode).length;
+  const affiches = filtreSansCode ? list.filter((p) => !p.barcode) : list;
+
+  // Code relié à un produit existant : on range une livraison, donc réappro.
+  const handleAssocie = (p: BuvetteProduct) => {
+    setInconnuOpen(false);
+    setSelected(p);
+    setReapproOpen(true);
+  };
+
+  const handleCreerDepuisScan = () => {
+    setInconnuOpen(false);
+    setAddNewOpen(true);
+  };
 
   const kpis = useMemo(() => {
     const totalProducts = list.length;
@@ -225,42 +246,49 @@ export function BuvettePage() {
         </TabsList>
 
         <TabsContent value="produits" className="space-y-6">
-          {(canSync || canCrud || canWebhook) && (
-            <div className="flex flex-wrap gap-2">
-              {canSync && (
-                <Button onClick={handleSync} loading={sync.isPending}>
-                  {sync.isPending ? fr.buvette.syncing : fr.buvette.sync}
-                </Button>
-              )}
-              {canCrud && (
-                <Button variant="outline" onClick={() => setCreateOpen(true)}>
-                  {fr.buvette.addProduct}
-                </Button>
-              )}
-              {canCrud && (
-                <Button
-                  variant="outline"
-                  onClick={() => setScannerOpen(true)}
-                  loading={lookup.isPending}
-                >
-                  <ScanLine className="h-4 w-4" />
-                  {fr.scanner.scan}
-                </Button>
-              )}
-              {canWebhook && (
-                <Button variant="ghost" onClick={() => setWebhookOpen(true)}>
-                  {fr.buvette.webhook}
-                </Button>
-              )}
-              {/* Même cercle que le webhook : publier cet APK, c'est distribuer de
+          <div className="flex flex-wrap gap-2">
+            {canSync && (
+              <Button onClick={handleSync} loading={sync.isPending}>
+                {sync.isPending ? fr.buvette.syncing : fr.buvette.sync}
+              </Button>
+            )}
+            {canCrud && (
+              <Button variant="outline" onClick={() => setCreateOpen(true)}>
+                {fr.buvette.addProduct}
+              </Button>
+            )}
+            {canCrud && (
+              <Button
+                variant="outline"
+                onClick={() => setScannerOpen(true)}
+                loading={lookup.isPending}
+              >
+                <ScanLine className="h-4 w-4" />
+                {fr.scanner.scan}
+              </Button>
+            )}
+            {canWebhook && (
+              <Button variant="ghost" onClick={() => setWebhookOpen(true)}>
+                {fr.buvette.webhook}
+              </Button>
+            )}
+            {/* Même cercle que le webhook : publier cet APK, c'est distribuer de
               quoi encaisser — il porte la clé SumUp et la clé de caisse. */}
-              {canWebhook && (
-                <Button variant="ghost" onClick={() => setAppCaisseOpen(true)}>
-                  Application tablette
-                </Button>
-              )}
-            </div>
-          )}
+            {canWebhook && (
+              <Button variant="ghost" onClick={() => setAppCaisseOpen(true)}>
+                Application tablette
+              </Button>
+            )}
+            {/* Ce qui reste à répertorier au scan. */}
+            <Button
+              variant={filtreSansCode ? 'primary' : 'outline'}
+              aria-pressed={filtreSansCode}
+              onClick={() => setFiltreSansCode((v) => !v)}
+            >
+              <Barcode className="h-4 w-4" />
+              {fr.buvette.codeBarres.filtreSansCode} ({nbSansCode})
+            </Button>
+          </div>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <KpiCard
@@ -306,9 +334,11 @@ export function BuvettePage() {
                 ) : null
               }
             />
+          ) : affiches.length === 0 ? (
+            <EmptyState title={fr.buvette.codeBarres.filtreVide} />
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {list.map((p) => (
+              {affiches.map((p) => (
                 <BuvetteProductCard
                   key={p.id}
                   product={p}
@@ -353,6 +383,14 @@ export function BuvettePage() {
         open={scannerOpen}
         onClose={() => setScannerOpen(false)}
         onDetected={handleDetected}
+      />
+      <CodeBarresInconnuModal
+        open={inconnuOpen}
+        onOpenChange={setInconnuOpen}
+        barcode={scannedNew?.barcode ?? null}
+        products={list}
+        onAssocie={handleAssocie}
+        onCreer={handleCreerDepuisScan}
       />
       <AddBuvetteFromBarcodeModal
         open={addNewOpen}

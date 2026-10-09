@@ -57,3 +57,32 @@ describe('onglet de la tablette de caisse', () => {
     expect(r.success && 'quantity' in r.data).toBe(false);
   });
 });
+
+describe('code-barres de la fiche produit', () => {
+  const base = {
+    name: 'Café',
+    price_euros: 1.5,
+    seuil_alerte: 1,
+    emoji: '☕',
+    onglet_caisse: 'cafe',
+  };
+
+  it('accepte un champ vide (sans code-barres) et 8 à 14 chiffres', () => {
+    expect(modifierBuvetteProductSchema.safeParse({ ...base, barcode: '' }).success).toBe(true);
+    expect(modifierBuvetteProductSchema.safeParse({ ...base, barcode: ' 3017620422003 ' })).toEqual(
+      expect.objectContaining({
+        success: true,
+        data: expect.objectContaining({ barcode: '3017620422003' }),
+      }),
+    );
+  });
+
+  it('refuse un code trop court ou non numérique, comme le serveur', () => {
+    expect(modifierBuvetteProductSchema.safeParse({ ...base, barcode: '1234' }).success).toBe(
+      false,
+    );
+    expect(modifierBuvetteProductSchema.safeParse({ ...base, barcode: 'abcdefgh' }).success).toBe(
+      false,
+    );
+  });
+});

@@ -583,7 +583,7 @@ export const fr = {
     salesToday: 'Ventes du jour',
     modifierProduit: 'Modifier le produit',
     modifierProduitAide:
-      'Nom, prix de vente, seuil, emoji, photo et onglet de la caisse. ' +
+      'Nom, prix de vente, seuil, emoji, photo, code-barres et onglet de la caisse. ' +
       'Le stock se change par un réapprovisionnement ou un inventaire.',
     createProduct: 'Nouveau produit',
     name: 'Nom du produit',
@@ -623,6 +623,30 @@ export const fr = {
     masqueTablette: 'Masqué de la tablette',
     produitMasque: 'Produit masqué de la tablette.',
     produitAffiche: 'Produit de nouveau affiché sur la tablette.',
+    // Liaison d'un code-barres à un produit existant (importé de HelloAsso,
+    // jamais scanné) : on relie le code sans rien écraser.
+    codeBarres: {
+      champ: 'Code-barres',
+      placeholder: '8 à 14 chiffres',
+      scanner: 'Scanner',
+      retirer: 'Retirer',
+      sansCode: 'Sans code-barres',
+      filtreSansCode: 'Sans code-barres',
+      filtreVide: 'Tous les produits ont un code-barres.',
+      inconnuTitre: 'Code-barres inconnu',
+      inconnuAide:
+        'Ce code n’est relié à aucun produit de la buvette. Associez-le à un produit existant, ou créez-en un nouveau.',
+      associerTitre: 'Associer à un produit existant',
+      associerAide: 'La photo, le nom et le prix du produit sont conservés.',
+      rechercher: 'Rechercher un produit',
+      aucunSansCode: 'Tous les produits ont déjà un code-barres.',
+      aucunResultat: 'Aucun produit ne correspond à cette recherche.',
+      associerA: (nom: string) => `Associer à ${nom}`,
+      associe: (nom: string) => `Code-barres associé à ${nom}`,
+      creerTitre: 'Créer un nouveau produit',
+      creerAide: 'Pour un article qui n’existe pas encore dans la buvette.',
+      utiliserPhotoOff: 'Utiliser la photo Open Food Facts',
+    },
     soldAt: 'Date de vente',
     amount: 'Montant',
     qtySold: 'Qté',
