@@ -29,6 +29,7 @@ from app.core.exceptions import AppException
 from app.core.logger import get_logger
 from app.core.rate_limit import limiter
 from app.crud import buvette as buvette_crud
+from app.crud import buvette_inventaire as inventaire_crud
 from app.db.models import Admin
 from app.db.session import SessionLocal, get_db
 from app.schemas.auth import MessageOut
@@ -53,6 +54,12 @@ from app.schemas.buvette import (
     ClotureOut,
     CompteAdminStockOut,
     HelloAssoWebhookPayload,
+    InventaireEnCoursOut,
+    InventaireEspecesOut,
+    InventaireLignesIn,
+    InventaireOut,
+    InventaireResumeOut,
+    InventaireTerminerIn,
     MoyenDePaiement,
     PaiementsOut,
     ReapproIn,
@@ -63,6 +70,7 @@ from app.schemas.buvette import (
     WebhookConfigureIn,
     WebhookStatusOut,
 )
+from app.services import buvette_export
 from app.services import caisse_app
 from app.services import email as email_service
 from app.services import files as files_service
@@ -645,6 +653,191 @@ def cloturer_caisse(
         saisi_par=current_user.full_name,
     )
     return ClotureOut.model_validate(cloture)
+
+
+# ---------------------------------------------------------------------------
+# Inventaire (stock puis especes) et exports Excel
+# ---------------------------------------------------------------------------
+# Les routes fixes (`en-cours`, `export.xlsx`) sont declarees AVANT les routes
+# `/{inventaire_id}` : sinon elles seraient prises pour un identifiant (422).
+
+
+def _inventaire_out(inventaire: Any) -> dict[str, Any]:
+    return inventaire_crud.inventaire_out(inventaire, url_photo=_url_photo)
+
+
+def _xlsx(contenu: bytes, nom: str) -> Response:
+    return Response(
+        content=contenu,
+        media_type=buvette_export.MEDIA_TYPE_XLSX,
+        headers={"Content-Disposition": f'attachment; filename="{nom}"'},
+    )
+
+
+@router.post("/inventaires", response_model=InventaireOut, status_code=201)
+def demarrer_inventaire(
+    db: Session = Depends(get_db),
+    current_user: Admin = Depends(require_roles(*_GESTION_ROLES)),
+) -> Any:
+    """Demarre un inventaire (produits de la tablette hors cafes, comptes a 0). 409 si un autre est ouvert."""
+    return _inventaire_out(inventaire_crud.demarrer(db, cree_par=current_user.full_name))
+
+
+@router.get(
+    "/inventaires/en-cours",
+    response_model=InventaireEnCoursOut,
+    dependencies=[Depends(require_roles(*_VIEW_ROLES))],
+)
+def inventaire_en_cours(db: Session = Depends(get_db)) -> Any:
+    """L'inventaire non termine (en comptage ou stock valide), ou null."""
+    inventaire = inventaire_crud.en_cours(db)
+    return {"inventaire": _inventaire_out(inventaire) if inventaire else None}
+
+
+@router.get(
+    "/inventaires/export.xlsx",
+    dependencies=[Depends(require_roles(*_VIEW_ROLES))],
+)
+def exporter_historique_inventaires(
+    debut: date | None = Query(default=None),
+    fin: date | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> Response:
+    """Classeur de l'historique : « Inventaires » (resumes) et « Detail » (lignes produits)."""
+    inventaires = [_inventaire_out(i) for i in inventaire_crud.historique(db, debut, fin)]
+    return _xlsx(
+        buvette_export.classeur_historique(inventaires),
+        f"inventaires-{buvette_export.nom_periode(debut, fin)}.xlsx",
+    )
+
+
+@router.get(
+    "/inventaires",
+    response_model=list[InventaireResumeOut],
+    dependencies=[Depends(require_roles(*_VIEW_ROLES))],
+)
+def historique_inventaires(
+    debut: date | None = Query(default=None),
+    fin: date | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> Any:
+    """Inventaires (termines et en cours), plus recents d'abord ; filtre sur le jour de debut."""
+    return [
+        inventaire_crud.inventaire_out(i, avec_lignes=False)
+        for i in inventaire_crud.historique(db, debut, fin)
+    ]
+
+
+@router.get(
+    "/inventaires/{inventaire_id}",
+    response_model=InventaireOut,
+    dependencies=[Depends(require_roles(*_VIEW_ROLES))],
+)
+def lire_inventaire(inventaire_id: int, db: Session = Depends(get_db)) -> Any:
+    return _inventaire_out(inventaire_crud.get_ou_404(db, inventaire_id))
+
+
+@router.put(
+    "/inventaires/{inventaire_id}/lignes",
+    response_model=InventaireOut,
+    dependencies=[Depends(require_roles(*_GESTION_ROLES))],
+)
+def enregistrer_lignes_inventaire(
+    inventaire_id: int, payload: InventaireLignesIn, db: Session = Depends(get_db)
+) -> Any:
+    """Brouillon des quantites comptees. 409 si le stock est deja valide."""
+    saisies = [(l.id, l.quantite_comptee) for l in payload.lignes]
+    return _inventaire_out(inventaire_crud.enregistrer_lignes(db, inventaire_id, saisies))
+
+
+@router.post(
+    "/inventaires/{inventaire_id}/valider-stock",
+    response_model=InventaireOut,
+    dependencies=[Depends(require_roles(*_GESTION_ROLES))],
+)
+def valider_stock_inventaire(inventaire_id: int, db: Session = Depends(get_db)) -> Any:
+    """Fige le theorique, calcule les ecarts et remplace le stock (une transaction)."""
+    return _inventaire_out(inventaire_crud.valider_stock(db, inventaire_id))
+
+
+@router.get(
+    "/inventaires/{inventaire_id}/especes",
+    response_model=InventaireEspecesOut,
+    dependencies=[Depends(require_roles(*_VIEW_ROLES))],
+)
+def especes_inventaire(
+    inventaire_id: int,
+    debut: date | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> Any:
+    """Ventes en especes depuis la fin du dernier inventaire termine, et total attendu."""
+    return inventaire_crud.especes(db, inventaire_id, debut)
+
+
+@router.post(
+    "/inventaires/{inventaire_id}/terminer",
+    response_model=InventaireOut,
+    dependencies=[Depends(require_roles(*_GESTION_ROLES))],
+)
+def terminer_inventaire(
+    inventaire_id: int, payload: InventaireTerminerIn, db: Session = Depends(get_db)
+) -> Any:
+    """Especes comptees : ecart fige, inventaire termine. 409 si le stock n'est pas valide."""
+    return _inventaire_out(
+        inventaire_crud.terminer(
+            db,
+            inventaire_id,
+            especes_comptees_cents=payload.especes_comptees_cents,
+            commentaire=payload.commentaire,
+            debut=payload.debut,
+        )
+    )
+
+
+@router.delete(
+    "/inventaires/{inventaire_id}",
+    status_code=204,
+    dependencies=[Depends(require_roles(*_GESTION_ROLES))],
+)
+def abandonner_inventaire(inventaire_id: int, db: Session = Depends(get_db)) -> Response:
+    """Abandon d'un brouillon (statut en_cours seulement ; 409 sinon)."""
+    inventaire_crud.supprimer(db, inventaire_id)
+    return Response(status_code=204)
+
+
+@router.get(
+    "/inventaires/{inventaire_id}/export.xlsx",
+    dependencies=[Depends(require_roles(*_VIEW_ROLES))],
+)
+def exporter_inventaire(inventaire_id: int, db: Session = Depends(get_db)) -> Response:
+    """Classeur d'un inventaire : Synthese, Ecarts produits, Ventes especes."""
+    inventaire = inventaire_crud.get_ou_404(db, inventaire_id)
+    especes = inventaire_crud.especes(db, inventaire_id, None)
+    jour = inventaire_crud.utc_vers_paris(inventaire.debut_le).date()
+    return _xlsx(
+        buvette_export.classeur_inventaire(_inventaire_out(inventaire), especes),
+        f"inventaire-{inventaire.id}-{jour.isoformat()}.xlsx",
+    )
+
+
+@router.get(
+    "/paiements/export.xlsx",
+    dependencies=[Depends(require_roles(*_VIEW_ROLES))],
+)
+def exporter_paiements(
+    debut: date | None = Query(default=None),
+    fin: date | None = Query(default=None),
+    moyen: MoyenDePaiement | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> Response:
+    """Classeur « Paiements » : memes filtres et memes defauts que GET /buvette/paiements."""
+    jour = buvette_crud.aujourd_hui()
+    debut, fin = debut or jour, fin or jour
+    donnees = buvette_crud.paiements(db, debut, fin, moyen)
+    return _xlsx(
+        buvette_export.classeur_paiements(donnees["paiements"]),
+        f"paiements-{debut.isoformat()}_{fin.isoformat()}.xlsx",
+    )
 
 
 # ---------------------------------------------------------------------------

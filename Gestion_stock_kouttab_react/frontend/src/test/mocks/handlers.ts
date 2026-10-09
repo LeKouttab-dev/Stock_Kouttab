@@ -160,6 +160,10 @@ export const handlers = [
     }),
   ),
   http.get(`${BASE_URL}/buvette/clotures`, () => HttpResponse.json([])),
+  http.get(`${BASE_URL}/buvette/inventaires/en-cours`, () =>
+    HttpResponse.json({ inventaire: null }),
+  ),
+  http.get(`${BASE_URL}/buvette/inventaires`, () => HttpResponse.json([])),
   http.get(`${BASE_URL}/buvette/caisse/etat`, () => HttpResponse.json({ etat: null })),
   http.get(`${BASE_URL}/buvette/reglages`, () =>
     HttpResponse.json({ recap_destinataires: [], comptes_admin_stock: [] }),

@@ -452,3 +452,97 @@ class SyncResult(BaseModel):
     updated: int = 0
     skipped: int = 0
     errors: list[str] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Inventaire (stock puis especes)
+# ---------------------------------------------------------------------------
+
+
+StatutInventaire = Literal["en_cours", "stock_valide", "termine"]
+
+
+class InventaireLigneOut(BaseModel):
+    id: int
+    product_id: int | None = None
+    nom: str
+    categorie: str | None = None
+    emoji: str | None = None
+    image_url: str | None = None
+    prix_cents: int
+    # Quantite en base MAINTENANT (affichage pendant le comptage) ; null si le
+    # produit a ete supprime.
+    stock_actuel: int | None = None
+    quantite_comptee: int
+    # Figee a la validation du stock.
+    quantite_theorique: int | None = None
+    # compte - theorique : negatif = il manque des produits.
+    ecart: int | None = None
+    valeur_ecart_cents: int | None = None
+
+
+class InventaireResumeChiffresOut(BaseModel):
+    nb_produits: int
+    nb_ecarts: int
+    ecart_unites: int
+    valeur_ecart_cents: int
+    # Somme des valeurs negatives, en positif.
+    perte_cents: int
+
+
+class InventaireResumeOut(BaseModel):
+    id: int
+    statut: StatutInventaire
+    debut_le: datetime
+    stock_valide_le: datetime | None = None
+    termine_le: datetime | None = None
+    cree_par: str | None = None
+    periode_especes_debut: datetime | None = None
+    periode_especes_fin: datetime | None = None
+    especes_attendues_cents: int | None = None
+    especes_comptees_cents: int | None = None
+    # compte - attendu : negatif = il manque de l'argent.
+    ecart_especes_cents: int | None = None
+    nb_ventes_especes: int | None = None
+    commentaire: str | None = None
+    resume: InventaireResumeChiffresOut
+
+
+class InventaireOut(InventaireResumeOut):
+    lignes: list[InventaireLigneOut]
+
+
+class InventaireEnCoursOut(BaseModel):
+    inventaire: InventaireOut | None = None
+
+
+class InventaireLigneSaisieIn(BaseModel):
+    id: int
+    quantite_comptee: int = Field(ge=0, le=100_000)
+
+
+class InventaireLignesIn(BaseModel):
+    lignes: list[InventaireLigneSaisieIn] = Field(max_length=2000)
+
+
+class InventaireTerminerIn(BaseModel):
+    especes_comptees_cents: int = Field(ge=0, le=10_000_000)
+    commentaire: str | None = Field(default=None, max_length=2000)
+    # Premier inventaire seulement : debut de la periode des especes.
+    debut: date | None = None
+
+
+class InventaireVenteEspecesOut(BaseModel):
+    cle: str
+    sold_at: datetime
+    total_cents: int
+    articles: list[PaiementArticleOut]
+
+
+class InventaireEspecesOut(BaseModel):
+    periode_debut: datetime | None = None
+    periode_fin: datetime
+    premier_inventaire: bool
+    attendu_cents: int
+    nb_ventes: int
+    ventes: list[InventaireVenteEspecesOut]
