@@ -1,23 +1,21 @@
-import { Edit3, Eye, EyeOff, Link2, Tablet, Trash2 } from 'lucide-react';
+import { Edit3, Eye, EyeOff, Link2, PackagePlus, Tablet, Trash2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { formatCents, formatDateTime } from '@/lib/format';
 import { fr } from '@/lib/i18n/fr';
-import { PALIERS_REAPPRO } from '@/lib/buvette';
 import type { BuvetteProduct } from '@/types/api';
 
 interface BuvetteProductCardProps {
   product: BuvetteProduct;
   canEdit: boolean;
-  onAdjust: (product: BuvetteProduct) => void;
+  /** Ouvre la fiche (nom, prix, seuil, emoji, photo, onglet) : pas de stock. */
+  onModifier: (product: BuvetteProduct) => void;
   onDelete: (product: BuvetteProduct) => void;
   /** Bascule `is_active` : désactivé, le produit disparaît de la tablette de caisse. */
   onToggleActive: (product: BuvetteProduct) => void;
-  /** Ajoute `delta` au stock (incrément atomique côté serveur). */
-  onReappro?: (product: BuvetteProduct, delta: number) => void;
-  /** Un réappro de CE produit est en cours : les paliers sont désactivés. */
-  reapproEnCours?: boolean;
+  /** Ouvre la fenêtre de réappro (quantité apportée + prix d'achat). */
+  onReappro: (product: BuvetteProduct) => void;
 }
 
 function getStockBadge(product: BuvetteProduct) {
@@ -33,11 +31,10 @@ function getStockBadge(product: BuvetteProduct) {
 export function BuvetteProductCard({
   product,
   canEdit,
-  onAdjust,
+  onModifier,
   onDelete,
   onToggleActive,
   onReappro,
-  reapproEnCours = false,
 }: BuvetteProductCardProps) {
   const isHelloAsso = product.helloasso_tier_id !== null;
   const masque = !product.is_active;
@@ -108,57 +105,39 @@ export function BuvetteProductCard({
           {product.last_synced_at ? formatDateTime(product.last_synced_at) : fr.buvette.neverSynced}
         </p>
 
-        {canEdit && onReappro && (
-          <div className="space-y-1.5">
-            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              {fr.buvette.reappro.label}
-            </p>
-            <div className="grid grid-cols-5 gap-1">
-              {PALIERS_REAPPRO.map((n) => (
-                <Button
-                  key={n}
-                  variant="outline"
-                  size="sm"
-                  className="px-0"
-                  disabled={reapproEnCours}
-                  aria-label={fr.buvette.reappro.ajouter(n)}
-                  title={fr.buvette.reappro.ajouter(n)}
-                  onClick={() => onReappro(product, n)}
-                >
-                  +{n}
-                </Button>
-              ))}
-            </div>
-          </div>
-        )}
-
         {canEdit && (
-          <div className="mt-auto flex gap-2">
-            <Button variant="outline" size="sm" fullWidth onClick={() => onAdjust(product)}>
-              <Edit3 className="h-3.5 w-3.5" />
-              Ajuster
+          <div className="mt-auto space-y-2">
+            <Button size="sm" fullWidth onClick={() => onReappro(product)}>
+              <PackagePlus className="h-3.5 w-3.5" />
+              {fr.buvette.reappro.reapprovisionner}
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={masque ? fr.buvette.afficherTablette : fr.buvette.masquerTablette}
-              title={masque ? fr.buvette.afficherTablette : fr.buvette.masquerTablette}
-              onClick={() => onToggleActive(product)}
-            >
-              {masque ? (
-                <EyeOff className="h-4 w-4 text-muted-foreground" />
-              ) : (
-                <Eye className="h-4 w-4" />
-              )}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Supprimer le produit"
-              onClick={() => onDelete(product)}
-            >
-              <Trash2 className="h-4 w-4 text-destructive" />
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" fullWidth onClick={() => onModifier(product)}>
+                <Edit3 className="h-3.5 w-3.5" />
+                {fr.buvette.reappro.modifier}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={masque ? fr.buvette.afficherTablette : fr.buvette.masquerTablette}
+                title={masque ? fr.buvette.afficherTablette : fr.buvette.masquerTablette}
+                onClick={() => onToggleActive(product)}
+              >
+                {masque ? (
+                  <EyeOff className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Supprimer le produit"
+                onClick={() => onDelete(product)}
+              >
+                <Trash2 className="h-4 w-4 text-destructive" />
+              </Button>
+            </div>
           </div>
         )}
       </CardContent>

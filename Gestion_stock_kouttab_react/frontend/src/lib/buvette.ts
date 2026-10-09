@@ -4,8 +4,17 @@
  */
 import { format, subDays } from 'date-fns';
 
-/** Les paliers proposés sur chaque carte produit. */
+/** Raccourcis de la fenêtre de réappro : chacun s'ajoute à la quantité saisie. */
 export const PALIERS_REAPPRO = [5, 10, 15, 20, 30] as const;
+
+/** Plafond d'un réappro accepté par le serveur. */
+export const REAPPRO_MAX = 10_000;
+
+/** « 0,45 » : un montant en centimes, tel qu'on le retape dans un champ en euros. */
+export function centsVersSaisie(cents: number | null | undefined): string {
+  if (cents === null || cents === undefined || !Number.isFinite(cents)) return '';
+  return (cents / 100).toFixed(2).replace('.', ',');
+}
 
 /** Au-delà, la tablette est considérée comme hors ligne (elle écrit toutes les 60 s). */
 export const SILENCE_TABLETTE_SECONDES = 5 * 60;

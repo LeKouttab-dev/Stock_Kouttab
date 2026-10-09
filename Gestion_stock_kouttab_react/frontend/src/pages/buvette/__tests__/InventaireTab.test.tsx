@@ -370,6 +370,7 @@ describe('pages/buvette/tabs/InventaireTab', () => {
         ecart_unites: -1,
         valeur_ecart_cents: -150,
         perte_cents: 150,
+        achats_cents: 4200,
       },
     });
 
@@ -420,6 +421,9 @@ describe('pages/buvette/tabs/InventaireTab', () => {
       );
       expect(await screen.findByTestId('rapport-perte')).toHaveTextContent('1.50 €');
       expect(screen.getByTestId('rapport-ecart-especes')).toHaveTextContent('Manque 2,50 €');
+      // Achats de la période : total des réappros entre les deux inventaires.
+      expect(screen.getByText('Achats de la période')).toBeInTheDocument();
+      expect(screen.getByTestId('rapport-achats')).toHaveTextContent('42.00 €');
 
       await user.click(screen.getByRole('button', { name: 'Exporter (Excel)' }));
       await waitFor(() => expect(clic).toHaveBeenCalledTimes(2));

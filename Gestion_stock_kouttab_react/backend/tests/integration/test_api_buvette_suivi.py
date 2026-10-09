@@ -373,20 +373,22 @@ def test_le_reappro_ajoute_au_stock(
     db_session.commit()
 
     reponse = client_authenticated_as(admin_stock_user).post(
-        f"{API}/products/{produit.id}/reappro", json={"delta": 10}
+        f"{API}/products/{produit.id}/reappro",
+        json={"quantite": 10, "prix_achat_unitaire_cents": 80},
     )
     assert reponse.status_code == 200, reponse.text
-    assert reponse.json()["quantity"] == 13
-    assert reponse.json()["alert_sent"] is False  # repasse au-dessus du seuil
+    assert reponse.json()["produit"]["quantity"] == 13
+    assert reponse.json()["produit"]["alert_sent"] is False  # repasse au-dessus du seuil
 
 
-@pytest.mark.parametrize("delta", [0, -5, 501])
+@pytest.mark.parametrize("quantite", [0, -5, 10_001])
 def test_un_reappro_hors_bornes_est_refuse(
-    db_session: Session, client_authenticated_as, admin_benevoles_user, delta
+    db_session: Session, client_authenticated_as, admin_benevoles_user, quantite
 ) -> None:
     produit = _produit(db_session, quantite=3)
     reponse = client_authenticated_as(admin_benevoles_user).post(
-        f"{API}/products/{produit.id}/reappro", json={"delta": delta}
+        f"{API}/products/{produit.id}/reappro",
+        json={"quantite": quantite, "prix_achat_unitaire_cents": 80},
     )
     assert reponse.status_code == 422
     assert _quantite(db_session, produit.id) == 3
@@ -394,7 +396,8 @@ def test_un_reappro_hors_bornes_est_refuse(
 
 def test_reappro_d_un_produit_inconnu(client_authenticated_as, admin_benevoles_user) -> None:
     reponse = client_authenticated_as(admin_benevoles_user).post(
-        f"{API}/products/999999/reappro", json={"delta": 5}
+        f"{API}/products/999999/reappro",
+        json={"quantite": 5, "prix_achat_unitaire_cents": 80},
     )
     assert reponse.status_code == 404
 
@@ -404,7 +407,8 @@ def test_la_compta_ne_reapprovisionne_pas(
 ) -> None:
     produit = _produit(db_session)
     reponse = client_authenticated_as(compta_user).post(
-        f"{API}/products/{produit.id}/reappro", json={"delta": 5}
+        f"{API}/products/{produit.id}/reappro",
+        json={"quantite": 5, "prix_achat_unitaire_cents": 80},
     )
     assert reponse.status_code == 403
 
@@ -579,7 +583,7 @@ def test_admin_stock_voit_et_gere_la_buvette(
     assert client.get(f"{API}/sales").status_code == 200
     reponse = client.post(f"{API}/products", json={"name": "Dattes", "price_cents": 200})
     assert reponse.status_code == 201, reponse.text
-    assert client.patch(f"{API}/products/{reponse.json()['id']}", json={"quantity": 9}).status_code == 200
+    assert client.patch(f"{API}/products/{reponse.json()['id']}", json={"seuil_alerte": 9}).status_code == 200
 
 
 def test_admin_stock_n_a_aucun_autre_droit(client_authenticated_as, admin_stock_user) -> None:

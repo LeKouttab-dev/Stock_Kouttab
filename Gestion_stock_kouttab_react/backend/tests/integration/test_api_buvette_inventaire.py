@@ -167,6 +167,7 @@ def test_demarrer_cree_les_lignes_a_zero_hors_cafes(catalogue, admin, admin_bene
     assert the["quantite_theorique"] is None and the["ecart"] is None
     assert inv["resume"] == {
         "nb_produits": 3, "nb_ecarts": 0, "ecart_unites": 0, "valeur_ecart_cents": 0, "perte_cents": 0,
+        "achats_cents": 0,
     }
 
 
@@ -256,6 +257,7 @@ def test_valider_le_stock_fige_les_ecarts_et_met_le_stock_a_jour(
     assert par_nom["Chips"]["valeur_ecart_cents"] == 240
     assert valide["resume"] == {
         "nb_produits": 3, "nb_ecarts": 2, "ecart_unites": 0, "valeur_ecart_cents": -260, "perte_cents": 500,
+        "achats_cents": 0,
     }
 
     # Le stock est remplace par les quantites comptees.
@@ -488,7 +490,7 @@ def test_historique_plus_recent_d_abord(historique, admin) -> None:
     assert [i["id"] for i in liste] == [historique[2]["id"], historique[1]["id"], historique[0]["id"]]
     assert "lignes" not in liste[0]
     assert set(liste[0]["resume"]) == {
-        "nb_produits", "nb_ecarts", "ecart_unites", "valeur_ecart_cents", "perte_cents",
+        "nb_produits", "nb_ecarts", "ecart_unites", "valeur_ecart_cents", "perte_cents", "achats_cents",
     }
     assert [i["statut"] for i in liste] == ["en_cours", "termine", "termine"]
 
@@ -540,7 +542,10 @@ def test_export_d_un_inventaire(catalogue, admin, client) -> None:
     classeur = _classeur(reponse)
     jour = buvette_crud.aujourd_hui().isoformat()
     assert reponse.headers["content-disposition"] == f'attachment; filename="inventaire-{inv["id"]}-{jour}.xlsx"'
-    assert classeur.sheetnames == ["Synthèse", "Écarts produits", "Ventes espèces"]
+    assert classeur.sheetnames == [
+        "Synthèse", "Écarts produits", "Ventes espèces",
+        "Réapprovisionnements", "Mouvements", "Récap par produit",
+    ]
 
     synthese = {l[0]: l[1] for l in _valeurs(classeur["Synthèse"]) if l[0]}
     assert synthese["Statut"] == "Terminé"
@@ -581,7 +586,7 @@ def test_export_de_l_historique(historique, admin) -> None:
     reponse = admin.get(f"{API}/inventaires/export.xlsx", params={"debut": "2026-10-01", "fin": "2026-10-05"})
     classeur = _classeur(reponse)
     assert reponse.headers["content-disposition"] == 'attachment; filename="inventaires-2026-10-01_2026-10-05.xlsx"'
-    assert classeur.sheetnames == ["Inventaires", "Détail"]
+    assert classeur.sheetnames == ["Inventaires", "Détail", "Réapprovisionnements"]
     resumes = _valeurs(classeur["Inventaires"])
     assert resumes[0][:4] == ("N°", "Statut", "Démarré le", "Terminé le")
     assert classeur["Inventaires"]["A1"].font.bold

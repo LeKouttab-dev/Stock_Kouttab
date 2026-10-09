@@ -110,7 +110,7 @@ def test_buvette_writes_stay_reserved_to_admins(
 
     resp = client.patch(
         f"/api/v1/buvette/products/{product.id}",
-        json={"quantity": 99},
+        json={"seuil_alerte": 99},
         headers=auth_headers(compta_user),
     )
     assert resp.status_code == 403, resp.text
@@ -122,13 +122,21 @@ def test_patch_product_as_admin_benevoles(
     product = _seed(db_session, tier_id=int(uuid.uuid4().int % 1_000_000_000))
     resp = client.patch(
         f"/api/v1/buvette/products/{product.id}",
-        json={"quantity": 50, "seuil_alerte": 10},
+        json={"seuil_alerte": 10},
         headers=auth_headers(admin_benevoles_user),
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["quantity"] == 50
     assert body["seuil_alerte"] == 10
+
+    # Le stock ne se change plus depuis la fiche (reappro ou inventaire).
+    resp = client.patch(
+        f"/api/v1/buvette/products/{product.id}",
+        json={"quantity": 50, "seuil_alerte": 12},
+        headers=auth_headers(admin_benevoles_user),
+    )
+    assert resp.status_code == 422, resp.text
+    assert resp.json()["code"] == "VAL_5001"
 
 
 # ---- Sync ----

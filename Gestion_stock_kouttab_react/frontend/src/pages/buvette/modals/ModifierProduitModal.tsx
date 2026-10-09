@@ -21,10 +21,10 @@ import {
 import { OngletCaisseSelect } from '@/components/buvette/OngletCaisseSelect';
 import { PhotoProduitField } from '@/components/buvette/PhotoProduitField';
 import {
-  adjustBuvetteProductSchema,
   categorieVersOnglet,
+  modifierBuvetteProductSchema,
   ongletVersCategorie,
-  type AdjustBuvetteProductFormValues,
+  type ModifierBuvetteProductFormValues,
 } from '@/lib/schemas/buvette';
 import { useToast } from '@/hooks/useToast';
 import { fr } from '@/lib/i18n/fr';
@@ -32,25 +32,29 @@ import { EMOJI_OPTIONS } from '@/lib/constants';
 import { centsToEuros, eurosToCents } from '@/lib/money';
 import type { BuvetteProduct } from '@/types/api';
 
-interface AdjustStockModalProps {
+interface ModifierProduitModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   product: BuvetteProduct | null;
 }
 
-export function AdjustStockModal({ open, onOpenChange, product }: AdjustStockModalProps) {
+/**
+ * Fiche d'un produit : nom, prix de vente, seuil, emoji, photo, onglet de la
+ * tablette. Le stock n'y figure pas : il se change par un réapprovisionnement
+ * (tracé, avec son prix d'achat) ou par un inventaire.
+ */
+export function ModifierProduitModal({ open, onOpenChange, product }: ModifierProduitModalProps) {
   const update = useUpdateBuvetteProduct();
   const deposerPhoto = useUploadBuvettePhoto();
   const retirerPhoto = useDeleteBuvettePhoto();
   const [photo, setPhoto] = useState<File | null>(null);
   const toast = useToast();
 
-  const form = useForm<AdjustBuvetteProductFormValues>({
-    resolver: zodResolver(adjustBuvetteProductSchema),
+  const form = useForm<ModifierBuvetteProductFormValues>({
+    resolver: zodResolver(modifierBuvetteProductSchema),
     defaultValues: {
       name: '',
       price_euros: 0,
-      quantity: 0,
       seuil_alerte: 0,
       emoji: '📦',
       onglet_caisse: 'aucun',
@@ -63,7 +67,6 @@ export function AdjustStockModal({ open, onOpenChange, product }: AdjustStockMod
       form.reset({
         name: product.name,
         price_euros: centsToEuros(product.price_cents),
-        quantity: product.quantity,
         seuil_alerte: product.seuil_alerte,
         emoji: product.emoji || '📦',
         onglet_caisse: categorieVersOnglet(product.caisse_category),
@@ -71,7 +74,11 @@ export function AdjustStockModal({ open, onOpenChange, product }: AdjustStockMod
     }
   }, [product, form]);
 
-  const onSubmit = ({ onglet_caisse, price_euros, ...values }: AdjustBuvetteProductFormValues) => {
+  const onSubmit = ({
+    onglet_caisse,
+    price_euros,
+    ...values
+  }: ModifierBuvetteProductFormValues) => {
     if (!product) return;
     update.mutate(
       {
@@ -111,16 +118,14 @@ export function AdjustStockModal({ open, onOpenChange, product }: AdjustStockMod
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{fr.buvette.adjustStock}</DialogTitle>
-          <DialogDescription>
-            Nom, prix, stock, photo et onglet de la caisse.
-          </DialogDescription>
+          <DialogTitle>{fr.buvette.modifierProduit}</DialogTitle>
+          <DialogDescription>{fr.buvette.modifierProduitAide}</DialogDescription>
         </DialogHeader>
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <Alert variant="info">
             <AlertDescription>
-              Quantité actuelle : <strong>{product.quantity}</strong>
+              {fr.buvette.reappro.stockActuel} : <strong>{product.quantity}</strong>
             </AlertDescription>
           </Alert>
 
@@ -151,23 +156,9 @@ export function AdjustStockModal({ open, onOpenChange, product }: AdjustStockMod
               {...form.register('price_euros', { valueAsNumber: true })}
             />
             {form.formState.errors.price_euros && (
-              <p className="text-xs text-destructive">{form.formState.errors.price_euros.message}</p>
-            )}
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="quantity" required>
-              {fr.buvette.quantity}
-            </Label>
-            <Input
-              id="quantity"
-              type="number"
-              min={0}
-              hasError={Boolean(form.formState.errors.quantity)}
-              {...form.register('quantity', { valueAsNumber: true })}
-            />
-            {form.formState.errors.quantity && (
-              <p className="text-xs text-destructive">{form.formState.errors.quantity.message}</p>
+              <p className="text-xs text-destructive">
+                {form.formState.errors.price_euros.message}
+              </p>
             )}
           </div>
 

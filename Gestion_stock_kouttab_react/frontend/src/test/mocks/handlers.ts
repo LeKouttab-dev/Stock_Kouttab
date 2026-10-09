@@ -148,6 +148,9 @@ export const handlers = [
       },
     }),
   ),
+  http.get(`${BASE_URL}/buvette/reapprovisionnements`, () =>
+    HttpResponse.json({ reappros: [], totaux: { nb: 0, quantite: 0, montant_cents: 0 } }),
+  ),
   http.get(`${BASE_URL}/buvette/stats`, () =>
     HttpResponse.json({ par_jour: [], par_heure: [], par_produit: [], par_moyen: [] }),
   ),

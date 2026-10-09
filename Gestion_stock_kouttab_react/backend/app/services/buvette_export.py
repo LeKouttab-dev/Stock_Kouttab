@@ -1,4 +1,5 @@
-"""Classeurs Excel de la buvette : inventaire, historique des inventaires, paiements.
+"""Classeurs Excel de la buvette : inventaire, historique des inventaires,
+paiements, reapprovisionnements.
 
 Fonctions pures : elles recoivent les donnees deja calculees par le CRUD (les
 memes dictionnaires que l'API sert a l'ecran) et rendent les octets du classeur.
@@ -36,6 +37,12 @@ STATUTS = {
     "termine": "Terminé",
 }
 MOYENS = {"carte": "Carte", "especes": "Espèces", "helloasso": "HelloAsso"}
+ORIGINES = {"app": "Application", "tablette": "Tablette"}
+TYPES_MOUVEMENT = {
+    "reappro": "Réapprovisionnement",
+    "vente": "Vente",
+    "ecart": "Écart d'inventaire",
+}
 CATEGORIES = {
     "sucre_sale": "Sucré / salé",
     "boissons": "Boissons",
@@ -133,7 +140,9 @@ ENTETES_ECARTS = (
 ENTETES_VENTES_ESPECES = ("Date", "Heure", "Référence", "Articles", "Montant")
 
 
-def _feuille_synthese(feuille: Worksheet, inv: dict[str, Any]) -> None:
+def _feuille_synthese(
+    feuille: Worksheet, inv: dict[str, Any], mouvements: dict[str, Any] | None = None
+) -> None:
     resume = inv["resume"]
     feuille.cell(row=1, column=1, value=f"Inventaire buvette n° {inv['id']}, Le Kouttâb").font = Font(
         bold=True, size=13
@@ -151,6 +160,7 @@ def _feuille_synthese(feuille: Worksheet, inv: dict[str, Any]) -> None:
         ("Valeur de l'écart", euros(resume["valeur_ecart_cents"]), FORMAT_EUROS),
         ("Perte estimée", euros(resume["perte_cents"]), FORMAT_EUROS),
         ("", None, None),
+        *_lignes_achats(mouvements),
         ("Période des espèces : du", heure_paris(inv["periode_especes_debut"]), FORMAT_DATE_HEURE),
         ("Période des espèces : au", heure_paris(inv["periode_especes_fin"]), FORMAT_DATE_HEURE),
         ("Ventes en espèces", inv["nb_ventes_especes"], None),
@@ -168,6 +178,26 @@ def _feuille_synthese(feuille: Worksheet, inv: dict[str, Any]) -> None:
             cellule.number_format = fmt
         cellule.alignment = Alignment(horizontal="left", wrap_text=True)
     _largeurs(feuille, (38, 44))
+
+
+def _lignes_achats(mouvements: dict[str, Any] | None) -> list[tuple[str, Any, str | None]]:
+    """Lignes de la synthese consacrees aux mouvements et aux achats de la periode."""
+    if mouvements is None:
+        return []
+    reappros = mouvements["reappros"]
+    debut = heure_paris(mouvements["periode_debut"])
+    return [
+        (
+            "Période des mouvements : du",
+            debut if debut is not None else "Début des données",
+            FORMAT_DATE_HEURE if debut is not None else None,
+        ),
+        ("Période des mouvements : au", heure_paris(mouvements["periode_fin"]), FORMAT_DATE_HEURE),
+        ("Réapprovisionnements", len(reappros), None),
+        ("Unités réapprovisionnées", sum(r["quantite"] for r in reappros), None),
+        ("Total des achats", euros(mouvements["achats_cents"]), FORMAT_EUROS),
+        ("", None, None),
+    ]
 
 
 def _feuille_ecarts(feuille: Worksheet, lignes: list[dict[str, Any]]) -> None:
@@ -230,14 +260,149 @@ def _feuille_ventes_especes(feuille: Worksheet, ventes: list[dict[str, Any]]) ->
     _largeurs(feuille, (14, 8, 40, 60, 12))
 
 
-def classeur_inventaire(inv: dict[str, Any], especes: dict[str, Any]) -> bytes:
-    """Feuilles « Synthèse », « Écarts produits », « Ventes espèces »."""
+ENTETES_MOUVEMENTS = (
+    "Date",
+    "Heure",
+    "Type",
+    "Produit",
+    "Quantité",
+    "Moyen ou origine",
+    "Prix unitaire",
+    "Montant",
+    "Détail",
+)
+ENTETES_RECAP = (
+    "Produit",
+    "Catégorie",
+    "Prix unitaire",
+    "Compté au précédent inventaire",
+    "+ Réappros",
+    "− Ventes",
+    "= Stock attendu",
+    "Compté",
+    "Écart (unités)",
+    "Valeur de l'écart",
+)
+
+
+def _feuille_mouvements(feuille: Worksheet, mouvements: list[dict[str, Any]]) -> None:
+    """Chronologie unique : reappros, ventes par article, ecarts d'inventaire."""
+    _entetes(feuille, 1, ENTETES_MOUVEMENTS)
+    formats = {1: FORMAT_DATE, 2: FORMAT_HEURE, 7: FORMAT_EUROS, 8: FORMAT_EUROS}
+    rang = 2
+    for m in mouvements:
+        if m["type"] == "vente":
+            moyen = MOYENS.get(m["moyen"], m["moyen"])
+        elif m["type"] == "reappro":
+            moyen = ORIGINES.get(m["moyen"], m["moyen"])
+        else:
+            moyen = ""
+        _ligne(
+            feuille,
+            rang,
+            (
+                m["quand"],
+                m["quand"],
+                TYPES_MOUVEMENT.get(m["type"], m["type"]),
+                m["produit"],
+                m["quantite"],
+                moyen,
+                euros(m["prix_unitaire_cents"]),
+                euros(m["montant_cents"]),
+                m["detail"] or "",
+            ),
+            formats,
+        )
+        rang += 1
+    _ligne(
+        feuille,
+        rang,
+        (
+            f"Total ({len(mouvements)} mouvements)",
+            None,
+            "",
+            "",
+            sum(m["quantite"] for m in mouvements),
+            "",
+            None,
+            None,
+            "",
+        ),
+        formats,
+        total=True,
+    )
+    _largeurs(feuille, (12, 8, 22, 30, 10, 16, 13, 13, 40))
+
+
+def _feuille_recap(feuille: Worksheet, recap: list[dict[str, Any]]) -> None:
+    """Par produit : compte au precedent + reappros - ventes = attendu, compare au compte."""
+    _entetes(feuille, 1, ENTETES_RECAP)
+    formats = {3: FORMAT_EUROS, 10: FORMAT_EUROS}
+    rang = 2
+    for r in recap:
+        _ligne(
+            feuille,
+            rang,
+            (
+                r["nom"],
+                _categorie(r["categorie"]),
+                euros(r["prix_cents"]),
+                r["compte_precedent"],
+                r["reappros"],
+                r["ventes"],
+                r["attendu"],
+                r["compte"],
+                r["ecart"],
+                euros(r["valeur_ecart_cents"]),
+            ),
+            formats,
+        )
+        rang += 1
+    _ligne(
+        feuille,
+        rang,
+        (
+            "Total",
+            "",
+            None,
+            sum(r["compte_precedent"] or 0 for r in recap),
+            sum(r["reappros"] for r in recap),
+            sum(r["ventes"] for r in recap),
+            sum(r["attendu"] or 0 for r in recap),
+            sum(r["compte"] for r in recap),
+            sum(r["ecart"] or 0 for r in recap),
+            euros(sum(r["valeur_ecart_cents"] or 0 for r in recap)),
+        ),
+        formats,
+        total=True,
+    )
+    feuille.cell(
+        row=rang + 2,
+        column=1,
+        value=(
+            "Case vide : quantité inconnue au précédent inventaire (produit non compté, "
+            "ou premier inventaire). L'attendu et l'écart ne sont alors pas calculés."
+        ),
+    ).font = Font(italic=True)
+    _largeurs(feuille, (32, 16, 13, 16, 12, 12, 14, 11, 13, 16))
+
+
+def classeur_inventaire(
+    inv: dict[str, Any], especes: dict[str, Any], mouvements: dict[str, Any] | None = None
+) -> bytes:
+    """Feuilles « Synthèse », « Écarts produits », « Ventes espèces » ; avec
+    `mouvements` (`crud.buvette_reappro.mouvements_inventaire`), en plus
+    « Réapprovisionnements », « Mouvements » et « Récap par produit »."""
     classeur = Workbook()
     synthese = classeur.active
     synthese.title = "Synthèse"
-    _feuille_synthese(synthese, inv)
+    _feuille_synthese(synthese, inv, mouvements)
     _feuille_ecarts(classeur.create_sheet("Écarts produits"), inv["lignes"])
     _feuille_ventes_especes(classeur.create_sheet("Ventes espèces"), especes["ventes"])
+    if mouvements is not None:
+        _feuille_reappros(classeur.create_sheet("Réapprovisionnements"), mouvements["reappros"])
+        _feuille_mouvements(classeur.create_sheet("Mouvements"), mouvements["mouvements"])
+        _feuille_recap(classeur.create_sheet("Récap par produit"), mouvements["recap"])
     return _octets(classeur)
 
 
@@ -276,8 +441,11 @@ ENTETES_DETAIL = (
 )
 
 
-def classeur_historique(inventaires: list[dict[str, Any]]) -> bytes:
-    """Feuille « Inventaires » (un résumé par ligne) et « Détail » (les lignes produits)."""
+def classeur_historique(
+    inventaires: list[dict[str, Any]], reappros: list[dict[str, Any]] | None = None
+) -> bytes:
+    """Feuilles « Inventaires » (un résumé par ligne), « Détail » (les lignes
+    produits) et, avec `reappros`, « Réapprovisionnements » de la période filtrée."""
     classeur = Workbook()
     feuille = classeur.active
     feuille.title = "Inventaires"
@@ -376,6 +544,8 @@ def classeur_historique(inventaires: list[dict[str, Any]]) -> bytes:
         total=True,
     )
     _largeurs(detail, (14, 17, 32, 16, 13, 15, 16, 14, 17))
+    if reappros is not None:
+        _feuille_reappros(classeur.create_sheet("Réapprovisionnements"), reappros)
     return _octets(classeur)
 
 
@@ -457,6 +627,86 @@ def classeur_paiements(ventes: list[dict[str, Any]]) -> bytes:
         total=True,
     )
     _largeurs(feuille, (12, 8, 11, 30, 22, 30, 10, 14, 13))
+    return _octets(classeur)
+
+
+# ---------------------------------------------------------------------------
+# Reapprovisionnements
+# ---------------------------------------------------------------------------
+
+
+ENTETES_REAPPROS = (
+    "Date",
+    "Heure",
+    "Produit",
+    "Quantité",
+    "Prix unitaire",
+    "Total",
+    "Origine",
+    "Par",
+    "Stock avant",
+    "Stock après",
+    "Commentaire",
+)
+
+
+def _feuille_reappros(feuille: Worksheet, reappros: list[dict[str, Any]]) -> None:
+    """Une ligne par reappro (dans l'ordre recu), puis une ligne de totaux.
+
+    `reappros` : dictionnaires de `crud.buvette_reappro.reappro_out`.
+    """
+    _entetes(feuille, 1, ENTETES_REAPPROS)
+    formats = {1: FORMAT_DATE, 2: FORMAT_HEURE, 5: FORMAT_EUROS, 6: FORMAT_EUROS}
+    rang = 2
+    for r in reappros:
+        instant = heure_paris(r["created_at"])
+        _ligne(
+            feuille,
+            rang,
+            (
+                instant,
+                instant,
+                r["nom"],
+                r["quantite"],
+                euros(r["prix_achat_unitaire_cents"]),
+                euros(r["total_cents"]),
+                ORIGINES.get(r["origine"], r["origine"]),
+                r["fait_par"] or "",
+                r["stock_avant"],
+                r["stock_apres"],
+                r["commentaire"] or "",
+            ),
+            formats,
+        )
+        rang += 1
+    _ligne(
+        feuille,
+        rang,
+        (
+            f"Total ({len(reappros)} réapprovisionnements)",
+            None,
+            "",
+            sum(r["quantite"] for r in reappros),
+            None,
+            euros(sum(r["total_cents"] or 0 for r in reappros)),
+            "",
+            "",
+            None,
+            None,
+            "",
+        ),
+        formats,
+        total=True,
+    )
+    _largeurs(feuille, (12, 8, 30, 10, 13, 13, 12, 22, 11, 11, 40))
+
+
+def classeur_reappros(reappros: list[dict[str, Any]]) -> bytes:
+    """Feuille « Réapprovisionnements » : l'historique filtré de l'écran."""
+    classeur = Workbook()
+    feuille = classeur.active
+    feuille.title = "Réapprovisionnements"
+    _feuille_reappros(feuille, reappros)
     return _octets(classeur)
 
 

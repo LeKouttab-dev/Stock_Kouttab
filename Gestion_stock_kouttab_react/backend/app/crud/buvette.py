@@ -20,6 +20,7 @@ from app.core.security import validate_email_str
 from app.db.models import (
     Admin,
     BuvetteProduct,
+    BuvetteReapprovisionnement,
     BuvetteReglage,
     BuvetteSale,
     CaisseEtat,
@@ -106,7 +107,14 @@ def _handle_product_integrity_error(
     ) from exc
 
 
-def create_product(db: Session, data: BuvetteProductCreate) -> BuvetteProduct:
+def create_product(
+    db: Session, data: BuvetteProductCreate, *, fait_par: str | None = None
+) -> BuvetteProduct:
+    """Cree un produit. Une quantite initiale > 0 est tracee comme premier reappro.
+
+    Sans cette ligne « Stock initial », le recapitulatif des mouvements d'un
+    inventaire verrait apparaitre du stock venu de nulle part.
+    """
     barcode_clean = validate_barcode(data.barcode)
     product = BuvetteProduct(
         helloasso_tier_id=data.helloasso_tier_id,
@@ -123,6 +131,23 @@ def create_product(db: Session, data: BuvetteProductCreate) -> BuvetteProduct:
     )
     db.add(product)
     try:
+        db.flush()
+        if data.quantity > 0:
+            db.add(
+                BuvetteReapprovisionnement(
+                    buvette_product_id=product.id,
+                    nom_snapshot=product.name[:255],
+                    quantite=data.quantity,
+                    prix_achat_unitaire_cents=None,
+                    total_cents=None,
+                    origine=ORIGINE_APP,
+                    commentaire=COMMENTAIRE_STOCK_INITIAL,
+                    fait_par=fait_par,
+                    stock_avant=0,
+                    stock_apres=data.quantity,
+                    created_at=_maintenant_utc(),
+                )
+            )
         db.commit()
     except IntegrityError as exc:
         _handle_product_integrity_error(
@@ -143,14 +168,16 @@ def update_product(
         raise AppException(ErrorCode.BUVETTE_PRODUCT_NOT_FOUND)
 
     payload = data.model_dump(exclude_unset=True)
+    if "quantity" in payload:
+        # Une valeur absolue lue a l'ecran effacerait une vente ou un reappro
+        # concurrent, et ne laisserait aucune trace dans les mouvements.
+        raise AppException(ErrorCode.VALIDATION_ERROR, detail=MESSAGE_QUANTITE_REFUSEE)
     if "name" in payload and payload["name"] is not None:
         product.name = payload["name"].strip()
     if "description" in payload:
         product.description = payload["description"]
     if "price_cents" in payload and payload["price_cents"] is not None:
         product.price_cents = payload["price_cents"]
-    if "quantity" in payload and payload["quantity"] is not None:
-        product.quantity = payload["quantity"]
     if "seuil_alerte" in payload and payload["seuil_alerte"] is not None:
         product.seuil_alerte = payload["seuil_alerte"]
     if "emoji" in payload and payload["emoji"] is not None:
@@ -728,24 +755,54 @@ def record_caisse_sale(
 # ---------------------------------------------------------------------------
 
 
-def reapprovisionner(db: Session, product_id: int, delta: int) -> BuvetteProduct:
-    """Ajoute `delta` au stock, de facon ATOMIQUE.
+ORIGINE_APP = "app"
+ORIGINE_TABLETTE = "tablette"
+COMMENTAIRE_STOCK_INITIAL = "Stock initial"
+MESSAGE_QUANTITE_REFUSEE = (
+    "Le stock se change par un réapprovisionnement ou un inventaire."
+)
 
-    `UPDATE ... SET quantity = quantity + :delta` : la base fait l'addition. Le
-    PATCH du produit ecrit une quantite absolue, lue a l'ecran parfois des
-    minutes plus tot ; deux personnes (l'ecran web et la tablette « Personnel »)
-    ou une vente arrivee entre-temps se seraient ecrasees. Ici, rien ne se perd.
 
-    Le drapeau `alert_sent` retombe comme dans `update_product` quand le stock
-    repasse au seuil : la prochaine baisse previendra de nouveau.
+def _maintenant_utc() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def reapprovisionner(
+    db: Session,
+    product_id: int,
+    quantite: int,
+    *,
+    prix_achat_unitaire_cents: int | None = None,
+    origine: str = ORIGINE_TABLETTE,
+    commentaire: str | None = None,
+    fait_par: str | None = None,
+) -> tuple[BuvetteProduct, BuvetteReapprovisionnement]:
+    """Ajoute `quantite` au stock, de facon ATOMIQUE, et trace le reappro.
+
+    `UPDATE ... SET quantity = quantity + :quantite` : la base fait l'addition.
+    Une quantite absolue lue a l'ecran, parfois des minutes plus tot, aurait
+    ecrase une vente ou un autre reappro passe entre-temps. Ici, rien ne se perd.
+
+    Le stock APRES est relu dans la meme transaction, juste apres l'UPDATE : la
+    ligne est alors verrouillee (InnoDB) jusqu'au commit, aucune vente ne peut
+    s'intercaler entre l'addition et la lecture. `stock_avant` s'en deduit.
+
+    Le dernier prix d'achat du produit est memorise s'il est fourni (ecran web) ;
+    un reappro de la tablette n'en porte pas et laisse l'ancien en place.
+
+    Le drapeau `alert_sent` retombe quand le stock repasse au seuil : la
+    prochaine baisse previendra de nouveau.
     """
-    if delta < 1:
+    if quantite < 1:
         # Le schema borne deja ; ceci protege les appels internes.
         raise AppException(ErrorCode.VALIDATION_ERROR, detail="Le reappro doit etre positif.")
+    valeurs: dict[str, Any] = {"quantity": BuvetteProduct.quantity + quantite}
+    if prix_achat_unitaire_cents is not None:
+        valeurs["dernier_prix_achat_cents"] = prix_achat_unitaire_cents
     resultat = db.execute(
         update(BuvetteProduct)
         .where(BuvetteProduct.id == product_id)
-        .values(quantity=BuvetteProduct.quantity + delta)
+        .values(**valeurs)
         .execution_options(synchronize_session=False)
     )
     if not resultat.rowcount:
@@ -761,16 +818,46 @@ def reapprovisionner(db: Session, product_id: int, delta: int) -> BuvetteProduct
         .values(alert_sent=False)
         .execution_options(synchronize_session=False)
     )
+    nom, stock_apres = db.execute(
+        select(BuvetteProduct.name, BuvetteProduct.quantity).where(
+            BuvetteProduct.id == product_id
+        )
+    ).one()
+    texte = (commentaire or "").strip() or None
+    reappro = BuvetteReapprovisionnement(
+        buvette_product_id=product_id,
+        nom_snapshot=(nom or "")[:255],
+        quantite=quantite,
+        prix_achat_unitaire_cents=prix_achat_unitaire_cents,
+        total_cents=(
+            quantite * prix_achat_unitaire_cents
+            if prix_achat_unitaire_cents is not None
+            else None
+        ),
+        origine=origine,
+        commentaire=texte[:255] if texte else None,
+        fait_par=fait_par,
+        stock_avant=stock_apres - quantite,
+        stock_apres=stock_apres,
+        created_at=_maintenant_utc(),
+    )
+    db.add(reappro)
     db.commit()
+    db.refresh(reappro)
     produit = db.execute(
         select(BuvetteProduct)
         .where(BuvetteProduct.id == product_id)
         .execution_options(populate_existing=True)
     ).scalar_one()
     logger.info(
-        "Reappro buvette : produit %s +%d -> %d.", product_id, delta, produit.quantity
+        "Reappro buvette (%s) : produit %s +%d -> %d (par %s).",
+        origine,
+        product_id,
+        quantite,
+        produit.quantity,
+        fait_par,
     )
-    return produit
+    return produit, reappro
 
 
 # ---------------------------------------------------------------------------
