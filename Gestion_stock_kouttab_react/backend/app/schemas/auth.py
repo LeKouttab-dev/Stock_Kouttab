@@ -11,7 +11,9 @@ from app.schemas.calendar import AgendaOut, EvenementOut
 from app.schemas.user import UserOut
 
 
-ROLE_LITERAL = Literal["Super Admin", "AdminBenevoles", "Compta", "Benevole", "BenevoleFrais"]
+ROLE_LITERAL = Literal[
+    "Super Admin", "AdminBenevoles", "Compta", "Benevole", "BenevoleFrais", "AdminStock"
+]
 
 
 class LoginIn(BaseModel):

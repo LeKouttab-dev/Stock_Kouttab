@@ -10,7 +10,13 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 # "BenevoleFrais" : créé par le passage signé depuis gestion.lekouttab.fr,
 # confiné aux notes de frais (voir tests/integration/test_perimetre_benevole_frais.py).
-ROLE_LITERAL = Literal["Super Admin", "AdminBenevoles", "Compta", "Benevole", "BenevoleFrais"]
+# "AdminStock" : l'« admin stock » de la buvette (09/10/2026). Voit et gere la
+# buvette (produits, reappro, cloture de caisse) et recoit ses courriels (alertes
+# de stock bas, recap du soir) ; aucun autre droit. Volontairement absent de
+# `deps.ROLES_COMPLETS` : ni stock general, ni factures, ni contact.
+ROLE_LITERAL = Literal[
+    "Super Admin", "AdminBenevoles", "Compta", "Benevole", "BenevoleFrais", "AdminStock"
+]
 VALIDATION_LITERAL = Literal["pending", "active", "rejected"]
 
 

@@ -1,6 +1,17 @@
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Package, AlertTriangle, ShoppingCart, Coins, ScanLine } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import {
+  Package,
+  AlertTriangle,
+  ShoppingCart,
+  Coins,
+  ScanLine,
+  Receipt,
+  BarChart3,
+  Lock,
+  Tablet,
+} from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { KpiCard } from '@/components/shared/KpiCard';
@@ -15,6 +26,7 @@ import {
   useBuvetteProducts,
   useBuvetteSales,
   useDeleteBuvetteProduct,
+  useReapproBuvetteProduct,
   useSyncBuvette,
   useUpdateBuvetteProduct,
 } from '@/api/endpoints/buvette';
@@ -25,6 +37,10 @@ import { CreateProductModal } from './modals/CreateProductModal';
 import { WebhookConfigModal } from './modals/WebhookConfigModal';
 import { AppCaisseModal } from './modals/AppCaisseModal';
 import { AddBuvetteFromBarcodeModal } from './modals/AddBuvetteFromBarcodeModal';
+import { PaiementsTab } from './tabs/PaiementsTab';
+import { StatistiquesTab } from './tabs/StatistiquesTab';
+import { ClotureTab } from './tabs/ClotureTab';
+import { TabletteTab } from './tabs/TabletteTab';
 import { BarcodeScanner } from '@/components/scanner/BarcodeScanner';
 import type { BarcodeLookupResponse, BuvetteProduct } from '@/types/api';
 
@@ -34,8 +50,26 @@ function startOfTodayIso(): string {
   return d.toISOString();
 }
 
+const ONGLETS = ['produits', 'paiements', 'statistiques', 'cloture', 'tablette'] as const;
+type Onglet = (typeof ONGLETS)[number];
+
+function estOnglet(v: string | null): v is Onglet {
+  return v !== null && (ONGLETS as readonly string[]).includes(v);
+}
+
 export function BuvettePage() {
-  const navigate = useNavigate();
+  // L'onglet vit dans l'adresse (?onglet=paiements) : on peut y renvoyer par
+  // un lien, et le rechargement de la page ne ramène pas aux produits.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const ongletParam = searchParams.get('onglet');
+  const onglet: Onglet = estOnglet(ongletParam) ? ongletParam : 'produits';
+  const changerOnglet = (v: string) => {
+    const suivant = new URLSearchParams(searchParams);
+    if (v === 'produits') suivant.delete('onglet');
+    else suivant.set('onglet', v);
+    setSearchParams(suivant, { replace: true });
+  };
+
   const { can } = useAuth();
   const toast = useToast();
 
@@ -48,6 +82,8 @@ export function BuvettePage() {
   const sync = useSyncBuvette();
   const remove = useDeleteBuvetteProduct();
   const update = useUpdateBuvetteProduct();
+  const reappro = useReapproBuvetteProduct();
+  const reapproId = reappro.isPending ? reappro.variables?.id : undefined;
 
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -102,7 +138,7 @@ export function BuvettePage() {
       onSuccess: (r) => {
         const msg = fr.buvette.syncSuccess(r);
         if (r.errors.length > 0) {
-          toast.warning(msg, `${r.errors.length} erreur(s) — voir les logs.`);
+          toast.warning(msg, `${r.errors.length} erreur(s) : voir les logs.`);
         } else {
           toast.success('Synchronisation terminée', msg);
         }
@@ -118,6 +154,20 @@ export function BuvettePage() {
         onSuccess: () =>
           toast.success(p.is_active ? fr.buvette.produitMasque : fr.buvette.produitAffiche),
         onError: (e) => toast.error(extractErrorMessage(e)),
+      },
+    );
+  };
+
+  // L'échec est déjà signalé par `useApiMutation` : pas de second toast ici.
+  const handleReappro = (p: BuvetteProduct, delta: number) => {
+    reappro.mutate(
+      { id: p.id, delta },
+      {
+        onSuccess: (maj) =>
+          toast.success(
+            fr.buvette.reappro.succes(maj.name),
+            fr.buvette.reappro.stock(maj.quantity),
+          ),
       },
     );
   };
@@ -139,104 +189,143 @@ export function BuvettePage() {
         <p className="text-sm text-muted-foreground">{fr.buvette.subtitle}</p>
       </div>
 
-      {(canSync || canCrud || canWebhook) && (
-        <div className="flex flex-wrap gap-2">
-          {canSync && (
-            <Button onClick={handleSync} loading={sync.isPending}>
-              {sync.isPending ? fr.buvette.syncing : fr.buvette.sync}
-            </Button>
-          )}
-          {canCrud && (
-            <Button variant="outline" onClick={() => setCreateOpen(true)}>
-              {fr.buvette.addProduct}
-            </Button>
-          )}
-          {canCrud && (
-            <Button
-              variant="outline"
-              onClick={() => setScannerOpen(true)}
-              loading={lookup.isPending}
-            >
-              <ScanLine className="h-4 w-4" />
-              {fr.scanner.scan}
-            </Button>
-          )}
-          <Button variant="outline" onClick={() => navigate('/buvette/sales')}>
-            {fr.buvette.viewSales}
-          </Button>
-          {canWebhook && (
-            <Button variant="ghost" onClick={() => setWebhookOpen(true)}>
-              {fr.buvette.webhook}
-            </Button>
-          )}
-          {/* Même cercle que le webhook : publier cet APK, c'est distribuer de
+      <Tabs value={onglet} onValueChange={changerOnglet}>
+        <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 sm:w-auto">
+          <TabsTrigger value="produits" className="gap-1.5">
+            <Package className="h-4 w-4" aria-hidden />
+            {fr.buvette.tabs.produits}
+          </TabsTrigger>
+          <TabsTrigger value="paiements" className="gap-1.5">
+            <Receipt className="h-4 w-4" aria-hidden />
+            {fr.buvette.tabs.paiements}
+          </TabsTrigger>
+          <TabsTrigger value="statistiques" className="gap-1.5">
+            <BarChart3 className="h-4 w-4" aria-hidden />
+            {fr.buvette.tabs.statistiques}
+          </TabsTrigger>
+          <TabsTrigger value="cloture" className="gap-1.5">
+            <Lock className="h-4 w-4" aria-hidden />
+            {fr.buvette.tabs.cloture}
+          </TabsTrigger>
+          <TabsTrigger value="tablette" className="gap-1.5">
+            <Tablet className="h-4 w-4" aria-hidden />
+            {fr.buvette.tabs.tablette}
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="produits" className="space-y-6">
+          {(canSync || canCrud || canWebhook) && (
+            <div className="flex flex-wrap gap-2">
+              {canSync && (
+                <Button onClick={handleSync} loading={sync.isPending}>
+                  {sync.isPending ? fr.buvette.syncing : fr.buvette.sync}
+                </Button>
+              )}
+              {canCrud && (
+                <Button variant="outline" onClick={() => setCreateOpen(true)}>
+                  {fr.buvette.addProduct}
+                </Button>
+              )}
+              {canCrud && (
+                <Button
+                  variant="outline"
+                  onClick={() => setScannerOpen(true)}
+                  loading={lookup.isPending}
+                >
+                  <ScanLine className="h-4 w-4" />
+                  {fr.scanner.scan}
+                </Button>
+              )}
+              {canWebhook && (
+                <Button variant="ghost" onClick={() => setWebhookOpen(true)}>
+                  {fr.buvette.webhook}
+                </Button>
+              )}
+              {/* Même cercle que le webhook : publier cet APK, c'est distribuer de
               quoi encaisser — il porte la clé SumUp et la clé de caisse. */}
-          {canWebhook && (
-            <Button variant="ghost" onClick={() => setAppCaisseOpen(true)}>
-              Application tablette
-            </Button>
+              {canWebhook && (
+                <Button variant="ghost" onClick={() => setAppCaisseOpen(true)}>
+                  Application tablette
+                </Button>
+              )}
+            </div>
           )}
-        </div>
-      )}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard
-          label={fr.buvette.totalProducts}
-          value={kpis.totalProducts}
-          icon={<Package className="h-6 w-6" />}
-        />
-        <KpiCard
-          label={fr.buvette.totalStock}
-          value={kpis.totalStock}
-          icon={<ShoppingCart className="h-6 w-6" />}
-          variant="info"
-        />
-        <KpiCard
-          label={fr.buvette.productsAlert}
-          value={kpis.productsAlert}
-          icon={<AlertTriangle className="h-6 w-6" />}
-          variant={kpis.productsAlert > 0 ? 'danger' : 'success'}
-        />
-        <KpiCard
-          label={fr.buvette.salesToday}
-          value={formatCents(kpis.salesTodayCents)}
-          hint={`${kpis.salesTodayCount} vente(s)`}
-          icon={<Coins className="h-6 w-6" />}
-          variant="success"
-        />
-      </div>
-
-      {products.isLoading ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-72" />
-          ))}
-        </div>
-      ) : list.length === 0 ? (
-        <EmptyState
-          title={fr.buvette.noProducts}
-          action={
-            canSync ? (
-              <Button onClick={handleSync} loading={sync.isPending}>
-                {fr.buvette.sync}
-              </Button>
-            ) : null
-          }
-        />
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {list.map((p) => (
-            <BuvetteProductCard
-              key={p.id}
-              product={p}
-              canEdit={canCrud}
-              onAdjust={handleAdjust}
-              onDelete={handleDelete}
-              onToggleActive={handleToggleActive}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <KpiCard
+              label={fr.buvette.totalProducts}
+              value={kpis.totalProducts}
+              icon={<Package className="h-6 w-6" />}
             />
-          ))}
-        </div>
-      )}
+            <KpiCard
+              label={fr.buvette.totalStock}
+              value={kpis.totalStock}
+              icon={<ShoppingCart className="h-6 w-6" />}
+              variant="info"
+            />
+            <KpiCard
+              label={fr.buvette.productsAlert}
+              value={kpis.productsAlert}
+              icon={<AlertTriangle className="h-6 w-6" />}
+              variant={kpis.productsAlert > 0 ? 'danger' : 'success'}
+            />
+            <KpiCard
+              label={fr.buvette.salesToday}
+              value={formatCents(kpis.salesTodayCents)}
+              hint={`${kpis.salesTodayCount} vente(s)`}
+              icon={<Coins className="h-6 w-6" />}
+              variant="success"
+            />
+          </div>
+
+          {products.isLoading ? (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-72" />
+              ))}
+            </div>
+          ) : list.length === 0 ? (
+            <EmptyState
+              title={fr.buvette.noProducts}
+              action={
+                canSync ? (
+                  <Button onClick={handleSync} loading={sync.isPending}>
+                    {fr.buvette.sync}
+                  </Button>
+                ) : null
+              }
+            />
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {list.map((p) => (
+                <BuvetteProductCard
+                  key={p.id}
+                  product={p}
+                  canEdit={canCrud}
+                  onAdjust={handleAdjust}
+                  onDelete={handleDelete}
+                  onToggleActive={handleToggleActive}
+                  onReappro={handleReappro}
+                  reapproEnCours={reapproId === p.id}
+                />
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="paiements">
+          <PaiementsTab />
+        </TabsContent>
+        <TabsContent value="statistiques">
+          <StatistiquesTab />
+        </TabsContent>
+        <TabsContent value="cloture">
+          <ClotureTab />
+        </TabsContent>
+        <TabsContent value="tablette">
+          <TabletteTab />
+        </TabsContent>
+      </Tabs>
 
       <AdjustStockModal open={adjustOpen} onOpenChange={setAdjustOpen} product={selected} />
       <CreateProductModal open={createOpen} onOpenChange={setCreateOpen} />

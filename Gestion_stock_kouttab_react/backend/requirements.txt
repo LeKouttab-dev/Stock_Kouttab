@@ -44,5 +44,9 @@ a2wsgi>=1.10
 pandas>=2.0
 email-validator>=2.0
 httpx>=0.27
+# Fuseau Europe/Paris (zoneinfo) pour la buvette : journee du recap de 23 h,
+# « aujourd'hui » des paiements et de la cloture. Deja tire par pandas ; declare
+# ici pour ne pas en dependre si pandas disparaissait.
+tzdata>=2024.1
 # Les outils de test vivent dans requirements-dev.txt : les embarquer ici les
 # ferait entrer dans l'image de production, sans usage et avec leur surface.

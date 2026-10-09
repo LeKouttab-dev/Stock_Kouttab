@@ -345,9 +345,14 @@ def test_le_stock_ne_descend_pas_sous_zero(client: TestClient, db_session: Sessi
 
 
 def test_le_passage_sous_le_seuil_previent_une_seule_fois(
-    client: TestClient, db_session: Session, admin_benevoles_user, captured_emails
+    client: TestClient, db_session: Session, admin_stock_user, admin_benevoles_user, captured_emails
 ) -> None:
-    """Même alerte que pour les ventes HelloAsso, sans en répéter une par vente."""
+    """Même alerte que pour les ventes HelloAsso, sans en répéter une par vente.
+
+    Destinataires : les comptes AdminStock (et la liste des réglages), et non
+    plus tous les AdminBenevoles : le 09/10/2026, onze personnes recevaient
+    chaque alerte.
+    """
     produit = _produit(db_session, quantite=6, seuil=5)
 
     client.post(VENTES, json=_vente([_ligne(produit, 2)]), headers=_entetes())
@@ -355,7 +360,8 @@ def test_le_passage_sous_le_seuil_previent_une_seule_fois(
 
     alertes = [m for m in captured_emails if "Alerte stock buvette" in m.subject]
     assert len(alertes) == 1
-    assert admin_benevoles_user.email in alertes[0].recipients
+    assert admin_stock_user.email in alertes[0].recipients
+    assert admin_benevoles_user.email not in alertes[0].recipients
 
 
 # ---------------------------------------------------------------------------

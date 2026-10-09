@@ -1,6 +1,15 @@
 // 'BenevoleFrais' : créé par le passage signé depuis gestion.lekouttab.fr,
 // confiné aux notes de frais (une seule action dans PERMISSIONS).
-export const ROLES = ['Super Admin', 'AdminBenevoles', 'Compta', 'Benevole', 'BenevoleFrais'] as const;
+// 'AdminStock' : tient la buvette (voir, produits, réappro, clôture) et reçoit
+// les e-mails de la buvette (alertes de stock, récap du soir). Rien d'autre.
+export const ROLES = [
+  'Super Admin',
+  'AdminBenevoles',
+  'Compta',
+  'Benevole',
+  'BenevoleFrais',
+  'AdminStock',
+] as const;
 export type Role = (typeof ROLES)[number];
 
 export const VALIDATION_STATUS = ['pending', 'active', 'rejected'] as const;
@@ -103,6 +112,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   Compta: 'Comptabilité',
   Benevole: 'Bénévole',
   BenevoleFrais: 'Bénévole — notes de frais',
+  AdminStock: 'Admin stock',
 };
 
 /**
@@ -119,6 +129,8 @@ export const ROLE_COLORS: Record<Role, string> = {
   Benevole: 'bg-sand-100 text-sand-800 border-sand-200',
   // Même famille que Benevole : c'en est une déclinaison confinée.
   BenevoleFrais: 'bg-sand-100 text-sand-800 border-sand-200',
+  // Même famille qu'AdminBenevoles : un gestionnaire, au périmètre réduit.
+  AdminStock: 'bg-forest-100 text-forest-800 border-forest-200',
 };
 
 /**

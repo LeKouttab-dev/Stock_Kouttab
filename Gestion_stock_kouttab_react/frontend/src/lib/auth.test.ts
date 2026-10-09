@@ -71,6 +71,23 @@ describe('lib/auth — BenevoleFrais (confine aux notes de frais)', () => {
   });
 });
 
+describe('lib/auth — AdminStock (confine a la buvette)', () => {
+  it('voit, gere et synchronise la buvette, et rien d autre', () => {
+    const permises = new Set<string>([
+      ACTIONS.BUVETTE_VIEW,
+      ACTIONS.BUVETTE_CRUD,
+      ACTIONS.BUVETTE_SYNC,
+    ]);
+    for (const action of Object.values(ACTIONS)) {
+      expect(canAccess('AdminStock', action), `action=${action}`).toBe(permises.has(action));
+    }
+  });
+
+  it('sa page par defaut est la buvette', () => {
+    expect(pageParDefaut('AdminStock')).toBe('/buvette');
+  });
+});
+
 describe('lib/auth — hasAnyRole', () => {
   it('returns true when role is in the allowlist', () => {
     const allowed: Role[] = ['Super Admin', 'Compta'];

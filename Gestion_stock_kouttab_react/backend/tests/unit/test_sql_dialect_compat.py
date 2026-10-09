@@ -78,3 +78,20 @@ def test_the_guard_actually_catches_nulls_last() -> None:
     fautive = select(Event).order_by(Event.date_evenement.desc().nullslast())
     with pytest.raises(AssertionError, match="NULLS LAST"):
         _verifier(fautive)
+
+
+def test_requetes_du_suivi_buvette_compilent_pour_mariadb() -> None:
+    """Periode (COALESCE) et decrement atomique (UPDATE ... CASE) de la buvette."""
+    from datetime import datetime
+
+    from sqlalchemy import case, func, select, update
+
+    from app.db.models import BuvetteProduct, BuvetteSale
+
+    instant = func.coalesce(BuvetteSale.sold_at, BuvetteSale.processed_at)
+    _verifier(select(BuvetteSale).where(instant >= datetime(2026, 10, 1)))
+    decrement = update(BuvetteProduct).values(
+        quantity=case((BuvetteProduct.quantity > 2, BuvetteProduct.quantity - 2), else_=0)
+    )
+    sql = _sql_mysql(decrement).upper()
+    assert "CASE WHEN" in sql and "GREATEST" not in sql

@@ -18,7 +18,7 @@ import argparse
 import asyncio
 import shutil
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -35,6 +35,7 @@ from app.crud import ticket as ticket_crud  # noqa: E402
 from app.services.helloasso import get_helloasso_client  # noqa: E402
 from app.services import relance_tickets, email as email_service  # noqa: E402
 from app.services import outbox  # noqa: E402
+from app.services import recap_buvette  # noqa: E402
 
 
 logger = get_logger("cron.outbox")
@@ -149,6 +150,28 @@ def synchroniser_les_evenements() -> dict | None:
         db.close()
 
 
+async def recap_buvette_du_soir() -> bool:
+    """Recap du soir de la buvette, une fois par jour a partir de 23 h (Paris).
+
+    Toute la logique (heure, « deja envoye aujourd'hui ? », destinataires) vit
+    dans `services/recap_buvette.py`, testable sans ce script.
+    """
+    db = SessionLocal()
+    try:
+        return await recap_buvette.envoyer_recap_si_l_heure(db)
+    finally:
+        db.close()
+
+
+async def recap_buvette_essai(destinataire: str, jour: date | None) -> None:
+    """Envoi manuel du recap a UNE adresse, sans toucher au « deja envoye »."""
+    db = SessionLocal()
+    try:
+        await recap_buvette.envoyer_recap(db, jour, [destinataire])
+    finally:
+        db.close()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -165,7 +188,26 @@ def main() -> int:
         action="store_true",
         help="Ne pas synchroniser les evenements HelloAsso lors de ce passage",
     )
+    parser.add_argument(
+        "--recap-essai",
+        metavar="EMAIL",
+        help=(
+            "Envoie seulement le recap buvette a cette adresse (essai), puis sort. "
+            "N'affecte pas l'envoi automatique de 23 h."
+        ),
+    )
+    parser.add_argument(
+        "--recap-jour",
+        metavar="AAAA-MM-JJ",
+        type=date.fromisoformat,
+        default=None,
+        help="Journee du recap d'essai (defaut : aujourd'hui a Paris).",
+    )
     args = parser.parse_args()
+
+    if args.recap_essai:
+        asyncio.run(recap_buvette_essai(args.recap_essai, args.recap_jour))
+        return 0
 
     try:
         stats = asyncio.run(outbox.process_pending(limit=args.limit))
@@ -192,6 +234,14 @@ def main() -> int:
             synchroniser_les_evenements()
         except Exception as exc:  # noqa: BLE001
             logger.exception("Synchronisation des evenements interrompue : %s", exc)
+
+    # Bloc separe, pour la meme raison : un recap qui echoue (SMTP, base) ne
+    # doit empecher ni la file comptable ni la synchronisation. Il sera retente
+    # au passage suivant, la date d'envoi n'etant posee qu'apres un succes.
+    try:
+        asyncio.run(recap_buvette_du_soir())
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Recap buvette du soir interrompu : %s", exc)
     return 0
 
 

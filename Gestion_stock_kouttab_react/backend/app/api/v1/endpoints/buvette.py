@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import secrets
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import quote
 
@@ -40,10 +40,25 @@ from app.schemas.buvette import (
     BuvetteProductUpdate,
     BuvetteSaleOut,
     CaisseCatalogueOut,
+    CaisseEtatEnveloppeOut,
+    CaisseEtatIn,
+    CaisseEtatOut,
     CaisseProduitOut,
+    CaisseReapproIn,
+    CaisseReapproOut,
     CaisseVenteIn,
     CaisseVenteOut,
+    ClotureAttenduOut,
+    ClotureIn,
+    ClotureOut,
+    CompteAdminStockOut,
     HelloAssoWebhookPayload,
+    MoyenDePaiement,
+    PaiementsOut,
+    ReapproIn,
+    ReglagesIn,
+    ReglagesOut,
+    StatsOut,
     SyncResult,
     WebhookConfigureIn,
     WebhookStatusOut,
@@ -63,7 +78,13 @@ _SUPER_ADMIN = ("Super Admin",)
 # Lecture du stock et des ventes : les administrateurs benevoles qui tiennent la
 # buvette, et la comptabilite qui en suit les recettes. Un simple benevole n'y a
 # pas acces — la buvette est un outil de gestion, pas un ecran de consultation.
-_VIEW_ROLES = ("AdminBenevoles", "Super Admin", "Compta")
+#
+# « AdminStock » (09/10/2026) : l'admin stock de la buvette. Il la voit et la
+# gere (produits, photos, synchronisation, reappro, cloture de caisse), mais ne
+# touche ni aux reglages des courriels, ni au webhook, ni a l'application de la
+# tablette, qui restent a `_ADMIN_ROLES`.
+_VIEW_ROLES = ("AdminBenevoles", "Super Admin", "Compta", "AdminStock")
+_GESTION_ROLES = (*_ADMIN_ROLES, "AdminStock")
 
 
 # ---------------------------------------------------------------------------
@@ -114,7 +135,7 @@ def list_products(db: Session = Depends(get_db)) -> Any:
     "/products",
     response_model=BuvetteProductOut,
     status_code=201,
-    dependencies=[Depends(require_roles(*_ADMIN_ROLES))],
+    dependencies=[Depends(require_roles(*_GESTION_ROLES))],
 )
 def create_product(payload: BuvetteProductCreate, db: Session = Depends(get_db)) -> Any:
     product = buvette_crud.create_product(db, payload)
@@ -124,7 +145,7 @@ def create_product(payload: BuvetteProductCreate, db: Session = Depends(get_db))
 @router.patch(
     "/products/{product_id}",
     response_model=BuvetteProductOut,
-    dependencies=[Depends(require_roles(*_ADMIN_ROLES))],
+    dependencies=[Depends(require_roles(*_GESTION_ROLES))],
 )
 def update_product(
     product_id: int,
@@ -138,7 +159,7 @@ def update_product(
 @router.delete(
     "/products/{product_id}",
     response_model=MessageOut,
-    dependencies=[Depends(require_roles(*_ADMIN_ROLES))],
+    dependencies=[Depends(require_roles(*_GESTION_ROLES))],
 )
 def delete_product(product_id: int, db: Session = Depends(get_db)) -> Any:
     buvette_crud.delete_product(db, product_id)
@@ -167,7 +188,7 @@ def get_product_by_barcode(
 @router.post(
     "/products/{product_id}/photo",
     response_model=BuvetteProductOut,
-    dependencies=[Depends(require_roles(*_ADMIN_ROLES))],
+    dependencies=[Depends(require_roles(*_GESTION_ROLES))],
 )
 async def deposer_photo(
     product_id: int,
@@ -192,7 +213,7 @@ async def deposer_photo(
 @router.delete(
     "/products/{product_id}/photo",
     response_model=BuvetteProductOut,
-    dependencies=[Depends(require_roles(*_ADMIN_ROLES))],
+    dependencies=[Depends(require_roles(*_GESTION_ROLES))],
 )
 def retirer_photo(product_id: int, db: Session = Depends(get_db)) -> Any:
     """Retire la photo. La tablette reprend l'emoji, jamais une case vide."""
@@ -232,7 +253,7 @@ def servir_photo(jeton: str, db: Session = Depends(get_db)) -> Response:
 @router.post(
     "/sync",
     response_model=SyncResult,
-    dependencies=[Depends(require_roles(*_ADMIN_ROLES))],
+    dependencies=[Depends(require_roles(*_GESTION_ROLES))],
 )
 def sync_products(db: Session = Depends(get_db)) -> Any:
     client = get_helloasso_client(settings)
@@ -449,15 +470,216 @@ def caisse_vente(
     deja, a_signaler = buvette_crud.record_caisse_sale(db, vente)
     if deja:
         response.status_code = 200
-    for produit in a_signaler:
+    if a_signaler:
+        # Un seul courriel pour toute la vente, quel que soit le nombre de
+        # produits passes sous le seuil.
         background.add_task(
-            _send_buvette_alert_safe, produit.name, produit.quantity, produit.seuil_alerte
+            _send_buvette_alert_safe,
+            [(p.name, p.quantity, p.seuil_alerte) for p in a_signaler],
         )
     return CaisseVenteOut(
         transaction_id=vente.transaction_id,
         status="already_recorded" if deja else "recorded",
         lines=len(vente.lines),
     )
+
+
+@router.post(
+    "/caisse/etat",
+    status_code=204,
+    dependencies=[Depends(_verifier_cle_caisse)],
+)
+# Un releve par minute : la limite des ventes laisse une large marge.
+@limiter.limit("120/minute")
+def caisse_etat(
+    request: Request, etat: CaisseEtatIn, db: Session = Depends(get_db)
+) -> Response:
+    """Releve d'etat de la tablette (batterie, version, SumUp, file d'attente).
+
+    Seul le dernier releve est garde : c'est lui que lit la fiche « Tablette »
+    de l'application, et le recap du soir (« dernier contact »).
+    """
+    buvette_crud.enregistrer_etat(db, etat)
+    return Response(status_code=204)
+
+
+@router.post(
+    "/caisse/reappro",
+    response_model=CaisseReapproOut,
+    dependencies=[Depends(_verifier_cle_caisse)],
+)
+@limiter.limit("120/minute")
+def caisse_reappro(
+    request: Request, payload: CaisseReapproIn, db: Session = Depends(get_db)
+) -> Any:
+    """Reappro depuis l'ecran « Personnel » de la tablette (increment atomique)."""
+    produit = buvette_crud.reapprovisionner(db, payload.product_id, payload.delta)
+    return CaisseReapproOut(id=produit.id, name=produit.name, quantity=produit.quantity)
+
+
+# ---------------------------------------------------------------------------
+# Suivi : etat de la tablette, reappro, paiements, statistiques, cloture
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/caisse/etat",
+    response_model=CaisseEtatEnveloppeOut,
+    dependencies=[Depends(require_roles(*_VIEW_ROLES))],
+)
+def lire_etat_caisse(db: Session = Depends(get_db)) -> Any:
+    """Dernier etat connu de la tablette, et depuis combien de secondes."""
+    ligne = buvette_crud.get_etat(db)
+    if ligne is None:
+        return CaisseEtatEnveloppeOut(etat=None)
+    return CaisseEtatEnveloppeOut(
+        etat=CaisseEtatOut(
+            batterie_pct=ligne.batterie_pct,
+            en_charge=ligne.en_charge,
+            version_code=ligne.version_code,
+            version_name=ligne.version_name,
+            sumup_connecte=ligne.sumup_connecte,
+            lecteur_connecte=ligne.lecteur_connecte,
+            lecteur_batterie_pct=ligne.lecteur_batterie_pct,
+            ventes_en_attente=ligne.ventes_en_attente,
+            ventes_rejetees=ligne.ventes_rejetees,
+            ecran=ligne.ecran,
+            # Stocke en UTC naif : rendu avec son fuseau, pour que l'ecran
+            # n'affiche pas une heure decalee de deux heures.
+            recu_at=ligne.recu_at.replace(tzinfo=timezone.utc),
+            secondes_depuis=buvette_crud.secondes_depuis(ligne.recu_at),
+        )
+    )
+
+
+@router.post(
+    "/products/{product_id}/reappro",
+    response_model=BuvetteProductOut,
+    dependencies=[Depends(require_roles(*_GESTION_ROLES))],
+)
+def reappro_produit(
+    product_id: int, payload: ReapproIn, db: Session = Depends(get_db)
+) -> Any:
+    """+delta sur le stock, atomique : ne peut ecraser ni une vente ni un autre reappro."""
+    return _en_produit_out(buvette_crud.reapprovisionner(db, product_id, payload.delta))
+
+
+@router.get(
+    "/paiements",
+    response_model=PaiementsOut,
+    dependencies=[Depends(require_roles(*_VIEW_ROLES))],
+)
+def lister_paiements(
+    debut: date | None = Query(default=None),
+    fin: date | None = Query(default=None),
+    moyen: MoyenDePaiement | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> Any:
+    """Ventes regroupees (panier de la tablette, commande HelloAsso), avec totaux.
+
+    `debut` et `fin` inclus ; par defaut, la journee en cours (heure de Paris).
+    """
+    jour = buvette_crud.aujourd_hui()
+    return buvette_crud.paiements(db, debut or jour, fin or jour, moyen)
+
+
+@router.get(
+    "/stats",
+    response_model=StatsOut,
+    dependencies=[Depends(require_roles(*_VIEW_ROLES))],
+)
+def statistiques(
+    debut: date | None = Query(default=None),
+    fin: date | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> Any:
+    """CA et ventes par jour, heure, produit et moyen ; 30 derniers jours par defaut."""
+    fin = fin or buvette_crud.aujourd_hui()
+    debut = debut or (fin - timedelta(days=29))
+    return buvette_crud.statistiques(db, debut, fin)
+
+
+@router.get(
+    "/clotures/attendu",
+    response_model=ClotureAttenduOut,
+    dependencies=[Depends(require_roles(*_VIEW_ROLES))],
+)
+def especes_attendues(
+    jour: date | None = Query(default=None), db: Session = Depends(get_db)
+) -> Any:
+    """Ce que la caisse especes devrait contenir pour ce jour, et sa cloture si faite."""
+    jour = jour or buvette_crud.aujourd_hui()
+    attendu, nb = buvette_crud.especes_attendues(db, jour)
+    cloture = buvette_crud.get_cloture(db, jour)
+    return ClotureAttenduOut(
+        jour=jour,
+        attendu_cents=attendu,
+        nb_ventes_especes=nb,
+        cloture=ClotureOut.model_validate(cloture) if cloture else None,
+    )
+
+
+@router.get(
+    "/clotures",
+    response_model=list[ClotureOut],
+    dependencies=[Depends(require_roles(*_VIEW_ROLES))],
+)
+def lister_clotures(
+    limit: int = Query(default=30, ge=1, le=366), db: Session = Depends(get_db)
+) -> Any:
+    return [ClotureOut.model_validate(c) for c in buvette_crud.list_clotures(db, limit)]
+
+
+@router.post("/clotures", response_model=ClotureOut, status_code=201)
+def cloturer_caisse(
+    payload: ClotureIn,
+    db: Session = Depends(get_db),
+    current_user: Admin = Depends(require_roles(*_GESTION_ROLES)),
+) -> Any:
+    """Cloture du jour : l'attendu est calcule ici, l'ecart fige. 409 si deja faite."""
+    cloture = buvette_crud.cloturer(
+        db,
+        jour=payload.jour,
+        compte_cents=payload.compte_cents,
+        commentaire=payload.commentaire,
+        saisi_par=current_user.full_name,
+    )
+    return ClotureOut.model_validate(cloture)
+
+
+# ---------------------------------------------------------------------------
+# Reglages (destinataires des courriels de la buvette)
+# ---------------------------------------------------------------------------
+
+
+def _reglages_out(db: Session) -> ReglagesOut:
+    return ReglagesOut(
+        recap_destinataires=buvette_crud.destinataires_recap(db),
+        comptes_admin_stock=[
+            CompteAdminStockOut(id=c.id, email=c.email or "", nom=c.full_name)
+            for c in buvette_crud.comptes_admin_stock(db)
+        ],
+    )
+
+
+@router.get(
+    "/reglages",
+    response_model=ReglagesOut,
+    dependencies=[Depends(require_roles(*_ADMIN_ROLES))],
+)
+def lire_reglages(db: Session = Depends(get_db)) -> Any:
+    return _reglages_out(db)
+
+
+@router.put(
+    "/reglages",
+    response_model=ReglagesOut,
+    dependencies=[Depends(require_roles(*_ADMIN_ROLES))],
+)
+def modifier_reglages(payload: ReglagesIn, db: Session = Depends(get_db)) -> Any:
+    """Remplace la liste des destinataires du recap et des alertes (adresses validees)."""
+    buvette_crud.enregistrer_destinataires(db, payload.recap_destinataires)
+    return _reglages_out(db)
 
 
 # ---------------------------------------------------------------------------
@@ -541,6 +763,9 @@ def _process_order(
         logger.info("HelloAsso order %s has no items, skipping.", order_id)
         return
 
+    # Produits passes sous le seuil pendant cette commande : un seul courriel
+    # a la fin, et non un par article.
+    a_signaler: list[tuple[str, int, int]] = []
     for item in items:
         try:
             item_id = item.get("id")
@@ -589,11 +814,12 @@ def _process_order(
                 # Flag now to avoid duplicate emails before the background task runs.
                 decremented_product.alert_sent = True
                 db.commit()
-                background.add_task(
-                    _send_buvette_alert_safe,
-                    decremented_product.name,
-                    decremented_product.quantity,
-                    decremented_product.seuil_alerte,
+                a_signaler.append(
+                    (
+                        decremented_product.name,
+                        decremented_product.quantity,
+                        decremented_product.seuil_alerte,
+                    )
                 )
 
             logger.info(
@@ -606,6 +832,9 @@ def _process_order(
             )
         except Exception as exc:  # noqa: BLE001
             logger.exception("Error processing HelloAsso item: %s", exc)
+
+    if a_signaler:
+        background.add_task(_send_buvette_alert_safe, a_signaler)
 
 
 def _webhook_secret_ok(provided: str | None) -> bool:
@@ -805,17 +1034,13 @@ def delete_webhook() -> Any:
 # ---------------------------------------------------------------------------
 
 
-async def _send_buvette_alert_safe(
-    product_name: str, quantity: int, threshold: int
-) -> None:
-    """Background-safe wrapper that opens its own DB session."""
+async def _send_buvette_alert_safe(produits: list[tuple[str, int, int]]) -> None:
+    """Un courriel pour la liste (nom, quantite, seuil). Ouvre sa propre session :
+    celle de la requete est fermee quand la tache de fond s'execute."""
     db = SessionLocal()
     try:
-        await email_service.send_buvette_low_stock_alert(
-            db,
-            product_name=product_name,
-            quantity=quantity,
-            threshold=threshold,
-        )
+        await email_service.send_buvette_low_stock_alert(db, produits=produits)
+    except Exception as exc:  # noqa: BLE001 — une alerte ratee ne casse rien
+        logger.exception("Alerte stock buvette non envoyee : %s", exc)
     finally:
         db.close()

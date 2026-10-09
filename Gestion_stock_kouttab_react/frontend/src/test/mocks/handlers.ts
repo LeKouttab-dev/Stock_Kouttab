@@ -126,4 +126,42 @@ export const handlers = [
   // ----- Buvette -----
   http.get(`${BASE_URL}/buvette/products`, () => HttpResponse.json([])),
   http.get(`${BASE_URL}/buvette/sales`, () => HttpResponse.json([])),
+  http.get(`${BASE_URL}/buvette/webhook/status`, () =>
+    HttpResponse.json({
+      url_a_enregistrer: null,
+      url: null,
+      configured: null,
+      verifiable: false,
+      last_sale_at: null,
+      sales_count: 0,
+    }),
+  ),
+  http.get(`${BASE_URL}/buvette/paiements`, () =>
+    HttpResponse.json({
+      paiements: [],
+      totaux: {
+        carte_cents: 0,
+        especes_cents: 0,
+        helloasso_cents: 0,
+        total_cents: 0,
+        nb_ventes: 0,
+      },
+    }),
+  ),
+  http.get(`${BASE_URL}/buvette/stats`, () =>
+    HttpResponse.json({ par_jour: [], par_heure: [], par_produit: [], par_moyen: [] }),
+  ),
+  http.get(`${BASE_URL}/buvette/clotures/attendu`, ({ request }) =>
+    HttpResponse.json({
+      jour: new URL(request.url).searchParams.get('jour'),
+      attendu_cents: 0,
+      nb_ventes_especes: 0,
+      cloture: null,
+    }),
+  ),
+  http.get(`${BASE_URL}/buvette/clotures`, () => HttpResponse.json([])),
+  http.get(`${BASE_URL}/buvette/caisse/etat`, () => HttpResponse.json({ etat: null })),
+  http.get(`${BASE_URL}/buvette/reglages`, () =>
+    HttpResponse.json({ recap_destinataires: [], comptes_admin_stock: [] }),
+  ),
 ];

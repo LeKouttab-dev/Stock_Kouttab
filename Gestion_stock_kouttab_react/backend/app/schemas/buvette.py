@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 
 # Onglets de la tablette de caisse. Liste figee : chaque valeur correspond a un
@@ -193,6 +193,211 @@ class CaisseVenteOut(BaseModel):
     transaction_id: str
     status: Literal["recorded", "already_recorded"]
     lines: int
+
+
+# ---------------------------------------------------------------------------
+# Etat de la tablette (heartbeat)
+# ---------------------------------------------------------------------------
+
+
+def _tronquer_32(valeur: Any) -> Any:
+    # Tronque plutot que refuser : un releve rejete pour un nom d'ecran trop
+    # long ferait passer une tablette en parfait etat pour muette.
+    return valeur[:32] if isinstance(valeur, str) else valeur
+
+
+class CaisseEtatIn(BaseModel):
+    """Ce que la tablette envoie toutes les minutes (`POST /buvette/caisse/etat`)."""
+
+    batterie_pct: int | None = None
+    en_charge: bool | None = None
+    version_code: int = Field(ge=0)
+    version_name: str = Field(max_length=200)
+    sumup_connecte: bool
+    lecteur_connecte: bool
+    lecteur_batterie_pct: int | None = None
+    ventes_en_attente: int = Field(ge=0)
+    ventes_rejetees: int = Field(ge=0)
+    # "accueil" | "buvette" | "especes" | "merci" | "personnel" ; texte libre.
+    ecran: str = Field(max_length=200)
+
+    @field_validator("version_name", "ecran", mode="after")
+    @classmethod
+    def _court(cls, valeur: str) -> str:
+        return _tronquer_32(valeur)
+
+
+class CaisseEtatOut(BaseModel):
+    batterie_pct: int | None = None
+    en_charge: bool | None = None
+    version_code: int
+    version_name: str
+    sumup_connecte: bool
+    lecteur_connecte: bool
+    lecteur_batterie_pct: int | None = None
+    ventes_en_attente: int
+    ventes_rejetees: int
+    ecran: str
+    recu_at: datetime
+    secondes_depuis: int
+
+
+class CaisseEtatEnveloppeOut(BaseModel):
+    """`etat` vaut `null` tant que la tablette n'a jamais rien envoye."""
+
+    etat: CaisseEtatOut | None = None
+
+
+# ---------------------------------------------------------------------------
+# Reapprovisionnement (increment atomique)
+# ---------------------------------------------------------------------------
+
+
+class ReapproIn(BaseModel):
+    # Borne haute : un +5000 par faute de frappe fausserait le stock pour des
+    # semaines. Les boutons de l'ecran vont de +5 a +30.
+    delta: int = Field(ge=1, le=500)
+
+
+class CaisseReapproIn(ReapproIn):
+    product_id: int
+
+
+class CaisseReapproOut(BaseModel):
+    id: int
+    name: str
+    quantity: int
+
+
+# ---------------------------------------------------------------------------
+# Suivi des paiements
+# ---------------------------------------------------------------------------
+
+
+MoyenDePaiement = Literal["carte", "especes", "helloasso"]
+
+
+class PaiementArticleOut(BaseModel):
+    nom: str
+    quantite: int
+    montant_cents: int
+
+
+class PaiementOut(BaseModel):
+    cle: str
+    moyen: MoyenDePaiement
+    sold_at: datetime
+    total_cents: int
+    sumup_tx_code: str | None = None
+    helloasso_order_id: int | None = None
+    client: str | None = None
+    articles: list[PaiementArticleOut]
+
+
+class PaiementsTotauxOut(BaseModel):
+    carte_cents: int = 0
+    especes_cents: int = 0
+    helloasso_cents: int = 0
+    total_cents: int = 0
+    nb_ventes: int = 0
+
+
+class PaiementsOut(BaseModel):
+    paiements: list[PaiementOut]
+    totaux: PaiementsTotauxOut
+
+
+# ---------------------------------------------------------------------------
+# Statistiques
+# ---------------------------------------------------------------------------
+
+
+class StatJourOut(BaseModel):
+    jour: date
+    ca_cents: int
+    ventes: int
+
+
+class StatHeureOut(BaseModel):
+    heure: int
+    ca_cents: int
+    ventes: int
+
+
+class StatProduitOut(BaseModel):
+    nom: str
+    quantite: int
+    ca_cents: int
+
+
+class StatMoyenOut(BaseModel):
+    moyen: MoyenDePaiement
+    ca_cents: int
+    ventes: int
+
+
+class StatsOut(BaseModel):
+    par_jour: list[StatJourOut]
+    par_heure: list[StatHeureOut]
+    par_produit: list[StatProduitOut]
+    par_moyen: list[StatMoyenOut]
+
+
+# ---------------------------------------------------------------------------
+# Cloture de caisse especes
+# ---------------------------------------------------------------------------
+
+
+class ClotureIn(BaseModel):
+    jour: date
+    compte_cents: int = Field(ge=0, le=10_000_000)
+    commentaire: str | None = Field(default=None, max_length=2000)
+
+
+class ClotureOut(BaseModel):
+    id: int
+    jour: date
+    attendu_cents: int
+    compte_cents: int
+    # compte - attendu : negatif = il manque de l'argent dans la caisse.
+    ecart_cents: int
+    commentaire: str | None = None
+    saisi_par: str | None = None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ClotureAttenduOut(BaseModel):
+    jour: date
+    attendu_cents: int
+    nb_ventes_especes: int
+    cloture: ClotureOut | None = None
+
+
+# ---------------------------------------------------------------------------
+# Reglages
+# ---------------------------------------------------------------------------
+
+
+class CompteAdminStockOut(BaseModel):
+    id: int
+    email: str
+    nom: str
+
+
+class ReglagesOut(BaseModel):
+    recap_destinataires: list[str]
+    # Lecture seule : les comptes actifs du role « AdminStock », qui recoivent
+    # aussi les courriels de la buvette.
+    comptes_admin_stock: list[CompteAdminStockOut]
+
+
+class ReglagesIn(BaseModel):
+    # Adresses validees dans `crud.buvette.enregistrer_destinataires` et non par
+    # un validateur pydantic : le gestionnaire des erreurs de validation ne sait
+    # pas serialiser l'exception qu'un validateur porterait (500).
+    recap_destinataires: list[str] = Field(max_length=50)
 
 
 # ---------------------------------------------------------------------------

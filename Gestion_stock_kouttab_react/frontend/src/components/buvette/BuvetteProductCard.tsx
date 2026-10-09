@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { formatCents, formatDateTime } from '@/lib/format';
 import { fr } from '@/lib/i18n/fr';
+import { PALIERS_REAPPRO } from '@/lib/buvette';
 import type { BuvetteProduct } from '@/types/api';
 
 interface BuvetteProductCardProps {
@@ -13,6 +14,10 @@ interface BuvetteProductCardProps {
   onDelete: (product: BuvetteProduct) => void;
   /** Bascule `is_active` : désactivé, le produit disparaît de la tablette de caisse. */
   onToggleActive: (product: BuvetteProduct) => void;
+  /** Ajoute `delta` au stock (incrément atomique côté serveur). */
+  onReappro?: (product: BuvetteProduct, delta: number) => void;
+  /** Un réappro de CE produit est en cours : les paliers sont désactivés. */
+  reapproEnCours?: boolean;
 }
 
 function getStockBadge(product: BuvetteProduct) {
@@ -31,6 +36,8 @@ export function BuvetteProductCard({
   onAdjust,
   onDelete,
   onToggleActive,
+  onReappro,
+  reapproEnCours = false,
 }: BuvetteProductCardProps) {
   const isHelloAsso = product.helloasso_tier_id !== null;
   const masque = !product.is_active;
@@ -100,6 +107,30 @@ export function BuvetteProductCard({
           {fr.buvette.lastSync} :{' '}
           {product.last_synced_at ? formatDateTime(product.last_synced_at) : fr.buvette.neverSynced}
         </p>
+
+        {canEdit && onReappro && (
+          <div className="space-y-1.5">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              {fr.buvette.reappro.label}
+            </p>
+            <div className="grid grid-cols-5 gap-1">
+              {PALIERS_REAPPRO.map((n) => (
+                <Button
+                  key={n}
+                  variant="outline"
+                  size="sm"
+                  className="px-0"
+                  disabled={reapproEnCours}
+                  aria-label={fr.buvette.reappro.ajouter(n)}
+                  title={fr.buvette.reappro.ajouter(n)}
+                  onClick={() => onReappro(product, n)}
+                >
+                  +{n}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {canEdit && (
           <div className="mt-auto flex gap-2">

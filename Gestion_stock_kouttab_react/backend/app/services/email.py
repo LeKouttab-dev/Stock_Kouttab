@@ -382,22 +382,42 @@ async def send_stock_alert(
 async def send_buvette_low_stock_alert(
     db: Session,
     *,
-    product_name: str,
-    quantity: int,
-    threshold: int,
+    produits: Sequence[tuple[str, int, int]],
 ) -> None:
-    recipients = get_emails_by_roles(db, ["AdminBenevoles", "Super Admin"])
-    subject = f"Alerte stock buvette : {product_name}"
+    """UN courriel par vente, listant les produits passes sous leur seuil.
+
+    `produits` : (nom, quantite restante, seuil). Destinataires : comptes
+    AdminStock actifs et liste des reglages de la buvette — et non plus tous
+    les AdminBenevoles et Super Admin, avec un courriel par produit : le
+    09/10/2026, onze personnes ont recu cinq alertes chacune pour une journee.
+    """
+    if not produits:
+        return
+    # Import local : `crud.buvette` importe des services, l'importer en tete
+    # de ce module creerait un cycle au demarrage.
+    from app.crud.buvette import destinataires_buvette
+
+    recipients = destinataires_buvette(db)
+    if len(produits) == 1:
+        subject = f"Alerte stock buvette : {produits[0][0]}"
+        intro = "Un produit de la buvette vient de passer sous son seuil d'alerte."
+    else:
+        subject = f"Alerte stock buvette : {len(produits)} produits sous le seuil"
+        intro = "Des produits de la buvette viennent de passer sous leur seuil d'alerte."
+    lignes = "\n".join(
+        f"- {nom} : il en reste {quantite} (seuil : {seuil})"
+        for nom, quantite, seuil in produits
+    )
     body = (
         f"{email_layout.entete()}\n\n"
-        "Ceci est une alerte automatique de la buvette.\n\n"
-        f"Produit : {product_name}\n"
-        f"Quantite restante : {quantity}\n"
-        f"Seuil d'alerte : {threshold}\n\n"
-        "Merci de prevoir un reapprovisionnement avant la prochaine vente.\n\n"
+        f"{intro}\n\n"
+        f"{lignes}\n\n"
+        "Merci de prévoir un réapprovisionnement avant la prochaine vente.\n\n"
         f"{liens.LIBELLE_ACCES} : {liens.lien_espace(None, 'buvette')}\n\n"
         f"{email_layout.SIGNATURE}"
     )
+    if not recipients:
+        logger.warning("Alerte stock buvette : aucun destinataire configure (%s).", subject)
     await _send(subject, body, recipients)
 
 

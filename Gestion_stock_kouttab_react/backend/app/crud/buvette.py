@@ -4,21 +4,32 @@ from __future__ import annotations
 
 import json
 import secrets
-from datetime import datetime
+from collections import defaultdict
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, case, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, undefer
 
 from app.core.errors import ErrorCode
 from app.core.exceptions import AppException
 from app.core.logger import get_logger
-from app.db.models import BuvetteProduct, BuvetteSale
+from app.core.security import validate_email_str
+from app.db.models import (
+    Admin,
+    BuvetteProduct,
+    BuvetteReglage,
+    BuvetteSale,
+    CaisseEtat,
+    ClotureCaisse,
+)
 from app.services import images
 from app.schemas.buvette import (
     BuvetteProductCreate,
     BuvetteProductUpdate,
+    CaisseEtatIn,
     CaisseVenteIn,
     SyncResult,
 )
@@ -444,6 +455,28 @@ def sync_from_helloasso(db: Session, tiers: list[dict[str, Any]]) -> SyncResult:
 # ---------------------------------------------------------------------------
 
 
+def _decrementer(db: Session, produit: BuvetteProduct, quantite: int) -> None:
+    """Retire `quantite` du stock EN BASE, sans descendre sous zero.
+
+    `UPDATE ... SET quantity = CASE ...` et non `produit.quantity = ...` : la
+    seconde forme ecrit une valeur absolue calculee sur une lecture anterieure,
+    et effacerait un reapprovisionnement (`reapprovisionner`) commite entre la
+    lecture et l'ecriture. Le produit est ensuite relu dans la transaction.
+    """
+    db.execute(
+        update(BuvetteProduct)
+        .where(BuvetteProduct.id == produit.id)
+        .values(
+            quantity=case(
+                (BuvetteProduct.quantity > quantite, BuvetteProduct.quantity - quantite),
+                else_=0,
+            )
+        )
+        .execution_options(synchronize_session=False)
+    )
+    db.refresh(produit, attribute_names=["quantity"])
+
+
 def _find_existing_sale(
     db: Session, payment_id: int | None, item_id: int | None
 ) -> BuvetteSale | None:
@@ -516,7 +549,7 @@ def record_sale_and_decrement(
 
     decremented_product: BuvetteProduct | None = None
     if product is not None:
-        product.quantity = max(0, product.quantity - quantity_sold)
+        _decrementer(db, product, quantity_sold)
         # Reset / raise alert flag accordingly.
         if product.quantity >= product.seuil_alerte and product.alert_sent:
             product.alert_sent = False
@@ -663,7 +696,7 @@ def record_caisse_sale(
         if produit is not None:
             # Le comptage physique peut etre en retard sur les ventes : la vente
             # passe, le stock s'arrete a zero.
-            produit.quantity = max(0, produit.quantity - ligne.quantity)
+            _decrementer(db, produit, ligne.quantity)
             touches[produit.id] = produit
 
     a_signaler: list[BuvetteProduct] = []
@@ -687,3 +720,456 @@ def record_caisse_sale(
         vente.total_cents,
     )
     return False, a_signaler
+
+
+
+# ---------------------------------------------------------------------------
+# Reapprovisionnement (increment atomique)
+# ---------------------------------------------------------------------------
+
+
+def reapprovisionner(db: Session, product_id: int, delta: int) -> BuvetteProduct:
+    """Ajoute `delta` au stock, de facon ATOMIQUE.
+
+    `UPDATE ... SET quantity = quantity + :delta` : la base fait l'addition. Le
+    PATCH du produit ecrit une quantite absolue, lue a l'ecran parfois des
+    minutes plus tot ; deux personnes (l'ecran web et la tablette « Personnel »)
+    ou une vente arrivee entre-temps se seraient ecrasees. Ici, rien ne se perd.
+
+    Le drapeau `alert_sent` retombe comme dans `update_product` quand le stock
+    repasse au seuil : la prochaine baisse previendra de nouveau.
+    """
+    if delta < 1:
+        # Le schema borne deja ; ceci protege les appels internes.
+        raise AppException(ErrorCode.VALIDATION_ERROR, detail="Le reappro doit etre positif.")
+    resultat = db.execute(
+        update(BuvetteProduct)
+        .where(BuvetteProduct.id == product_id)
+        .values(quantity=BuvetteProduct.quantity + delta)
+        .execution_options(synchronize_session=False)
+    )
+    if not resultat.rowcount:
+        db.rollback()
+        raise AppException(ErrorCode.BUVETTE_PRODUCT_NOT_FOUND)
+    db.execute(
+        update(BuvetteProduct)
+        .where(
+            BuvetteProduct.id == product_id,
+            BuvetteProduct.quantity >= BuvetteProduct.seuil_alerte,
+            BuvetteProduct.alert_sent.is_(True),
+        )
+        .values(alert_sent=False)
+        .execution_options(synchronize_session=False)
+    )
+    db.commit()
+    produit = db.execute(
+        select(BuvetteProduct)
+        .where(BuvetteProduct.id == product_id)
+        .execution_options(populate_existing=True)
+    ).scalar_one()
+    logger.info(
+        "Reappro buvette : produit %s +%d -> %d.", product_id, delta, produit.quantity
+    )
+    return produit
+
+
+# ---------------------------------------------------------------------------
+# Moyens de paiement, journees, regroupement des ventes
+# ---------------------------------------------------------------------------
+
+
+PARIS = ZoneInfo("Europe/Paris")
+MOYENS = ("carte", "especes", "helloasso")
+
+
+def aujourd_hui() -> date:
+    """La date du jour A PARIS : le serveur tourne en UTC, la buvette non."""
+    return datetime.now(PARIS).date()
+
+
+def moyen_de_paiement(sale: BuvetteSale) -> str:
+    """`carte`, `especes` ou `helloasso`, deduit sans colonne dediee.
+
+    Une vente de la tablette payee par SumUp porte le code de transaction rendu
+    par SumUp ; une vente en especes n'en a pas. Tout ce qui n'est pas la
+    tablette vient de la boutique HelloAsso.
+    """
+    if sale.source == "caisse":
+        return "carte" if sale.sumup_tx_code else "especes"
+    return "helloasso"
+
+
+def _instant(sale: BuvetteSale) -> datetime:
+    """Heure murale de la vente (`sold_at`), a defaut l'heure de reception."""
+    instant = sale.sold_at or sale.processed_at
+    return instant.replace(tzinfo=None) if instant.tzinfo else instant
+
+
+def _cle_vente(sale: BuvetteSale) -> str:
+    """Une vente = une transaction de la tablette, ou une commande HelloAsso."""
+    if sale.source == "caisse" and sale.caisse_tx_id:
+        return sale.caisse_tx_id
+    if sale.helloasso_order_id is not None:
+        return f"ha-{sale.helloasso_order_id}"
+    # Ligne HelloAsso sans commande (ancien format) : vente a elle seule.
+    return f"ha-ligne-{sale.id}"
+
+
+def _verifier_periode(debut: date, fin: date, *, max_jours: int = 366) -> None:
+    if fin < debut:
+        raise AppException(
+            ErrorCode.VALIDATION_ERROR, detail="La date de fin precede la date de debut."
+        )
+    if (fin - debut).days >= max_jours:
+        raise AppException(
+            ErrorCode.VALIDATION_ERROR,
+            detail=f"Periode trop longue : {max_jours} jours au plus.",
+        )
+
+
+def lignes_de_la_periode(db: Session, debut: date, fin: date) -> list[BuvetteSale]:
+    """Les lignes de vente dont le jour (cf. `_instant`) tombe dans [debut, fin].
+
+    Le filtrage se fait en base sur `COALESCE(sold_at, processed_at)`, portable
+    MariaDB et SQLite ; les regroupements se font ensuite en Python : quelques
+    centaines de lignes par jour au plus, et aucune fonction de date propre a
+    un SGBD (cf. tests/unit/test_sql_dialect_compat.py).
+    """
+    instant = func.coalesce(BuvetteSale.sold_at, BuvetteSale.processed_at)
+    stmt = (
+        select(BuvetteSale)
+        .where(
+            instant >= datetime.combine(debut, datetime.min.time()),
+            instant < datetime.combine(fin + timedelta(days=1), datetime.min.time()),
+        )
+        .order_by(BuvetteSale.id.asc())
+    )
+    return list(db.execute(stmt).scalars().all())
+
+
+def _grouper(lignes: list[BuvetteSale]) -> dict[str, list[BuvetteSale]]:
+    groupes: dict[str, list[BuvetteSale]] = defaultdict(list)
+    for ligne in lignes:
+        groupes[_cle_vente(ligne)].append(ligne)
+    return groupes
+
+
+def _client(lignes: list[BuvetteSale]) -> str | None:
+    for ligne in lignes:
+        nom = " ".join(
+            p for p in (ligne.customer_first_name, ligne.customer_last_name) if p
+        ).strip()
+        if nom:
+            return nom
+    return None
+
+
+def paiements(
+    db: Session, debut: date, fin: date, moyen: str | None = None
+) -> dict[str, Any]:
+    """Ventes regroupees de la periode, plus recentes d'abord, avec totaux."""
+    _verifier_periode(debut, fin)
+    ventes: list[dict[str, Any]] = []
+    for cle, lignes in _grouper(lignes_de_la_periode(db, debut, fin)).items():
+        premiere = lignes[0]
+        moyen_vente = moyen_de_paiement(premiere)
+        if moyen and moyen_vente != moyen:
+            continue
+        ventes.append(
+            {
+                "cle": cle,
+                "moyen": moyen_vente,
+                "sold_at": min(_instant(l) for l in lignes),
+                "total_cents": sum(l.amount_cents for l in lignes),
+                "sumup_tx_code": next(
+                    (l.sumup_tx_code for l in lignes if l.sumup_tx_code), None
+                ),
+                "helloasso_order_id": premiere.helloasso_order_id,
+                "client": _client(lignes),
+                "articles": [
+                    {
+                        "nom": l.product_name_snapshot,
+                        "quantite": l.quantity_sold,
+                        "montant_cents": l.amount_cents,
+                    }
+                    for l in sorted(lignes, key=lambda x: (x.caisse_line or 0, x.id))
+                ],
+            }
+        )
+    ventes.sort(key=lambda v: (v["sold_at"], v["cle"]), reverse=True)
+
+    totaux: dict[str, int] = {f"{m}_cents": 0 for m in MOYENS}
+    for vente in ventes:
+        totaux[f"{vente['moyen']}_cents"] += vente["total_cents"]
+    totaux["total_cents"] = sum(v["total_cents"] for v in ventes)
+    totaux["nb_ventes"] = len(ventes)
+    return {"paiements": ventes, "totaux": totaux}
+
+
+def statistiques(db: Session, debut: date, fin: date) -> dict[str, Any]:
+    """CA et nombre de ventes par jour, par heure, par produit et par moyen.
+
+    « ventes » compte des ventes regroupees (un panier), pas des lignes.
+    """
+    _verifier_periode(debut, fin)
+    lignes = lignes_de_la_periode(db, debut, fin)
+
+    nb_jours = (fin - debut).days + 1
+    par_jour = {debut + timedelta(days=i): [0, 0] for i in range(nb_jours)}
+    par_heure = {h: [0, 0] for h in range(24)}
+    par_moyen = {m: [0, 0] for m in MOYENS}
+    par_produit: dict[str, list[int]] = defaultdict(lambda: [0, 0])
+
+    for lignes_vente in _grouper(lignes).values():
+        instant = min(_instant(l) for l in lignes_vente)
+        total = sum(l.amount_cents for l in lignes_vente)
+        moyen = moyen_de_paiement(lignes_vente[0])
+        for cumul in (par_jour.get(instant.date()), par_heure[instant.hour], par_moyen[moyen]):
+            if cumul is not None:
+                cumul[0] += total
+                cumul[1] += 1
+        for l in lignes_vente:
+            par_produit[l.product_name_snapshot][0] += l.quantity_sold
+            par_produit[l.product_name_snapshot][1] += l.amount_cents
+
+    produits = sorted(par_produit.items(), key=lambda kv: (-kv[1][1], kv[0]))[:15]
+    return {
+        "par_jour": [
+            {"jour": j, "ca_cents": v[0], "ventes": v[1]} for j, v in sorted(par_jour.items())
+        ],
+        "par_heure": [
+            {"heure": h, "ca_cents": v[0], "ventes": v[1]} for h, v in par_heure.items()
+        ],
+        "par_produit": [
+            {"nom": nom, "quantite": v[0], "ca_cents": v[1]} for nom, v in produits
+        ],
+        "par_moyen": [
+            {"moyen": m, "ca_cents": v[0], "ventes": v[1]} for m, v in par_moyen.items()
+        ],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Cloture de caisse especes
+# ---------------------------------------------------------------------------
+
+
+def especes_attendues(db: Session, jour: date) -> tuple[int, int]:
+    """(montant attendu en caisse, nombre de ventes en especes) pour ce jour.
+
+    Seules les ventes de la tablette sans code SumUp sont des especes : une
+    commande HelloAsso est payee en ligne et n'entre jamais dans la caisse.
+    """
+    lignes = [
+        l
+        for l in lignes_de_la_periode(db, jour, jour)
+        if moyen_de_paiement(l) == "especes"
+    ]
+    return sum(l.amount_cents for l in lignes), len(_grouper(lignes))
+
+
+def get_cloture(db: Session, jour: date) -> ClotureCaisse | None:
+    return db.execute(
+        select(ClotureCaisse).where(ClotureCaisse.jour == jour)
+    ).scalar_one_or_none()
+
+
+def list_clotures(db: Session, limit: int = 30) -> list[ClotureCaisse]:
+    return list(
+        db.execute(
+            select(ClotureCaisse)
+            .order_by(ClotureCaisse.jour.desc(), ClotureCaisse.id.desc())
+            .limit(max(1, min(limit, 366)))
+        ).scalars()
+    )
+
+
+def cloturer(
+    db: Session,
+    *,
+    jour: date,
+    compte_cents: int,
+    commentaire: str | None,
+    saisi_par: str | None,
+) -> ClotureCaisse:
+    """Enregistre la cloture du jour. Une seule par jour (409 sinon).
+
+    L'attendu est calcule ICI, au moment de la saisie, et fige avec l'ecart :
+    il ne doit pas venir de l'ecran, qui peut afficher un chiffre perime.
+    """
+    if jour > aujourd_hui():
+        raise AppException(
+            ErrorCode.VALIDATION_ERROR, detail="On ne cloture pas une journee a venir."
+        )
+    if get_cloture(db, jour) is not None:
+        raise AppException(
+            ErrorCode.CONFLICT, detail="La caisse de ce jour est deja cloturee."
+        )
+    attendu, _ = especes_attendues(db, jour)
+    texte = (commentaire or "").strip() or None
+    cloture = ClotureCaisse(
+        jour=jour,
+        attendu_cents=attendu,
+        compte_cents=compte_cents,
+        ecart_cents=compte_cents - attendu,
+        commentaire=texte,
+        saisi_par=saisi_par,
+        created_at=datetime.utcnow(),
+    )
+    db.add(cloture)
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        # Deux saisies simultanees : l'index unique sur `jour` a tranche.
+        db.rollback()
+        raise AppException(
+            ErrorCode.CONFLICT, detail="La caisse de ce jour est deja cloturee."
+        ) from exc
+    db.refresh(cloture)
+    logger.info(
+        "Cloture caisse %s : attendu %d, compte %d, ecart %d (par %s).",
+        jour,
+        attendu,
+        compte_cents,
+        cloture.ecart_cents,
+        saisi_par,
+    )
+    return cloture
+
+
+# ---------------------------------------------------------------------------
+# Etat de la tablette
+# ---------------------------------------------------------------------------
+
+
+def enregistrer_etat(db: Session, etat: CaisseEtatIn, *, _essai: int = 0) -> CaisseEtat:
+    """Remplace le dernier etat connu de la tablette (ligne unique)."""
+    ligne = db.get(CaisseEtat, CaisseEtat.ID_UNIQUE)
+    if ligne is None:
+        ligne = CaisseEtat(id=CaisseEtat.ID_UNIQUE)
+        db.add(ligne)
+    for champ, valeur in etat.model_dump().items():
+        setattr(ligne, champ, valeur)
+    ligne.recu_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    try:
+        db.commit()
+    except IntegrityError:
+        # Premier releve recu deux fois en meme temps : l'autre a cree la ligne.
+        db.rollback()
+        if _essai:
+            raise
+        return enregistrer_etat(db, etat, _essai=1)
+    return ligne
+
+
+def get_etat(db: Session) -> CaisseEtat | None:
+    return db.get(CaisseEtat, CaisseEtat.ID_UNIQUE)
+
+
+def secondes_depuis(recu_at: datetime, maintenant: datetime | None = None) -> int:
+    maintenant = maintenant or datetime.now(timezone.utc).replace(tzinfo=None)
+    return max(0, int((maintenant - recu_at).total_seconds()))
+
+
+# ---------------------------------------------------------------------------
+# Reglages et destinataires des courriels de la buvette
+# ---------------------------------------------------------------------------
+
+
+REGLAGE_DESTINATAIRES = "recap_destinataires"
+REGLAGE_DERNIER_RECAP = "recap_dernier_envoi"
+
+# Repli si la ligne manque (base creee sans la migration b2c8d4e6f1a3, comme la
+# base de test). La migration amorce la meme liste.
+DESTINATAIRES_PAR_DEFAUT = [
+    "abde.rrahman.marght@gmail.com",
+    "benfdila.omir@gmail.com",
+    "comptabilite@lekouttab.fr",
+    "ThaoDaniel75@gmail.com",
+    "daaabou4@gmail.com",
+]
+
+ROLE_ADMIN_STOCK = "AdminStock"
+
+
+def lire_reglage(db: Session, cle: str, defaut: Any = None) -> Any:
+    ligne = db.get(BuvetteReglage, cle)
+    if ligne is None or ligne.valeur is None:
+        return defaut
+    try:
+        return json.loads(ligne.valeur)
+    except ValueError:
+        logger.warning("Reglage buvette %s illisible : %r", cle, ligne.valeur)
+        return defaut
+
+
+def ecrire_reglage(db: Session, cle: str, valeur: Any) -> None:
+    ligne = db.get(BuvetteReglage, cle)
+    if ligne is None:
+        ligne = BuvetteReglage(cle=cle)
+        db.add(ligne)
+    ligne.valeur = json.dumps(valeur, ensure_ascii=False)
+    ligne.updated_at = datetime.utcnow()
+    db.commit()
+
+
+def destinataires_recap(db: Session) -> list[str]:
+    valeur = lire_reglage(db, REGLAGE_DESTINATAIRES, None)
+    if not isinstance(valeur, list):
+        return list(DESTINATAIRES_PAR_DEFAUT)
+    return [str(v) for v in valeur if v]
+
+
+def enregistrer_destinataires(db: Session, adresses: list[str]) -> list[str]:
+    """Valide, nettoie, dedoublonne (sans tenir compte de la casse) et enregistre."""
+    propres: list[str] = []
+    vues: set[str] = set()
+    invalides: list[str] = []
+    for brute in adresses:
+        adresse = (brute or "").strip()
+        if not adresse:
+            continue
+        if not validate_email_str(adresse):
+            invalides.append(adresse)
+            continue
+        if adresse.lower() in vues:
+            continue
+        vues.add(adresse.lower())
+        propres.append(adresse)
+    if invalides:
+        raise AppException(
+            ErrorCode.VALIDATION_ERROR,
+            detail="Adresse(s) e-mail invalide(s) : " + ", ".join(invalides),
+            extras={"invalides": invalides},
+        )
+    ecrire_reglage(db, REGLAGE_DESTINATAIRES, propres)
+    return propres
+
+
+def comptes_admin_stock(db: Session) -> list[Admin]:
+    """Comptes ACTIFS du role AdminStock (un compte en attente ne recoit rien)."""
+    return list(
+        db.execute(
+            select(Admin)
+            .where(Admin.role == ROLE_ADMIN_STOCK, Admin.validation_status == "active")
+            .order_by(Admin.id.asc())
+        ).scalars()
+    )
+
+
+def destinataires_buvette(db: Session) -> list[str]:
+    """Qui recoit les courriels de la buvette (alertes de stock bas ET recap).
+
+    Les comptes AdminStock actifs, plus la liste des reglages, dedoublonnes sans
+    tenir compte de la casse. Plus jamais « tous les AdminBenevoles et Super
+    Admin » : le 09/10/2026, onze personnes ont recu cinq alertes chacune.
+    """
+    resultat: list[str] = []
+    vues: set[str] = set()
+    candidats = [c.email for c in comptes_admin_stock(db)] + destinataires_recap(db)
+    for adresse in candidats:
+        adresse = (adresse or "").strip()
+        if adresse and adresse.lower() not in vues:
+            vues.add(adresse.lower())
+            resultat.append(adresse)
+    return resultat

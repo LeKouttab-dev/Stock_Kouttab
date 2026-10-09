@@ -1025,6 +1025,80 @@ class BuvetteSale(Base):
     )
 
 
+class CaisseEtat(Base):
+    """Dernier etat connu de la tablette de caisse (une seule ligne, id = 1).
+
+    La tablette l'envoie toutes les minutes, nuit comprise. Seul le dernier
+    releve compte : un historique ferait 1 440 lignes par jour pour repondre a
+    une seule question, « la tablette est-elle en vie, et dans quel etat ? ».
+    """
+
+    __tablename__ = "CaisseEtats"
+
+    ID_UNIQUE = 1
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
+    batterie_pct: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    en_charge: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    version_code: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    version_name: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    sumup_connecte: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    lecteur_connecte: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    lecteur_batterie_pct: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ventes_en_attente: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    ventes_rejetees: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    ecran: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    # UTC naif, comme `processed_at` : c'est l'heure du serveur a la reception,
+    # pas celle de la tablette, dont l'horloge peut deriver.
+    recu_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+
+class ClotureCaisse(Base):
+    """Cloture quotidienne de la caisse especes : attendu contre compte.
+
+    `attendu_cents` est calcule par le serveur au moment de la saisie et FIGE :
+    une vente especes arrivee plus tard (tablette restee hors ligne) ne doit pas
+    changer apres coup l'ecart qu'une personne a constate et signe.
+    """
+
+    __tablename__ = "CloturesCaisse"
+    __table_args__ = (UniqueConstraint("jour", name="uq_cloture_caisse_jour"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    jour: Mapped[date] = mapped_column(Date, nullable=False)
+    attendu_cents: Mapped[int] = mapped_column(Integer, nullable=False)
+    compte_cents: Mapped[int] = mapped_column(Integer, nullable=False)
+    ecart_cents: Mapped[int] = mapped_column(Integer, nullable=False)
+    commentaire: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Nom de la personne, fige a l'ecriture comme l'auteur d'un message : un
+    # compte supprime ne doit pas rendre la cloture anonyme.
+    saisi_par: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, nullable=False, server_default=func.now()
+    )
+
+
+class BuvetteReglage(Base):
+    """Reglages de la buvette, en cle / valeur (valeur JSON).
+
+    Cles connues : `recap_destinataires` (liste d'adresses recevant les
+    courriels de la buvette), `recap_dernier_envoi` (date ISO du dernier recap
+    du soir, pour n'en envoyer qu'un par jour).
+    """
+
+    __tablename__ = "BuvetteReglages"
+
+    cle: Mapped[str] = mapped_column(String(64), primary_key=True)
+    valeur: Mapped[str | None] = mapped_column(Text, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
 class Conversation(Base):
     """Fil de discussion entre un benevole et l'equipe.
 
