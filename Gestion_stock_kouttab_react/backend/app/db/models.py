@@ -7,6 +7,7 @@ from decimal import Decimal
 
 from sqlalchemy import (
     BigInteger,
+    CheckConstraint,
     LargeBinary,
     Boolean,
     DECIMAL,
@@ -942,6 +943,9 @@ class BuvetteProduct(Base):
     # NULL = absent de la tablette. Les produits importes de HelloAsso arrivent
     # sans categorie : c'est ce qui permet de choisir ce que la caisse vend.
     caisse_category: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # Dernier prix d'achat unitaire saisi a un reappro (centimes) : pre-remplit
+    # la fenetre du reappro suivant. NULL tant qu'aucun prix n'a ete saisi.
+    dernier_prix_achat_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
     alert_sent: Mapped[bool] = mapped_column(Boolean, default=False)
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -1022,6 +1026,46 @@ class BuvetteSale(Base):
 
     product: Mapped["BuvetteProduct | None"] = relationship(
         "BuvetteProduct", back_populates="sales"
+    )
+
+
+class BuvetteReapprovisionnement(Base):
+    """Un reapprovisionnement de la buvette, trace (09/10/2026).
+
+    Ecrit dans la MEME transaction que l'increment atomique du stock :
+    `stock_apres` est relu apres l'UPDATE (la ligne est alors verrouillee par la
+    transaction), `stock_avant = stock_apres - quantite`. Une vente concurrente
+    s'applique avant ou apres, jamais au milieu.
+
+    `origine` : `app` (ecran web, prix d'achat obligatoire) ou `tablette` (ecran
+    « Personnel », sans prix). Nom du produit et auteur figes a l'ecriture.
+    Horodatage en UTC naif, comme `processed_at`.
+    """
+
+    __tablename__ = "BuvetteReapprovisionnements"
+    __table_args__ = (
+        CheckConstraint("quantite > 0", name="ck_reappro_quantite_positive"),
+        Index("idx_reappro_created", "created_at"),
+        Index("idx_reappro_produit", "buvette_product_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    buvette_product_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("BuvetteProducts.id", ondelete="SET NULL"), nullable=True
+    )
+    nom_snapshot: Mapped[str] = mapped_column(String(255), nullable=False)
+    quantite: Mapped[int] = mapped_column(Integer, nullable=False)
+    prix_achat_unitaire_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    origine: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="app", server_default="app"
+    )
+    commentaire: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    fait_par: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    stock_avant: Mapped[int] = mapped_column(Integer, nullable=False)
+    stock_apres: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, nullable=False, server_default=func.now()
     )
 
 

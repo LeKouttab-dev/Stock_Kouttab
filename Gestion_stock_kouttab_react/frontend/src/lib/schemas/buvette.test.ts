@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  adjustBuvetteProductSchema,
-  categorieVersOnglet,
-  ongletVersCategorie,
-} from './buvette';
+import { modifierBuvetteProductSchema, categorieVersOnglet, ongletVersCategorie } from './buvette';
 
 describe('onglet de la tablette de caisse', () => {
   it('« Pas sur la tablette » part au serveur comme null, et non comme une chaîne', () => {
@@ -21,30 +17,43 @@ describe('onglet de la tablette de caisse', () => {
     expect(categorieVersOnglet('boissons')).toBe('boissons');
   });
 
-  it('l’ajustement refuse un onglet inconnu', () => {
+  it('la fiche refuse un onglet inconnu', () => {
     // La fiche porte le nom et le prix depuis que la tablette a remplacé la
     // boutique HelloAsso : ils ne se corrigeaient qu'en recréant le produit.
-    const base = { name: 'Café', price_euros: 1.5, quantity: 3, seuil_alerte: 1, emoji: '☕' };
-    expect(adjustBuvetteProductSchema.safeParse({ ...base, onglet_caisse: 'cafe' }).success).toBe(
+    const base = { name: 'Café', price_euros: 1.5, seuil_alerte: 1, emoji: '☕' };
+    expect(modifierBuvetteProductSchema.safeParse({ ...base, onglet_caisse: 'cafe' }).success).toBe(
       true,
     );
     expect(
-      adjustBuvetteProductSchema.safeParse({ ...base, onglet_caisse: 'alcool' }).success,
+      modifierBuvetteProductSchema.safeParse({ ...base, onglet_caisse: 'alcool' }).success,
     ).toBe(false);
   });
 
   it('la fiche exige un nom et un prix', () => {
-    const base = { quantity: 3, seuil_alerte: 1, emoji: '☕', onglet_caisse: 'cafe' };
+    const base = { seuil_alerte: 1, emoji: '☕', onglet_caisse: 'cafe' };
     expect(
-      adjustBuvetteProductSchema.safeParse({ ...base, name: '', price_euros: 1.5 }).success,
+      modifierBuvetteProductSchema.safeParse({ ...base, name: '', price_euros: 1.5 }).success,
     ).toBe(false);
     // Un prix négatif n'existe pas en caisse : ce serait un encaissement à l'envers.
     expect(
-      adjustBuvetteProductSchema.safeParse({ ...base, name: 'Café', price_euros: -1 }).success,
+      modifierBuvetteProductSchema.safeParse({ ...base, name: 'Café', price_euros: -1 }).success,
     ).toBe(false);
     // La gratuité, elle, est légitime (verre d'eau, dégustation).
     expect(
-      adjustBuvetteProductSchema.safeParse({ ...base, name: 'Eau', price_euros: 0 }).success,
+      modifierBuvetteProductSchema.safeParse({ ...base, name: 'Eau', price_euros: 0 }).success,
     ).toBe(true);
+  });
+
+  it('la fiche ne porte plus de quantité : le stock ne part pas au serveur', () => {
+    const r = modifierBuvetteProductSchema.safeParse({
+      name: 'Café',
+      price_euros: 1.5,
+      quantity: 99,
+      seuil_alerte: 1,
+      emoji: '☕',
+      onglet_caisse: 'cafe',
+    });
+    expect(r.success).toBe(true);
+    expect(r.success && 'quantity' in r.data).toBe(false);
   });
 });

@@ -6,6 +6,7 @@ import {
   FileSpreadsheet,
   Minus,
   Package,
+  PackagePlus,
   Plus,
   TrendingDown,
   X,
@@ -670,6 +671,8 @@ function Rapport({ inv }: { inv: Inventaire }) {
   const toast = useToast();
   const telecharger = useTelechargerExcel();
   const r = inv.resume;
+  // Total des réappros de la période ; absent des rapports antérieurs au suivi des achats.
+  const achats = r.achats_cents ?? null;
   const ecarts = inv.lignes.filter((l) => l.ecart !== null && l.ecart !== 0);
   const date = formatDate(inv.termine_le ?? inv.debut_le);
 
@@ -701,7 +704,9 @@ function Rapport({ inv }: { inv: Inventaire }) {
 
       {inv.statut !== 'termine' && <p className="text-sm text-muted-foreground">{t.nonTermine}</p>}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div
+        className={`grid gap-4 sm:grid-cols-2 ${achats === null ? 'lg:grid-cols-3' : 'lg:grid-cols-4'}`}
+      >
         <KpiCard
           label={t.ecartsProduits}
           value={<span data-testid="rapport-nb-ecarts">{r.nb_ecarts}</span>}
@@ -732,6 +737,14 @@ function Rapport({ inv }: { inv: Inventaire }) {
           }
           icon={<Banknote className="h-6 w-6" />}
         />
+        {achats !== null && (
+          <KpiCard
+            label={t.achatsPeriode}
+            value={<span data-testid="rapport-achats">{formatCents(achats)}</span>}
+            icon={<PackagePlus className="h-6 w-6" />}
+            variant="info"
+          />
+        )}
       </div>
 
       {inv.commentaire && <p className="text-sm italic">{inv.commentaire}</p>}

@@ -14,7 +14,11 @@ import type {
   InventaireResume,
   InventaireTerminer,
   MoyenPaiement,
+  OrigineReappro,
   PaiementsResponse,
+  ReapproCreate,
+  ReapproResponse,
+  ReapprosResponse,
   CaisseAppVersion,
   BuvetteProductCreate,
   BuvetteProductUpdate,
@@ -33,6 +37,9 @@ export const buvetteQueryKeys = {
   webhook: () => [...buvetteQueryKeys.all, 'webhook'] as const,
   paiements: (filters: Record<string, unknown>) =>
     [...buvetteQueryKeys.all, 'paiements', filters] as const,
+  reappros: () => [...buvetteQueryKeys.all, 'reappros'] as const,
+  reapprosListe: (filtres: Record<string, unknown>) =>
+    [...buvetteQueryKeys.reappros(), filtres] as const,
   stats: (filters: Record<string, unknown>) => [...buvetteQueryKeys.all, 'stats', filters] as const,
   clotures: () => [...buvetteQueryKeys.all, 'clotures'] as const,
   clotureAttendu: (jour: string) => [...buvetteQueryKeys.clotures(), 'attendu', jour] as const,
@@ -265,20 +272,50 @@ export function useRetirerCaisseApp() {
 /* ---- Réapprovisionnement ------------------------------------------------- */
 
 /**
- * Ajoute `delta` au stock d'un produit. L'incrément est fait par le serveur
- * (`quantity = quantity + delta`) : deux réappros simultanés s'additionnent,
- * là où un PATCH de la quantité lue écraserait l'un par l'autre.
+ * Réapprovisionne un produit : `quantite` s'ajoute au stock. L'incrément est
+ * fait par le serveur (`quantity = quantity + quantite`) : deux réappros
+ * simultanés s'additionnent, là où un PATCH de la quantité lue écraserait
+ * l'un par l'autre. Le prix d'achat unitaire est obligatoire.
  */
 export function useReapproBuvetteProduct() {
   const qc = useQueryClient();
   return useApiMutation({
-    mutationFn: async ({ id, delta }: { id: number; delta: number }) => {
-      const { data } = await api.post<BuvetteProduct>(`/buvette/products/${id}/reappro`, {
-        delta,
+    mutationFn: async ({ id, ...corps }: ReapproCreate & { id: number }) => {
+      const { data } = await api.post<ReapproResponse>(`/buvette/products/${id}/reappro`, corps);
+      return data;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: buvetteQueryKeys.products() });
+      void qc.invalidateQueries({ queryKey: buvetteQueryKeys.reappros() });
+    },
+  });
+}
+
+export interface ReapprosFiltres {
+  debut: string;
+  fin: string;
+  productId?: number | null;
+  origine?: OrigineReappro | null;
+}
+
+/** Paramètres de la liste ET de l'export : le classeur reprend ce que l'écran montre. */
+export function paramsReappros(filtres: ReapprosFiltres): Record<string, string> {
+  const params: Record<string, string> = { debut: filtres.debut, fin: filtres.fin };
+  if (filtres.productId) params.product_id = String(filtres.productId);
+  if (filtres.origine) params.origine = filtres.origine;
+  return params;
+}
+
+export function useBuvetteReappros(filtres: ReapprosFiltres) {
+  const params = paramsReappros(filtres);
+  return useQuery({
+    queryKey: buvetteQueryKeys.reapprosListe(params),
+    queryFn: async () => {
+      const { data } = await api.get<ReapprosResponse>('/buvette/reapprovisionnements', {
+        params,
       });
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: buvetteQueryKeys.products() }),
   });
 }
 

@@ -41,22 +41,22 @@ export const createBuvetteProductSchema = z.object({
 export type CreateBuvetteProductFormValues = z.infer<typeof createBuvetteProductSchema>;
 
 /**
- * Schéma de la fiche d'un produit buvette.
+ * Schéma de la fiche d'un produit buvette (fenêtre « Modifier le produit »).
  *
  * Le nom et le prix y sont entrés depuis que la tablette de caisse a remplacé
  * la boutique HelloAsso : ils ne se corrigeaient qu'en supprimant le produit
  * pour le recréer. Comme à la création, le prix se saisit en euros.
+ * Pas de quantité : le stock se change par un réapprovisionnement ou un inventaire.
  */
-export const adjustBuvetteProductSchema = z.object({
+export const modifierBuvetteProductSchema = z.object({
   name: z.string().min(1, 'Nom obligatoire').max(200),
   price_euros: z.coerce.number({ invalid_type_error: 'Prix invalide' }).min(0, 'Doit être ≥ 0'),
-  quantity: z.coerce.number().int().min(0, 'Doit être ≥ 0'),
   seuil_alerte: z.coerce.number().int().min(0, 'Doit être ≥ 0'),
   emoji: z.string().min(1, 'Emoji obligatoire').max(8),
   onglet_caisse: z.enum(ONGLETS_CAISSE),
 });
 
-export type AdjustBuvetteProductFormValues = z.infer<typeof adjustBuvetteProductSchema>;
+export type ModifierBuvetteProductFormValues = z.infer<typeof modifierBuvetteProductSchema>;
 
 /**
  * Schéma de création d'un produit buvette à partir d'un code-barres scanné.

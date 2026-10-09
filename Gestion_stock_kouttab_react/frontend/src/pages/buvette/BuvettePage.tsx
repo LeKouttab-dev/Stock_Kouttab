@@ -11,6 +11,7 @@ import {
   Lock,
   Tablet,
   ClipboardList,
+  PackagePlus,
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -27,18 +28,19 @@ import {
   useBuvetteProducts,
   useBuvetteSales,
   useDeleteBuvetteProduct,
-  useReapproBuvetteProduct,
   useSyncBuvette,
   useUpdateBuvetteProduct,
 } from '@/api/endpoints/buvette';
 import { useBarcodeLookup } from '@/api/endpoints/stock';
 import { formatCents } from '@/lib/format';
-import { AdjustStockModal } from './modals/AdjustStockModal';
+import { ModifierProduitModal } from './modals/ModifierProduitModal';
+import { ReapproModal } from './modals/ReapproModal';
 import { CreateProductModal } from './modals/CreateProductModal';
 import { WebhookConfigModal } from './modals/WebhookConfigModal';
 import { AppCaisseModal } from './modals/AppCaisseModal';
 import { AddBuvetteFromBarcodeModal } from './modals/AddBuvetteFromBarcodeModal';
 import { PaiementsTab } from './tabs/PaiementsTab';
+import { ReapprosTab } from './tabs/ReapprosTab';
 import { StatistiquesTab } from './tabs/StatistiquesTab';
 import { ClotureTab } from './tabs/ClotureTab';
 import { InventaireTab } from './tabs/InventaireTab';
@@ -54,6 +56,7 @@ function startOfTodayIso(): string {
 
 const ONGLETS = [
   'produits',
+  'reappros',
   'paiements',
   'statistiques',
   'cloture',
@@ -91,10 +94,9 @@ export function BuvettePage() {
   const sync = useSyncBuvette();
   const remove = useDeleteBuvetteProduct();
   const update = useUpdateBuvetteProduct();
-  const reappro = useReapproBuvetteProduct();
-  const reapproId = reappro.isPending ? reappro.variables?.id : undefined;
 
-  const [adjustOpen, setAdjustOpen] = useState(false);
+  const [modifierOpen, setModifierOpen] = useState(false);
+  const [reapproOpen, setReapproOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [webhookOpen, setWebhookOpen] = useState(false);
   const [appCaisseOpen, setAppCaisseOpen] = useState(false);
@@ -110,9 +112,10 @@ export function BuvettePage() {
     setScannerOpen(false);
     try {
       const res = await lookup.mutateAsync(barcode);
+      // Produit connu : on scanne au moment de ranger la livraison, donc réappro.
       if (res.found_in === 'buvette' && res.buvette_product) {
         setSelected(res.buvette_product);
-        setAdjustOpen(true);
+        setReapproOpen(true);
       } else {
         setScannedNew(res);
         setAddNewOpen(true);
@@ -167,18 +170,9 @@ export function BuvettePage() {
     );
   };
 
-  // L'échec est déjà signalé par `useApiMutation` : pas de second toast ici.
-  const handleReappro = (p: BuvetteProduct, delta: number) => {
-    reappro.mutate(
-      { id: p.id, delta },
-      {
-        onSuccess: (maj) =>
-          toast.success(
-            fr.buvette.reappro.succes(maj.name),
-            fr.buvette.reappro.stock(maj.quantity),
-          ),
-      },
-    );
+  const handleReappro = (p: BuvetteProduct) => {
+    setSelected(p);
+    setReapproOpen(true);
   };
 
   const handleDelete = (p: BuvetteProduct) => {
@@ -186,9 +180,9 @@ export function BuvettePage() {
     remove.mutate(p.id, { onSuccess: () => toast.success(fr.buvette.productDeleted) });
   };
 
-  const handleAdjust = (p: BuvetteProduct) => {
+  const handleModifier = (p: BuvetteProduct) => {
     setSelected(p);
-    setAdjustOpen(true);
+    setModifierOpen(true);
   };
 
   return (
@@ -203,6 +197,10 @@ export function BuvettePage() {
           <TabsTrigger value="produits" className="gap-1.5">
             <Package className="h-4 w-4" aria-hidden />
             {fr.buvette.tabs.produits}
+          </TabsTrigger>
+          <TabsTrigger value="reappros" className="gap-1.5">
+            <PackagePlus className="h-4 w-4" aria-hidden />
+            {fr.buvette.tabs.reappros}
           </TabsTrigger>
           <TabsTrigger value="paiements" className="gap-1.5">
             <Receipt className="h-4 w-4" aria-hidden />
@@ -315,17 +313,19 @@ export function BuvettePage() {
                   key={p.id}
                   product={p}
                   canEdit={canCrud}
-                  onAdjust={handleAdjust}
+                  onModifier={handleModifier}
                   onDelete={handleDelete}
                   onToggleActive={handleToggleActive}
                   onReappro={handleReappro}
-                  reapproEnCours={reapproId === p.id}
                 />
               ))}
             </div>
           )}
         </TabsContent>
 
+        <TabsContent value="reappros">
+          <ReapprosTab />
+        </TabsContent>
         <TabsContent value="paiements">
           <PaiementsTab />
         </TabsContent>
@@ -343,7 +343,8 @@ export function BuvettePage() {
         </TabsContent>
       </Tabs>
 
-      <AdjustStockModal open={adjustOpen} onOpenChange={setAdjustOpen} product={selected} />
+      <ModifierProduitModal open={modifierOpen} onOpenChange={setModifierOpen} product={selected} />
+      <ReapproModal open={reapproOpen} onOpenChange={setReapproOpen} product={selected} />
       <CreateProductModal open={createOpen} onOpenChange={setCreateOpen} />
       <WebhookConfigModal open={webhookOpen} onOpenChange={setWebhookOpen} />
       <AppCaisseModal open={appCaisseOpen} onOpenChange={setAppCaisseOpen} />

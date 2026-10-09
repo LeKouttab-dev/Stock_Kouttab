@@ -30,6 +30,7 @@ from app.core.logger import get_logger
 from app.core.rate_limit import limiter
 from app.crud import buvette as buvette_crud
 from app.crud import buvette_inventaire as inventaire_crud
+from app.crud import buvette_reappro as reappro_crud
 from app.db.models import Admin
 from app.db.session import SessionLocal, get_db
 from app.schemas.auth import MessageOut
@@ -61,8 +62,11 @@ from app.schemas.buvette import (
     InventaireResumeOut,
     InventaireTerminerIn,
     MoyenDePaiement,
+    OrigineReappro,
     PaiementsOut,
     ReapproIn,
+    ReapproResultatOut,
+    ReapprosOut,
     ReglagesIn,
     ReglagesOut,
     StatsOut,
@@ -143,10 +147,14 @@ def list_products(db: Session = Depends(get_db)) -> Any:
     "/products",
     response_model=BuvetteProductOut,
     status_code=201,
-    dependencies=[Depends(require_roles(*_GESTION_ROLES))],
 )
-def create_product(payload: BuvetteProductCreate, db: Session = Depends(get_db)) -> Any:
-    product = buvette_crud.create_product(db, payload)
+def create_product(
+    payload: BuvetteProductCreate,
+    db: Session = Depends(get_db),
+    current_user: Admin = Depends(require_roles(*_GESTION_ROLES)),
+) -> Any:
+    """Cree un produit ; une quantite initiale > 0 est tracee comme premier reappro."""
+    product = buvette_crud.create_product(db, payload, fait_par=current_user.full_name)
     return _en_produit_out(product)
 
 
@@ -520,8 +528,18 @@ def caisse_etat(
 def caisse_reappro(
     request: Request, payload: CaisseReapproIn, db: Session = Depends(get_db)
 ) -> Any:
-    """Reappro depuis l'ecran « Personnel » de la tablette (increment atomique)."""
-    produit = buvette_crud.reapprovisionner(db, payload.product_id, payload.delta)
+    """Reappro depuis l'ecran « Personnel » de la tablette (increment atomique).
+
+    Contrat inchange pour la tablette ; le reappro est trace (origine
+    « tablette », sans prix d'achat).
+    """
+    produit, _ = buvette_crud.reapprovisionner(
+        db,
+        payload.product_id,
+        payload.delta,
+        origine=buvette_crud.ORIGINE_TABLETTE,
+        fait_par="tablette",
+    )
     return CaisseReapproOut(id=produit.id, name=produit.name, quantity=produit.quantity)
 
 
@@ -560,16 +578,69 @@ def lire_etat_caisse(db: Session = Depends(get_db)) -> Any:
     )
 
 
-@router.post(
-    "/products/{product_id}/reappro",
-    response_model=BuvetteProductOut,
-    dependencies=[Depends(require_roles(*_GESTION_ROLES))],
-)
+@router.post("/products/{product_id}/reappro", response_model=ReapproResultatOut)
 def reappro_produit(
-    product_id: int, payload: ReapproIn, db: Session = Depends(get_db)
+    product_id: int,
+    payload: ReapproIn,
+    db: Session = Depends(get_db),
+    current_user: Admin = Depends(require_roles(*_GESTION_ROLES)),
 ) -> Any:
-    """+delta sur le stock, atomique : ne peut ecraser ni une vente ni un autre reappro."""
-    return _en_produit_out(buvette_crud.reapprovisionner(db, product_id, payload.delta))
+    """Quantite apportee AJOUTEE au stock (atomique), prix d'achat obligatoire, trace.
+
+    Ne peut ecraser ni une vente ni un autre reappro ; le prix devient le
+    dernier prix d'achat du produit (pre-remplissage du suivant).
+    """
+    produit, reappro = buvette_crud.reapprovisionner(
+        db,
+        product_id,
+        payload.quantite,
+        prix_achat_unitaire_cents=payload.prix_achat_unitaire_cents,
+        origine=buvette_crud.ORIGINE_APP,
+        commentaire=payload.commentaire,
+        fait_par=current_user.full_name,
+    )
+    return {"produit": _en_produit_out(produit), "reappro": reappro_crud.reappro_out(reappro)}
+
+
+@router.get(
+    "/reapprovisionnements",
+    response_model=ReapprosOut,
+    dependencies=[Depends(require_roles(*_VIEW_ROLES))],
+)
+def lister_reappros(
+    debut: date | None = Query(default=None),
+    fin: date | None = Query(default=None),
+    product_id: int | None = Query(default=None),
+    origine: OrigineReappro | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> Any:
+    """Historique des reappros, plus recents d'abord, avec totaux.
+
+    `debut` et `fin` inclus (jours de Paris) ; par defaut, les 30 derniers jours.
+    """
+    _, _, donnees = reappro_crud.lister(db, debut, fin, product_id=product_id, origine=origine)
+    return donnees
+
+
+@router.get(
+    "/reapprovisionnements/export.xlsx",
+    dependencies=[Depends(require_roles(*_VIEW_ROLES))],
+)
+def exporter_reappros(
+    debut: date | None = Query(default=None),
+    fin: date | None = Query(default=None),
+    product_id: int | None = Query(default=None),
+    origine: OrigineReappro | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> Response:
+    """Classeur « Reapprovisionnements » : memes filtres et defauts que la liste."""
+    debut, fin, donnees = reappro_crud.lister(
+        db, debut, fin, product_id=product_id, origine=origine
+    )
+    return _xlsx(
+        buvette_export.classeur_reappros(donnees["reappros"]),
+        f"reapprovisionnements-{debut.isoformat()}_{fin.isoformat()}.xlsx",
+    )
 
 
 @router.get(
@@ -662,8 +733,12 @@ def cloturer_caisse(
 # `/{inventaire_id}` : sinon elles seraient prises pour un identifiant (422).
 
 
-def _inventaire_out(inventaire: Any) -> dict[str, Any]:
-    return inventaire_crud.inventaire_out(inventaire, url_photo=_url_photo)
+def _inventaire_out(inventaire: Any, db: Session) -> dict[str, Any]:
+    return inventaire_crud.inventaire_out(
+        inventaire,
+        url_photo=_url_photo,
+        achats_cents=reappro_crud.achats_cents(db, inventaire),
+    )
 
 
 def _xlsx(contenu: bytes, nom: str) -> Response:
@@ -680,7 +755,7 @@ def demarrer_inventaire(
     current_user: Admin = Depends(require_roles(*_GESTION_ROLES)),
 ) -> Any:
     """Demarre un inventaire (produits de la tablette hors cafes, comptes a 0). 409 si un autre est ouvert."""
-    return _inventaire_out(inventaire_crud.demarrer(db, cree_par=current_user.full_name))
+    return _inventaire_out(inventaire_crud.demarrer(db, cree_par=current_user.full_name), db)
 
 
 @router.get(
@@ -691,7 +766,7 @@ def demarrer_inventaire(
 def inventaire_en_cours(db: Session = Depends(get_db)) -> Any:
     """L'inventaire non termine (en comptage ou stock valide), ou null."""
     inventaire = inventaire_crud.en_cours(db)
-    return {"inventaire": _inventaire_out(inventaire) if inventaire else None}
+    return {"inventaire": _inventaire_out(inventaire, db) if inventaire else None}
 
 
 @router.get(
@@ -703,10 +778,16 @@ def exporter_historique_inventaires(
     fin: date | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> Response:
-    """Classeur de l'historique : « Inventaires » (resumes) et « Detail » (lignes produits)."""
-    inventaires = [_inventaire_out(i) for i in inventaire_crud.historique(db, debut, fin)]
+    """Classeur de l'historique : « Inventaires » (resumes), « Detail » (lignes
+    produits) et « Reapprovisionnements » de la periode filtree."""
+    liste = inventaire_crud.historique(db, debut, fin)
+    achats = reappro_crud.achats_par_inventaire(db, liste)
+    inventaires = [
+        inventaire_crud.inventaire_out(i, url_photo=_url_photo, achats_cents=achats[i.id])
+        for i in liste
+    ]
     return _xlsx(
-        buvette_export.classeur_historique(inventaires),
+        buvette_export.classeur_historique(inventaires, reappro_crud.par_jours(db, debut, fin)),
         f"inventaires-{buvette_export.nom_periode(debut, fin)}.xlsx",
     )
 
@@ -722,9 +803,11 @@ def historique_inventaires(
     db: Session = Depends(get_db),
 ) -> Any:
     """Inventaires (termines et en cours), plus recents d'abord ; filtre sur le jour de debut."""
+    liste = inventaire_crud.historique(db, debut, fin)
+    achats = reappro_crud.achats_par_inventaire(db, liste)
     return [
-        inventaire_crud.inventaire_out(i, avec_lignes=False)
-        for i in inventaire_crud.historique(db, debut, fin)
+        inventaire_crud.inventaire_out(i, avec_lignes=False, achats_cents=achats[i.id])
+        for i in liste
     ]
 
 
@@ -734,7 +817,7 @@ def historique_inventaires(
     dependencies=[Depends(require_roles(*_VIEW_ROLES))],
 )
 def lire_inventaire(inventaire_id: int, db: Session = Depends(get_db)) -> Any:
-    return _inventaire_out(inventaire_crud.get_ou_404(db, inventaire_id))
+    return _inventaire_out(inventaire_crud.get_ou_404(db, inventaire_id), db)
 
 
 @router.put(
@@ -747,7 +830,7 @@ def enregistrer_lignes_inventaire(
 ) -> Any:
     """Brouillon des quantites comptees. 409 si le stock est deja valide."""
     saisies = [(l.id, l.quantite_comptee) for l in payload.lignes]
-    return _inventaire_out(inventaire_crud.enregistrer_lignes(db, inventaire_id, saisies))
+    return _inventaire_out(inventaire_crud.enregistrer_lignes(db, inventaire_id, saisies), db)
 
 
 @router.post(
@@ -757,7 +840,7 @@ def enregistrer_lignes_inventaire(
 )
 def valider_stock_inventaire(inventaire_id: int, db: Session = Depends(get_db)) -> Any:
     """Fige le theorique, calcule les ecarts et remplace le stock (une transaction)."""
-    return _inventaire_out(inventaire_crud.valider_stock(db, inventaire_id))
+    return _inventaire_out(inventaire_crud.valider_stock(db, inventaire_id), db)
 
 
 @router.get(
@@ -790,7 +873,8 @@ def terminer_inventaire(
             especes_comptees_cents=payload.especes_comptees_cents,
             commentaire=payload.commentaire,
             debut=payload.debut,
-        )
+        ),
+        db,
     )
 
 
@@ -810,12 +894,17 @@ def abandonner_inventaire(inventaire_id: int, db: Session = Depends(get_db)) -> 
     dependencies=[Depends(require_roles(*_VIEW_ROLES))],
 )
 def exporter_inventaire(inventaire_id: int, db: Session = Depends(get_db)) -> Response:
-    """Classeur d'un inventaire : Synthese, Ecarts produits, Ventes especes."""
+    """Classeur d'un inventaire : Synthese, Ecarts produits, Ventes especes,
+    Reapprovisionnements, Mouvements et Recap par produit (periode : de la
+    validation du stock de l'inventaire precedent a celle de celui-ci)."""
     inventaire = inventaire_crud.get_ou_404(db, inventaire_id)
     especes = inventaire_crud.especes(db, inventaire_id, None)
+    mouvements = reappro_crud.mouvements_inventaire(db, inventaire)
     jour = inventaire_crud.utc_vers_paris(inventaire.debut_le).date()
     return _xlsx(
-        buvette_export.classeur_inventaire(_inventaire_out(inventaire), especes),
+        buvette_export.classeur_inventaire(
+            _inventaire_out(inventaire, db), especes, mouvements
+        ),
         f"inventaire-{inventaire.id}-{jour.isoformat()}.xlsx",
     )
 

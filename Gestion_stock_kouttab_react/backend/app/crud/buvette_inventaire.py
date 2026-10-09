@@ -503,7 +503,11 @@ def inventaire_out(
     *,
     avec_lignes: bool = True,
     url_photo: Callable[[BuvetteProduct], str | None] | None = None,
+    achats_cents: int = 0,
 ) -> dict[str, Any]:
+    """Contrat d'API d'un inventaire. `achats_cents` (total des reappros de la
+    periode des mouvements) est calcule par l'appelant, qui a la session :
+    cf. `crud.buvette_reappro.achats_cents`."""
     sortie: dict[str, Any] = {
         "id": inventaire.id,
         "statut": inventaire.statut,
@@ -518,7 +522,7 @@ def inventaire_out(
         "ecart_especes_cents": inventaire.ecart_especes_cents,
         "nb_ventes_especes": inventaire.nb_ventes_especes,
         "commentaire": inventaire.commentaire,
-        "resume": resume(inventaire.lignes),
+        "resume": {**resume(inventaire.lignes), "achats_cents": achats_cents},
     }
     if avec_lignes:
         sortie["lignes"] = [ligne_out(l, url_photo) for l in inventaire.lignes]

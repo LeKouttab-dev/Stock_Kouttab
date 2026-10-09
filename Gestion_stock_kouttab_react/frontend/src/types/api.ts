@@ -440,10 +440,15 @@ export interface BuvetteProduct {
   edite_manuellement?: boolean;
   /** Une photo a été déposée : l'écran propose de la remplacer ou de la retirer. */
   a_une_photo?: boolean;
+  /** Dernier prix d'achat unitaire saisi au réappro : pré-remplit le suivant. */
+  dernier_prix_achat_cents?: number | null;
 }
 
+/**
+ * Fiche d'un produit. Pas de quantité : le stock ne change que par un
+ * réapprovisionnement (tracé) ou par un inventaire (le serveur refuse `quantity`).
+ */
 export interface BuvetteProductUpdate {
-  quantity?: number;
   seuil_alerte?: number;
   emoji?: string;
   is_active?: boolean;
@@ -465,6 +470,48 @@ export interface BuvetteProductCreate {
   helloasso_tier_id?: number | null;
   barcode?: string | null;
   caisse_category?: CaisseCategory | null;
+}
+
+/* ---- Réapprovisionnement de la buvette ------------------------------------ */
+
+/** `app` : saisi dans l'application stock, avec prix ; `tablette` : écran Personnel, sans prix. */
+export type OrigineReappro = 'app' | 'tablette';
+
+export interface ReapproCreate {
+  quantite: number;
+  prix_achat_unitaire_cents: number;
+  commentaire: string | null;
+}
+
+export interface Reappro {
+  id: number;
+  product_id: number | null;
+  nom: string;
+  quantite: number;
+  prix_achat_unitaire_cents: number | null;
+  total_cents: number | null;
+  origine: OrigineReappro;
+  commentaire: string | null;
+  fait_par: string | null;
+  stock_avant: number;
+  stock_apres: number;
+  created_at: string;
+}
+
+export interface ReapproResponse {
+  produit: BuvetteProduct;
+  reappro: Reappro;
+}
+
+export interface ReapprosTotaux {
+  nb: number;
+  quantite: number;
+  montant_cents: number;
+}
+
+export interface ReapprosResponse {
+  reappros: Reappro[];
+  totaux: ReapprosTotaux;
 }
 
 export interface BuvetteSale {
@@ -609,6 +656,8 @@ export interface InventaireSynthese {
   valeur_ecart_cents: number;
   /** Somme des valeurs négatives, en positif. */
   perte_cents: number;
+  /** Total des réappros de la période (absent des rapports antérieurs). */
+  achats_cents?: number | null;
 }
 
 /** Un inventaire sans ses lignes : une ligne de l'historique. */

@@ -49,7 +49,10 @@ class BuvetteProductUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=255)
     description: str | None = None
     price_cents: int | None = Field(default=None, ge=0)
-    quantity: int | None = Field(default=None, ge=0)
+    # Accepte par le schema pour etre REFUSE explicitement (422) par
+    # `crud.buvette.update_product` : le stock se change par un reappro ou un
+    # inventaire, jamais en ecrivant une valeur absolue depuis la fiche.
+    quantity: Any = None
     seuil_alerte: int | None = Field(default=None, ge=0)
     emoji: str | None = None
     image_url: str | None = None
@@ -72,6 +75,8 @@ class BuvetteProductOut(BaseModel):
     barcode: str | None = None
     is_active: bool = True
     caisse_category: CaisseCategory | None = None
+    # Dernier prix d'achat unitaire saisi a un reappro ; pre-remplit le suivant.
+    dernier_prix_achat_cents: int | None = None
     # Vrai des qu'un champ ecrit aussi par HelloAsso a ete modifie a la main
     # (nom, description, prix, photo). L'ecran l'affiche : sans cela, personne
     # ne peut savoir pourquoi « Synchroniser » ne change plus ce produit.
@@ -254,19 +259,63 @@ class CaisseEtatEnveloppeOut(BaseModel):
 
 
 class ReapproIn(BaseModel):
-    # Borne haute : un +5000 par faute de frappe fausserait le stock pour des
-    # semaines. Les boutons de l'ecran vont de +5 a +30.
-    delta: int = Field(ge=1, le=500)
+    """Reappro depuis l'ecran web : quantite apportee, prix d'achat OBLIGATOIRE.
+
+    La quantite s'ajoute au stock existant (15 en stock + 60 apportees = 75).
+    """
+
+    quantite: int = Field(ge=1, le=10_000)
+    prix_achat_unitaire_cents: int = Field(ge=0, le=10_000_000)
+    commentaire: str | None = Field(default=None, max_length=255)
 
 
-class CaisseReapproIn(ReapproIn):
+class CaisseReapproIn(BaseModel):
+    """Reappro depuis l'ecran « Personnel » de la tablette : contrat inchange."""
+
     product_id: int
+    # Borne haute : un +5000 par faute de frappe fausserait le stock pour des
+    # semaines. Les boutons de la tablette vont de +5 a +30.
+    delta: int = Field(ge=1, le=500)
 
 
 class CaisseReapproOut(BaseModel):
     id: int
     name: str
     quantity: int
+
+
+OrigineReappro = Literal["app", "tablette"]
+
+
+class ReapproOut(BaseModel):
+    id: int
+    product_id: int | None = None
+    nom: str
+    quantite: int
+    prix_achat_unitaire_cents: int | None = None
+    total_cents: int | None = None
+    origine: OrigineReappro
+    commentaire: str | None = None
+    fait_par: str | None = None
+    stock_avant: int
+    stock_apres: int
+    created_at: datetime
+
+
+class ReapproResultatOut(BaseModel):
+    produit: BuvetteProductOut
+    reappro: ReapproOut
+
+
+class ReapprosTotauxOut(BaseModel):
+    nb: int = 0
+    quantite: int = 0
+    montant_cents: int = 0
+
+
+class ReapprosOut(BaseModel):
+    reappros: list[ReapproOut]
+    totaux: ReapprosTotauxOut
 
 
 # ---------------------------------------------------------------------------
@@ -488,6 +537,9 @@ class InventaireResumeChiffresOut(BaseModel):
     valeur_ecart_cents: int
     # Somme des valeurs negatives, en positif.
     perte_cents: int
+    # Total des reappros (avec prix) de la periode des mouvements : de la
+    # validation du stock de l'inventaire precedent a celle de celui-ci.
+    achats_cents: int = 0
 
 
 class InventaireResumeOut(BaseModel):
