@@ -20,6 +20,7 @@ import { formatDateTime, formatTauxPb, parseTauxPb } from '@/lib/format';
 import { fr } from '@/lib/i18n/fr';
 import { cn } from '@/lib/utils';
 import type { CaisseEtat } from '@/types/api';
+import { MenuTablette } from './MenuTablette';
 
 function Ligne({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -385,11 +386,14 @@ export function TabletteTab() {
   const { can } = useAuth();
   // Les réglages sont réservés aux gestionnaires (le serveur refuse la lecture aux autres).
   const canReglages = can(ACTIONS.BUVETTE_REGLAGES);
+  // Le menu (ordre, étiquettes) se range comme les produits : gestion de la buvette.
+  const canMenu = can(ACTIONS.BUVETTE_CRUD);
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <EtatTablette />
       {canReglages && <ReglagesDestinataires />}
       {canReglages && <ReglageFraisCarte />}
+      {canMenu && <MenuTablette />}
     </div>
   );
 }

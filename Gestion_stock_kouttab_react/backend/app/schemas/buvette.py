@@ -13,6 +13,22 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validat
 # affichee nulle part.
 CaisseCategory = Literal["sucre_sale", "boissons", "cafe", "epicerie"]
 
+# Etiquettes d'un produit sur la tablette : cinq types fixes (chacun sa couleur
+# sur la tablette) ou un texte libre court. Une seule etiquette par produit.
+EtiquetteType = Literal[
+    "nouveaute", "edition_limitee", "derniers", "coup_de_coeur", "promo", "libre"
+]
+ETIQUETTE_TEXTE_MAX = 20
+# Libelle affiche pour chaque type fixe : le serveur le calcule, la tablette
+# l'affiche tel quel (elle n'a aucun texte a traduire).
+LIBELLES_ETIQUETTE: dict[str, str] = {
+    "nouveaute": "Nouveauté",
+    "edition_limitee": "Édition limitée",
+    "derniers": "Derniers exemplaires",
+    "coup_de_coeur": "Coup de cœur",
+    "promo": "Promo",
+}
+
 
 # ---------------------------------------------------------------------------
 # Products
@@ -60,6 +76,10 @@ class BuvetteProductUpdate(BaseModel):
     is_active: bool | None = None
     # `null` explicite = retirer le produit de la tablette ; absent = inchange.
     caisse_category: CaisseCategory | None = None
+    # `null` explicite = aucune etiquette ; absent = inchange. Le texte n'est
+    # lu que pour `libre` (requis, 20 caracteres au plus apres nettoyage).
+    etiquette_type: EtiquetteType | None = None
+    etiquette_texte: str | None = None
 
 
 class BuvetteProductOut(BaseModel):
@@ -75,6 +95,10 @@ class BuvetteProductOut(BaseModel):
     barcode: str | None = None
     is_active: bool = True
     caisse_category: CaisseCategory | None = None
+    # Rang dans l'onglet de la tablette (1..n) ; null = pas encore range.
+    ordre_caisse: int | None = None
+    etiquette_type: EtiquetteType | None = None
+    etiquette_texte: str | None = None
     # Dernier prix d'achat unitaire saisi a un reappro ; pre-remplit le suivant.
     dernier_prix_achat_cents: int | None = None
     # Vrai des qu'un champ ecrit aussi par HelloAsso a ete modifie a la main
@@ -128,6 +152,13 @@ class BuvetteSaleOut(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class EtiquetteOut(BaseModel):
+    """Etiquette d'un produit sur la tablette : `texte` est le libelle final."""
+
+    type: EtiquetteType
+    texte: str
+
+
 class CaisseProduitOut(BaseModel):
     """Ce que la tablette affiche d'un produit, et rien de plus."""
 
@@ -141,11 +172,42 @@ class CaisseProduitOut(BaseModel):
     image_url: str | None = None
     quantity: int
     low_stock: bool
+    # null = aucune etiquette. Champ ajoute le 10/10/2026 : une ancienne app
+    # l'ignore, le contrat ne rompt pas.
+    etiquette: EtiquetteOut | None = None
 
 
 class CaisseCatalogueOut(BaseModel):
     products: list[CaisseProduitOut]
     generated_at: datetime
+
+
+class CaisseOrdreIn(BaseModel):
+    """Ordre complet d'un onglet de la tablette, du premier au dernier produit."""
+
+    categorie: CaisseCategory
+    product_ids: list[int] = Field(max_length=500)
+
+
+class CaisseOrdreProduitOut(BaseModel):
+    product_id: int
+    name: str
+    ordre_caisse: int | None = None
+    # Renseignee par l'ordre par ventes ; null dans la reponse du PUT.
+    quantite_vendue: int | None = None
+
+
+class CaisseOrdreOut(BaseModel):
+    categorie: CaisseCategory
+    produits: list[CaisseOrdreProduitOut]
+
+
+class CaisseOrdreVentesOut(CaisseOrdreOut):
+    """Ordre propose par les ventes de la periode, NON enregistre."""
+
+    jours: int
+    debut: date
+    fin: date
 
 
 class CaisseVersionOut(BaseModel):

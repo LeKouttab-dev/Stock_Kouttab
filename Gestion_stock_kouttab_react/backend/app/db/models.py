@@ -943,6 +943,15 @@ class BuvetteProduct(Base):
     # NULL = absent de la tablette. Les produits importes de HelloAsso arrivent
     # sans categorie : c'est ce qui permet de choisir ce que la caisse vend.
     caisse_category: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # Rang du produit dans son onglet de la tablette (1..n), regle dans l'onglet
+    # Tablette (glisser-deposer, « Trier par ventes »). NULL = pas encore range :
+    # le produit passe apres les autres, par nom.
+    ordre_caisse: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Etiquette affichee sur la fiche de la tablette : un type fixe (`nouveaute`,
+    # `edition_limitee`, `derniers`, `coup_de_coeur`, `promo`) ou `libre`, dont
+    # le texte (20 caracteres au plus) est dans `etiquette_texte`. NULL = aucune.
+    etiquette_type: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    etiquette_texte: Mapped[str | None] = mapped_column(String(20), nullable=True)
     # Dernier prix d'achat unitaire saisi a un reappro (centimes) : pre-remplit
     # la fenetre du reappro suivant. NULL tant qu'aucun prix n'a ete saisi.
     dernier_prix_achat_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)

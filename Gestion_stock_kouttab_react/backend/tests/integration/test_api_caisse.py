@@ -196,6 +196,8 @@ def test_le_catalogue_ne_montre_que_les_produits_actifs_et_classes(
         "image_url": "https://cdn.helloasso.com/img/photos/boutiques/kinder-bueno.png",
         "quantity": 4,
         "low_stock": True,
+        # Etiquette du menu (10/10/2026) : null tant qu'aucune n'est posee.
+        "etiquette": None,
     }
     assert "generated_at" in reponse.json()
 

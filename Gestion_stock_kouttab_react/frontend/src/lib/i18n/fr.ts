@@ -971,6 +971,49 @@ export const fr = {
       fraisLabel: 'Taux (%)',
       fraisInvalide: 'Saisissez un taux entre 0 et 10 %, par exemple 1,70.',
       fraisEnregistre: 'Taux des frais enregistré.',
+      menu: {
+        titre: 'Menu de la tablette',
+        aide:
+          'Ordre des produits dans chaque onglet de la tablette : glissez-déposez une ligne, ' +
+          'ou utilisez les flèches. L’ordre est enregistré aussitôt et la tablette le reprend ' +
+          'à sa prochaine mise à jour du catalogue.',
+        vide: 'Aucun produit affiché dans cet onglet de la tablette.',
+        erreur: 'Impossible de lire les produits de la tablette.',
+        ventes: (n: number, jours: number) =>
+          `${n} vendu${n > 1 ? 's' : ''} (${jours === 90 ? '3 mois' : `${jours} j`})`,
+        deplacer: (nom: string) => `Déplacer ${nom}`,
+        monter: (nom: string) => `Monter ${nom}`,
+        descendre: (nom: string) => `Descendre ${nom}`,
+        ordreEnregistre: 'Ordre enregistré.',
+        trierParVentes: 'Trier par ventes',
+        periode: 'Période des ventes',
+        periodes: { 7: '7 jours', 30: '30 jours', 90: '3 mois' } as Record<number, string>,
+        trierTitre: 'Trier par ventes ?',
+        trierTexte: (onglet: string, periode: string) =>
+          `Les produits de l’onglet « ${onglet} » seront rangés du plus vendu au moins vendu ` +
+          `sur les ${periode} écoulés. Vous pourrez ensuite ajuster l’ordre à la main.`,
+        trierConfirmer: 'Trier',
+        annuler: 'Annuler',
+        trie: 'Onglet trié par ventes.',
+        etiquette: (nom: string) => `Étiquette de ${nom}`,
+        aucuneEtiquette: 'Aucune étiquette',
+        texteLibre: 'Texte libre…',
+        texteLibreLabel: (nom: string) => `Texte de l’étiquette de ${nom}`,
+        texteLibrePlaceholder: 'Ex. : Fait maison',
+        enregistrerTexte: 'Valider',
+        compteur: (n: number, max: number) => `${n}/${max}`,
+        texteVide: 'Saisissez le texte de l’étiquette.',
+        texteTropLong: (max: number) => `L’étiquette fait ${max} caractères au plus.`,
+        etiquetteEnregistree: 'Étiquette enregistrée.',
+        apercu: 'Aperçu sur la tablette',
+        libelles: {
+          nouveaute: 'Nouveauté',
+          edition_limitee: 'Édition limitée',
+          derniers: 'Derniers exemplaires',
+          coup_de_coeur: 'Coup de cœur',
+          promo: 'Promo',
+        },
+      },
     },
   },
   scanner: {

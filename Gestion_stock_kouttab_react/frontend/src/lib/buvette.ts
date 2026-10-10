@@ -3,6 +3,7 @@
  * Pures, donc testées une fois ici plutôt qu'à travers chaque écran.
  */
 import { format, subDays } from 'date-fns';
+import type { CaisseCategory, EtiquetteType } from '@/types/api';
 
 /** Raccourcis de la fenêtre de réappro : chacun s'ajoute à la quantité saisie. */
 export const PALIERS_REAPPRO = [5, 10, 15, 20, 30] as const;
@@ -286,4 +287,95 @@ export function grouperProduits<P extends { caisse_category?: string | null }>(
   return GROUPES_PRODUITS.map((groupe) => ({ groupe, produits: groupes.get(groupe) ?? [] })).filter(
     (g) => g.produits.length > 0,
   );
+}
+
+/* ---- Menu de la tablette : ordre et étiquettes ---------------------------- */
+
+/** Onglets de la tablette, dans l'ordre où elle les affiche. */
+export const ONGLETS_MENU: readonly CaisseCategory[] = [
+  'sucre_sale',
+  'boissons',
+  'cafe',
+  'epicerie',
+];
+
+/** Périodes proposées pour « Trier par ventes », en jours. */
+export const PERIODES_TRI_VENTES = [7, 30, 90] as const;
+
+/** Étiquettes à libellé fixe ; `libre` porte son propre texte. */
+export const ETIQUETTES_FIXES = [
+  'nouveaute',
+  'edition_limitee',
+  'derniers',
+  'coup_de_coeur',
+  'promo',
+] as const satisfies readonly EtiquetteType[];
+
+/** Longueur maximale d'une étiquette libre (caractères), comme le serveur. */
+export const ETIQUETTE_TEXTE_MAX = 20;
+
+/**
+ * Couleurs des pastilles, reprises par la tablette : Nouveauté vert, Édition
+ * limitée violet, Derniers exemplaires orange, Coup de cœur rouge doux, Promo
+ * or, texte libre gris foncé.
+ */
+export const COULEURS_ETIQUETTE: Record<EtiquetteType, string> = {
+  nouveaute: 'bg-green-600 text-white',
+  edition_limitee: 'bg-violet-600 text-white',
+  derniers: 'bg-orange-500 text-white',
+  coup_de_coeur: 'bg-rose-500 text-white',
+  promo: 'bg-amber-500 text-white',
+  libre: 'bg-gray-700 text-white',
+};
+
+/** Texte libre tel que le serveur l'enregistrera : espaces réduits, bords retirés. */
+export function nettoyerEtiquette(texte: string): string {
+  return texte.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Longueur comptée comme le serveur (en caractères, pas en unités UTF-16) :
+ * un emoji compte pour un.
+ */
+export function longueurEtiquette(texte: string): number {
+  return Array.from(nettoyerEtiquette(texte)).length;
+}
+
+/**
+ * Produits affichés par la tablette dans un onglet, dans son ordre : actifs,
+ * rangés d'abord (`ordre_caisse`), les autres ensuite, par nom.
+ */
+export function produitsDuMenu<
+  P extends {
+    id: number;
+    name: string;
+    is_active: boolean;
+    caisse_category?: string | null;
+    ordre_caisse?: number | null;
+  },
+>(produits: P[], categorie: CaisseCategory): P[] {
+  const rang = (p: P) => p.ordre_caisse ?? Number.POSITIVE_INFINITY;
+  return produits
+    .filter((p) => p.is_active && p.caisse_category === categorie)
+    .sort((a, b) => rang(a) - rang(b) || a.name.localeCompare(b.name, 'fr') || a.id - b.id);
+}
+
+/** Copie de la liste où l'élément `de` a été déplacé à la position `vers`. */
+export function deplacer<T>(liste: readonly T[], de: number, vers: number): T[] {
+  const copie = [...liste];
+  if (de < 0 || de >= copie.length || vers < 0 || vers >= copie.length) return copie;
+  const [element] = copie.splice(de, 1);
+  copie.splice(vers, 0, element);
+  return copie;
+}
+
+/** Ids d'un ordre proposé, puis ceux qu'il ne connaît pas (dans l'ordre actuel). */
+export function appliquerOrdrePropose(
+  actuels: readonly number[],
+  propose: readonly number[],
+): number[] {
+  const connus = new Set(actuels);
+  const tete = propose.filter((id) => connus.has(id));
+  const vus = new Set(tete);
+  return [...tete, ...actuels.filter((id) => !vus.has(id))];
 }
