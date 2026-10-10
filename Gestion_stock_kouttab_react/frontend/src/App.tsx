@@ -17,6 +17,7 @@ import { AdminSetupPage } from '@/pages/auth/AdminSetupPage';
 import { ForgotPasswordPage } from '@/pages/auth/ForgotPasswordPage';
 import { ResetPasswordPage } from '@/pages/auth/ResetPasswordPage';
 import { SsoExchangePage } from '@/pages/auth/SsoExchangePage';
+import { TablettePage } from '@/pages/auth/TablettePage';
 
 /**
  * Charge un écran à la demande.
@@ -100,6 +101,8 @@ export default function App() {
               <Route path="/reset-password" element={<ResetPasswordPage />} />
               {/* Passage signé depuis gestion.lekouttab.fr (jeton en fragment #). */}
               <Route path="/sso" element={<SsoExchangePage />} />
+              {/* Écran Personnel de la tablette de caisse (session en fragment #). */}
+              <Route path="/tablette" element={<TablettePage />} />
 
               <Route
                 element={

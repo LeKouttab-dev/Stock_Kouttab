@@ -13,7 +13,6 @@ from fastapi import (
     Depends,
     File,
     Form,
-    Header,
     Query,
     Request,
     Response,
@@ -22,12 +21,13 @@ from fastapi import (
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, require_roles
+from app.api.deps import get_current_user, require_roles, verifier_cle_caisse
 from app.core.config import settings
 from app.core.errors import ErrorCode
 from app.core.exceptions import AppException
 from app.core.logger import get_logger
 from app.core.rate_limit import limiter
+from app.core.tablette import nom_auteur
 from app.crud import buvette as buvette_crud
 from app.crud import buvette_cloture as cloture_crud
 from app.crud import buvette_inventaire as inventaire_crud
@@ -155,7 +155,7 @@ def create_product(
     current_user: Admin = Depends(require_roles(*_GESTION_ROLES)),
 ) -> Any:
     """Cree un produit ; une quantite initiale > 0 est tracee comme premier reappro."""
-    product = buvette_crud.create_product(db, payload, fait_par=current_user.full_name)
+    product = buvette_crud.create_product(db, payload, fait_par=nom_auteur(current_user))
     return _en_produit_out(product)
 
 
@@ -321,21 +321,8 @@ def list_sales(
 # ---------------------------------------------------------------------------
 
 
-def _verifier_cle_caisse(
-    x_caisse_key: str | None = Header(default=None, alias="X-Caisse-Key"),
-) -> None:
-    """Seule protection de ces routes : elles decrementent le stock.
-
-    Cle absente du `.env` : la caisse n'existe pas (404), comme le passage
-    signe. Sans ce choix, une cle vide comparee a un en-tete vide ouvrirait la
-    porte. Comparaison en temps constant, sur des octets : `compare_digest`
-    leve sur une chaine non ASCII, qu'un appelant peut envoyer.
-    """
-    attendue = settings.caisse_api_key.strip()
-    if not attendue:
-        raise AppException(ErrorCode.NOT_FOUND)
-    if not secrets.compare_digest((x_caisse_key or "").encode(), attendue.encode()):
-        raise AppException(ErrorCode.TOKEN_INVALID)
+# Garde partagee avec `POST /auth/caisse/session` (cf. `deps.verifier_cle_caisse`).
+_verifier_cle_caisse = verifier_cle_caisse
 
 
 
@@ -598,7 +585,7 @@ def reappro_produit(
         prix_achat_unitaire_cents=payload.prix_achat_unitaire_cents,
         origine=buvette_crud.ORIGINE_APP,
         commentaire=payload.commentaire,
-        fait_par=current_user.full_name,
+        fait_par=nom_auteur(current_user),
     )
     return {"produit": _en_produit_out(produit), "reappro": reappro_crud.reappro_out(reappro)}
 
@@ -739,7 +726,7 @@ def cloturer_caisse(
         compte_cents=payload.compte_cents,
         commentaire=payload.commentaire,
         debut=payload.debut,
-        saisi_par=current_user.full_name,
+        saisi_par=nom_auteur(current_user),
     )
     return cloture_crud.cloture_out(cloture)
 
@@ -773,7 +760,7 @@ def demarrer_inventaire(
     current_user: Admin = Depends(require_roles(*_GESTION_ROLES)),
 ) -> Any:
     """Demarre un inventaire (produits de la tablette hors cafes, comptes a 0). 409 si un autre est ouvert."""
-    return _inventaire_out(inventaire_crud.demarrer(db, cree_par=current_user.full_name), db)
+    return _inventaire_out(inventaire_crud.demarrer(db, cree_par=nom_auteur(current_user)), db)
 
 
 @router.get(

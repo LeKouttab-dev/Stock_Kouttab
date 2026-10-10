@@ -11,12 +11,13 @@ from fastapi.security import OAuth2PasswordRequestForm
 from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, verifier_cle_caisse
 from app.core.errors import ErrorCode
 from app.core.exceptions import AppException
 from app.core.logger import get_logger
 from app.core.config import settings
 from app.core.rate_limit import limiter
+from app.core.tablette import est_compte_tablette, operateur_de
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -34,6 +35,7 @@ from app.crud import event as event_crud
 from app.crud import expense as expense_crud
 from app.crud import invitation as invitation_crud
 from app.crud import password_reset as password_reset_crud
+from app.crud import tablette as tablette_crud
 from app.crud import user as user_crud
 from sqlalchemy import func, select
 
@@ -41,6 +43,7 @@ from app.db.models import Admin, Event, Expense, Invoice
 from app.db.session import SessionLocal, get_db
 from app.schemas.auth import (
     AdminSetupIn,
+    CaisseSessionIn,
     ForgotPasswordIn,
     InvitationValidateOut,
     LoginIn,
@@ -48,6 +51,7 @@ from app.schemas.auth import (
     SsoDepensesOut,
     SsoExchangeIn,
     LogoutIn,
+    MeOut,
     MessageOut,
     RefreshIn,
     ResetPasswordIn,
@@ -73,17 +77,58 @@ def _to_user_out(user: Admin) -> UserOut:
 
 
 def _build_token_payload(
-    db: Session, user: Admin, password_must_change: bool
+    db: Session,
+    user: Admin,
+    password_must_change: bool,
+    operateur: str | None = None,
 ) -> TokenOut:
-    refresh, jti, expires_at = create_refresh_token(user.id)
+    # `op` (session tablette) : porte par le jeton d'acces ET par le refresh,
+    # pour survivre a chaque rotation. Jamais pour un autre compte.
+    extra = {"op": operateur} if operateur and est_compte_tablette(user) else None
+    refresh, jti, expires_at = create_refresh_token(user.id, extra=extra)
     auth_security.store_refresh_token(
         db, user_id=user.id, jti=jti, expires_at=expires_at
     )
     return TokenOut(
-        access_token=create_access_token(user.id, user.role),
+        access_token=create_access_token(user.id, user.role, extra=extra),
         refresh_token=refresh,
         user=_to_user_out(user),
         password_must_change=password_must_change,
+        operateur=extra["op"] if extra else None,
+    )
+
+
+# ---- Session de la tablette de caisse (ecran « Personnel ») -----------------
+
+
+@router.post(
+    "/caisse/session",
+    response_model=TokenOut,
+    dependencies=[Depends(verifier_cle_caisse)],
+)
+@limiter.limit("10/minute")
+def caisse_session(
+    request: Request,
+    payload: CaisseSessionIn,
+    db: Session = Depends(get_db),
+) -> Any:
+    """Ouvre une session du compte systeme « Tablette buvette » au nom saisi.
+
+    Porte UNIQUE de ce compte (son mot de passe est inutilisable) : gardee par
+    la cle de la caisse, comme les autres routes de la tablette (404 si la
+    caisse n'est pas configuree, 401 si la cle est fausse). La session n'a que
+    les droits du role ``AdminStock`` (buvette seule) ; le nom de l'operateur
+    (revendication ``op``) signe chaque action : « Nom (tablette) ».
+    """
+    compte = tablette_crud.get_compte_tablette(db)
+    if compte is None or compte.validation_status != "active":
+        # Migration non passee, ou compte desactive a la main par un Super Admin.
+        raise AppException(
+            ErrorCode.NOT_FOUND, detail="Compte de la tablette absent ou desactive."
+        )
+    logger.info("Session tablette ouverte pour l'operateur %r", payload.operateur)
+    return _build_token_payload(
+        db, compte, password_must_change=False, operateur=payload.operateur
     )
 
 
@@ -123,6 +168,9 @@ def sso_exchange(
         prenom=charge.get("prenom"),
         nom=charge.get("nom"),
     )
+    if est_compte_tablette(user):
+        # Son adresse est un identifiant interne : jamais une porte d'entree.
+        raise AppException(ErrorCode.INVALID_CREDENTIALS)
     if user.validation_status == "rejected":
         raise AppException(ErrorCode.ACCOUNT_REJECTED)
     if user.validation_status != "active":
@@ -352,6 +400,10 @@ def forgot_password(
     )
 
     utilisateur = user_crud.get_user_by_login(db, payload.identifiant)
+    if est_compte_tablette(utilisateur):
+        # Compte systeme sans mot de passe : rien a reinitialiser, meme reponse.
+        logger.info("Reinitialisation refusee : compte systeme de la tablette.")
+        return reponse
     if utilisateur is None or not utilisateur.email:
         logger.info(
             "Reinitialisation demandee pour %r : aucun compte ou aucune adresse.",
@@ -470,7 +522,10 @@ def _do_login(
         )
 
     user = user_crud.get_user_by_login(db, username)
-    if user is None:
+    if user is None or est_compte_tablette(user):
+        # Le compte de la tablette n'a pas de mot de passe : sa seule porte est
+        # `POST /auth/caisse/session` (cle de la caisse). Meme reponse qu'un
+        # compte inconnu.
         auth_security.record_failure(db, username, ip)
         raise AppException(ErrorCode.INVALID_CREDENTIALS)
 
@@ -535,7 +590,14 @@ def refresh(payload: RefreshIn, db: Session = Depends(get_db)) -> Any:
             ErrorCode.REFRESH_TOKEN_INVALID,
             detail="Session expiree ou revoquee, merci de vous reconnecter.",
         )
-    return _build_token_payload(db, user, password_must_change=False)
+    # Session tablette : le nom de l'operateur suit la rotation (ignore ailleurs).
+    op = decoded.get("op")
+    return _build_token_payload(
+        db,
+        user,
+        password_must_change=False,
+        operateur=op if isinstance(op, str) else None,
+    )
 
 
 # ---- Logout ----------------------------------------------------------------
@@ -564,9 +626,12 @@ def logout(
 # ---- Me --------------------------------------------------------------------
 
 
-@router.get("/me", response_model=UserOut)
+@router.get("/me", response_model=MeOut)
 def me(current_user: Admin = Depends(get_current_user)) -> Any:
-    return _to_user_out(current_user)
+    """L'utilisateur courant ; `operateur` = nom saisi sur la tablette, null sinon."""
+    return MeOut(
+        **_to_user_out(current_user).model_dump(), operateur=operateur_de(current_user)
+    )
 
 
 # ---- Invitations -----------------------------------------------------------

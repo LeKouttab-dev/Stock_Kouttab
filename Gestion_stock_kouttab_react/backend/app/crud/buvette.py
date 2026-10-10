@@ -13,6 +13,7 @@ from sqlalchemy import and_, case, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, undefer
 
+from app.core.tablette import USERNAME_TABLETTE
 from app.core.errors import ErrorCode
 from app.core.exceptions import AppException
 from app.core.logger import get_logger
@@ -1174,11 +1175,19 @@ def enregistrer_destinataires(db: Session, adresses: list[str]) -> list[str]:
 
 
 def comptes_admin_stock(db: Session) -> list[Admin]:
-    """Comptes ACTIFS du role AdminStock (un compte en attente ne recoit rien)."""
+    """Comptes ACTIFS du role AdminStock (un compte en attente ne recoit rien).
+
+    Sans le compte systeme de la tablette (`core.tablette`) : son adresse est un
+    identifiant interne, pas une boite — il ne recoit aucun courriel.
+    """
     return list(
         db.execute(
             select(Admin)
-            .where(Admin.role == ROLE_ADMIN_STOCK, Admin.validation_status == "active")
+            .where(
+                Admin.role == ROLE_ADMIN_STOCK,
+                Admin.validation_status == "active",
+                Admin.username != USERNAME_TABLETTE,
+            )
             .order_by(Admin.id.asc())
         ).scalars()
     )

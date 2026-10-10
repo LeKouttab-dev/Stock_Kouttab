@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { User } from '@/types/api';
+import { quitterModeTablette } from '@/lib/tablette';
 
 interface AuthState {
   user: User | null;
@@ -26,7 +27,11 @@ export const useAuthStore = create<AuthState>()(
           refreshToken: refreshToken ?? s.refreshToken,
         })),
       setUser: (user) => set({ user }),
-      logout: () => set({ user: null, accessToken: null, refreshToken: null }),
+      logout: () => {
+        // Le mode tablette ne survit pas à la session qui l'a ouvert.
+        quitterModeTablette();
+        set({ user: null, accessToken: null, refreshToken: null });
+      },
       isAuthenticated: () => Boolean(get().accessToken && get().user),
     }),
     {
