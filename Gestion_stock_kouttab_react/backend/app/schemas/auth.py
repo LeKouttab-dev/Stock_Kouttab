@@ -96,6 +96,24 @@ class SsoCalendrierOut(BaseModel):
     genere_le: str | None = None
 
 
+class SsoProduitLaitOut(BaseModel):
+    id: int
+    nom: str
+    actif: bool
+
+
+class SsoBuvetteLaitOut(BaseModel):
+    """Etat des boissons au lait de la buvette, lu ou bascule par gestion.
+
+    `actif` est vrai quand TOUTES sont proposees sur la tablette : un etat
+    mixte (l'une reactivee a la main ici) s'affiche donc « desactivees » la-bas,
+    et un clic sur « activer » les remet toutes d'accord.
+    """
+
+    actif: bool
+    produits: list[SsoProduitLaitOut]
+
+
 class ResetPasswordIn(BaseModel):
     token: str = Field(min_length=10, max_length=255)
     password: str = Field(min_length=8, max_length=200)

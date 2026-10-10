@@ -132,6 +132,17 @@ class Settings(BaseSettings):
     # restent separees — relever celle des tickets pour livrer une
     # application serait une porte ouverte sans rapport.
     caisse_apk_max_mb: int = Field(default=150, alias="CAISSE_APK_MAX_MB")
+    # Boissons au lait de la buvette (Cappuccino, Latte macchiato) : les
+    # responsables de pole les activent ou les masquent depuis gestion.lekouttab.fr
+    # (`POST /auth/sso/buvette-lait`), selon que la machine sera nettoyee ou non.
+    # Ids `BuvetteProducts` separes par des virgules.
+    buvette_produits_lait_ids: str = Field(
+        default="35,36", alias="BUVETTE_PRODUITS_LAIT_IDS"
+    )
+
+    @property
+    def ids_produits_lait(self) -> list[int]:
+        return [int(x) for x in self.buvette_produits_lait_ids.split(",") if x.strip().isdigit()]
 
     # Google Agenda (onglet Calendrier) — compte de service Google Cloud avec
     # delegation a l'echelle du domaine, en LECTURE SEULE.
