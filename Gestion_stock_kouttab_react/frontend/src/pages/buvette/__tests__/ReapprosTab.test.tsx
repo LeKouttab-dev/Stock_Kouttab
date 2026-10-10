@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '@/test/mocks/server';
 import { fireEvent, renderWithProviders, screen, userEvent, waitFor } from '@/test/test-utils';
-import { periodeGlissante } from '@/lib/buvette';
+import { periodeInitiale } from '@/lib/periode';
 import type { BuvetteProduct, ReapprosResponse } from '@/types/api';
 import { ReapprosTab } from '../tabs/ReapprosTab';
 import { BASE_URL } from './helpers';
@@ -66,7 +66,7 @@ function servirProduits() {
 }
 
 describe('pages/buvette/tabs/ReapprosTab', () => {
-  it('affiche les totaux et une ligne par réappro, sur 30 jours par défaut', async () => {
+  it('affiche les totaux et une ligne par réappro, sur le mois en cours par défaut', async () => {
     servirProduits();
     let params: URLSearchParams | null = null;
     server.use(
@@ -92,7 +92,7 @@ describe('pages/buvette/tabs/ReapprosTab', () => {
 
     await waitFor(() => expect(params).not.toBeNull());
     const p = params as unknown as URLSearchParams;
-    const defaut = periodeGlissante(30);
+    const defaut = periodeInitiale('mois');
     expect(p.get('debut')).toBe(defaut.debut);
     expect(p.get('fin')).toBe(defaut.fin);
     expect(p.get('product_id')).toBeNull();
@@ -134,6 +134,8 @@ describe('pages/buvette/tabs/ReapprosTab', () => {
     );
     const user = userEvent.setup();
     renderWithProviders(<ReapprosTab />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Personnalisé' }));
 
     fireEvent.change(screen.getByLabelText('Du'), { target: { value: '2026-10-01' } });
     fireEvent.change(screen.getByLabelText('Au'), { target: { value: '2026-10-09' } });

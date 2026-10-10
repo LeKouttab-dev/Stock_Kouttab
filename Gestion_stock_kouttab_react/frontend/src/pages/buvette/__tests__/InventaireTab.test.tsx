@@ -292,6 +292,25 @@ describe('pages/buvette/tabs/InventaireTab', () => {
     );
   });
 
+  it('étape espèces : la période part de la dernière clôture de caisse', async () => {
+    enCours(inventaire({ statut: 'stock_valide' }));
+    server.use(
+      http.get(`${BASE_URL}/buvette/inventaires/12/especes`, () =>
+        HttpResponse.json({
+          ...ESPECES,
+          dernier_comptage: { type: 'cloture', le: '2026-10-01T20:00:00Z' },
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    await ouvrir();
+    await user.click(await screen.findByRole('button', { name: /Reprendre/ }));
+
+    expect(
+      await screen.findByText(/2 vente\(s\) en espèces, depuis la clôture du 01\/10\/2026 22:00/),
+    ).toBeInTheDocument();
+  });
+
   it('premier inventaire : la date de début est obligatoire et envoyée', async () => {
     enCours(inventaire({ statut: 'stock_valide' }));
     const debuts: (string | null)[] = [];
@@ -405,6 +424,8 @@ describe('pages/buvette/tabs/InventaireTab', () => {
       );
       const user = userEvent.setup();
       await ouvrir('Compta');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Personnalisé' }));
 
       fireEvent.change(screen.getByLabelText('Du'), { target: { value: '2026-10-01' } });
       fireEvent.change(screen.getByLabelText('Au'), { target: { value: '2026-10-31' } });

@@ -13,13 +13,14 @@ import {
   ClipboardList,
   PackagePlus,
   Barcode,
+  Search,
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { KpiCard } from '@/components/shared/KpiCard';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { BuvetteProductCard } from '@/components/buvette/BuvetteProductCard';
+import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/useToast';
 import { ACTIONS } from '@/lib/auth';
@@ -34,6 +35,8 @@ import {
 } from '@/api/endpoints/buvette';
 import { useBarcodeLookup } from '@/api/endpoints/stock';
 import { formatCents } from '@/lib/format';
+import { produitCorrespond } from '@/lib/buvette';
+import { ProduitsGroupes } from './ProduitsGroupes';
 import { ModifierProduitModal } from './modals/ModifierProduitModal';
 import { ReapproModal } from './modals/ReapproModal';
 import { CreateProductModal } from './modals/CreateProductModal';
@@ -111,6 +114,7 @@ export function BuvettePage() {
   const [addNewOpen, setAddNewOpen] = useState(false);
   const [inconnuOpen, setInconnuOpen] = useState(false);
   const [filtreSansCode, setFiltreSansCode] = useState(false);
+  const [recherche, setRecherche] = useState('');
 
   const handleDetected = async (barcode: string) => {
     setScannerOpen(false);
@@ -134,7 +138,10 @@ export function BuvettePage() {
 
   const list = products.data ?? [];
   const nbSansCode = list.filter((p) => !p.barcode).length;
-  const affiches = filtreSansCode ? list.filter((p) => !p.barcode) : list;
+  // Recherche et filtre « Sans code-barres » s'appliquent à travers les groupes.
+  const affiches = list.filter(
+    (p) => (!filtreSansCode || !p.barcode) && produitCorrespond(p, recherche),
+  );
 
   // Code relié à un produit existant : on range une livraison, donc réappro.
   const handleAssocie = (p: BuvetteProduct) => {
@@ -334,22 +341,40 @@ export function BuvettePage() {
                 ) : null
               }
             />
-          ) : affiches.length === 0 ? (
-            <EmptyState title={fr.buvette.codeBarres.filtreVide} />
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {affiches.map((p) => (
-                <BuvetteProductCard
-                  key={p.id}
-                  product={p}
+            <>
+              <div className="relative max-w-md">
+                <Search
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden
+                />
+                <Input
+                  type="search"
+                  aria-label={fr.buvette.rechercheProduit}
+                  placeholder={fr.buvette.rechercheProduit}
+                  value={recherche}
+                  onChange={(e) => setRecherche(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              {affiches.length === 0 ? (
+                <EmptyState
+                  title={
+                    recherche.trim() ? fr.buvette.rechercheVide : fr.buvette.codeBarres.filtreVide
+                  }
+                />
+              ) : (
+                <ProduitsGroupes
+                  produits={affiches}
+                  rechercheActive={recherche.trim() !== ''}
                   canEdit={canCrud}
                   onModifier={handleModifier}
                   onDelete={handleDelete}
                   onToggleActive={handleToggleActive}
                   onReappro={handleReappro}
                 />
-              ))}
-            </div>
+              )}
+            </>
           )}
         </TabsContent>
 

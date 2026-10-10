@@ -25,6 +25,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.crud.buvette import _instant, _verifier_periode, aujourd_hui, moyen_de_paiement
+from app.crud.buvette_cloture import cloture_out
+from app.crud.buvette_cloture import entre as clotures_entre
 from app.crud.buvette_inventaire import (
     debut_du_jour_en_utc,
     en_utc,
@@ -235,7 +237,10 @@ def mouvements_inventaire(db: Session, inventaire: Inventaire) -> dict[str, Any]
 
     - `reappros` : ceux de la periode, plus anciens d'abord ;
     - `mouvements` : chronologie unique (reappros, ventes par article avec leur
-      moyen, ecarts de cet inventaire), heures de Paris naives ;
+      moyen, clotures de caisse, ecarts de cet inventaire), heures de Paris
+      naives ;
+    - `clotures` : clotures de caisse faites dans la periode, plus anciennes
+      d'abord (`crud.buvette_cloture.cloture_out`) ;
     - `recap` : une ligne par produit de l'inventaire. « Compte au precedent »
       = quantite comptee a l'inventaire precedent ; 0 pour un produit cree
       depuis (son stock initial est trace comme reappro) ; inconnu sinon, et
@@ -288,6 +293,30 @@ def mouvements_inventaire(db: Session, inventaire: Inventaire) -> dict[str, Any]
                 ),
             }
         )
+    # Clotures de caisse de la periode : la boite a ete videe, montant compte.
+    clotures = [cloture_out(c) for c in clotures_entre(db, debut, fin)]
+    for c in clotures:
+        mouvements.append(
+            {
+                "quand": utc_vers_paris(c["periode_fin"].replace(tzinfo=None)),
+                "type": "cloture",
+                "produit": "",
+                "quantite": None,
+                "moyen": "especes",
+                "prix_unitaire_cents": None,
+                "montant_cents": c["compte_cents"],
+                "detail": " ; ".join(
+                    t
+                    for t in (
+                        f"attendu {c['attendu_cents'] / 100:.2f} €".replace(".", ","),
+                        f"écart {c['ecart_cents'] / 100:+.2f} €".replace(".", ","),
+                        c["saisi_par"] and f"par {c['saisi_par']}",
+                        c["commentaire"],
+                    )
+                    if t
+                ),
+            }
+        )
     if inventaire.stock_valide_le is not None:
         quand = utc_vers_paris(inventaire.stock_valide_le)
         for l in inventaire.lignes:
@@ -304,7 +333,7 @@ def mouvements_inventaire(db: Session, inventaire: Inventaire) -> dict[str, Any]
                         "detail": f"Inventaire n° {inventaire.id}",
                     }
                 )
-    ordre = {"reappro": 0, "vente": 1, "ecart": 2}
+    ordre = {"reappro": 0, "vente": 1, "cloture": 2, "ecart": 3}
     mouvements.sort(key=lambda m: (m["quand"], ordre[m["type"]]))
 
     # Recapitulatif par produit
@@ -368,5 +397,6 @@ def mouvements_inventaire(db: Session, inventaire: Inventaire) -> dict[str, Any]
         "achats_cents": sum(r["total_cents"] or 0 for r in reappros),
         "mouvements": mouvements,
         "recap": recap,
+        "clotures": clotures,
     }
 

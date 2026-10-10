@@ -544,7 +544,7 @@ def test_export_d_un_inventaire(catalogue, admin, client) -> None:
     assert reponse.headers["content-disposition"] == f'attachment; filename="inventaire-{inv["id"]}-{jour}.xlsx"'
     assert classeur.sheetnames == [
         "Synthèse", "Écarts produits", "Ventes espèces",
-        "Réapprovisionnements", "Mouvements", "Récap par produit",
+        "Réapprovisionnements", "Mouvements", "Récap par produit", "Clôtures de caisse",
     ]
 
     synthese = {l[0]: l[1] for l in _valeurs(classeur["Synthèse"]) if l[0]}
@@ -586,7 +586,7 @@ def test_export_de_l_historique(historique, admin) -> None:
     reponse = admin.get(f"{API}/inventaires/export.xlsx", params={"debut": "2026-10-01", "fin": "2026-10-05"})
     classeur = _classeur(reponse)
     assert reponse.headers["content-disposition"] == 'attachment; filename="inventaires-2026-10-01_2026-10-05.xlsx"'
-    assert classeur.sheetnames == ["Inventaires", "Détail", "Réapprovisionnements"]
+    assert classeur.sheetnames == ["Inventaires", "Détail", "Réapprovisionnements", "Clôtures de caisse"]
     resumes = _valeurs(classeur["Inventaires"])
     assert resumes[0][:4] == ("N°", "Statut", "Démarré le", "Terminé le")
     assert classeur["Inventaires"]["A1"].font.bold

@@ -170,12 +170,15 @@ export const handlers = [
   http.get(`${BASE_URL}/buvette/stats`, () =>
     HttpResponse.json({ par_jour: [], par_heure: [], par_produit: [], par_moyen: [] }),
   ),
-  http.get(`${BASE_URL}/buvette/clotures/attendu`, ({ request }) =>
+  http.get(`${BASE_URL}/buvette/clotures/attendu`, () =>
     HttpResponse.json({
-      jour: new URL(request.url).searchParams.get('jour'),
+      periode_debut: null,
+      periode_fin: '2026-10-10T10:00:00Z',
+      premier_comptage: true,
       attendu_cents: 0,
-      nb_ventes_especes: 0,
-      cloture: null,
+      nb_ventes: 0,
+      ventes: [],
+      dernier_comptage: null,
     }),
   ),
   http.get(`${BASE_URL}/buvette/clotures`, () => HttpResponse.json([])),

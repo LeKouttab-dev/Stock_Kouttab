@@ -22,6 +22,8 @@ from sqlalchemy.orm import Session
 
 from app.core.logger import get_logger
 from app.crud import buvette as buvette_crud
+from app.crud import buvette_cloture as cloture_crud
+from app.crud.buvette_inventaire import dernier_comptage, utc_vers_paris
 from app.db.models import BuvetteProduct
 from app.services import email as email_service
 from app.services import email_layout, liens
@@ -80,11 +82,34 @@ def donnees_du_jour(db: Session, jour: date) -> dict[str, Any]:
         "totaux": resultat["totaux"],
         "top": stats["par_produit"][:5],
         "sous_le_seuil": [(p.name, p.quantity, p.seuil_alerte) for p in sous_le_seuil],
-        "cloture": buvette_crud.get_cloture(db, jour),
-        "attendu_especes": buvette_crud.especes_attendues(db, jour)[0],
+        "clotures": cloture_crud.du_jour(db, jour),
+        # Ce que la boite devrait contenir maintenant : ventes especes depuis le
+        # dernier comptage (cloture ou inventaire). Sans aucun comptage, inconnu.
+        "boite": cloture_crud.periode(db, None) if _a_un_comptage(db) else None,
         "etat": etat,
         "secondes_depuis": buvette_crud.secondes_depuis(etat.recu_at) if etat else None,
     }
+
+
+def _a_un_comptage(db: Session) -> bool:
+    return dernier_comptage(db) is not None
+
+
+def _verdict(ecart: int) -> str:
+    if ecart == 0:
+        return "aucun écart"
+    if ecart > 0:
+        return f"excédent de {_euros(ecart)}"
+    return f"manque de {_euros(-ecart)}"
+
+
+def _heure(instant_utc: datetime) -> str:
+    paris = utc_vers_paris(instant_utc)
+    return f"{paris.hour} h {paris.minute:02d}"
+
+
+def _horodatage(instant_utc: datetime) -> str:
+    return f"{utc_vers_paris(instant_utc).strftime('%d/%m/%Y')} à {_heure(instant_utc)}"
 
 
 def composer(donnees: dict[str, Any]) -> tuple[str, str]:
@@ -123,27 +148,33 @@ def composer(donnees: dict[str, Any]) -> tuple[str, str]:
     else:
         lignes.append("- Aucun, le stock est suffisant.")
 
-    lignes += ["", "Clôture de la caisse espèces"]
-    cloture = donnees["cloture"]
-    if cloture is not None:
-        ecart = cloture.ecart_cents
-        if ecart == 0:
-            verdict = "aucun écart"
-        elif ecart > 0:
-            verdict = f"excédent de {_euros(ecart)}"
-        else:
-            verdict = f"manque de {_euros(-ecart)}"
+    lignes += ["", "Clôtures de la caisse espèces"]
+    clotures = donnees["clotures"]
+    boite = donnees["boite"]
+    for cloture in clotures:
         lignes.append(
-            f"- Faite par {cloture.saisi_par or 'un administrateur'} : attendu "
-            f"{_euros(cloture.attendu_cents)}, compté {_euros(cloture.compte_cents)}, {verdict}."
+            f"- À {_heure(cloture.periode_fin)}, par "
+            f"{cloture.saisi_par or 'un administrateur'} : attendu "
+            f"{_euros(cloture.attendu_cents)}, compté {_euros(cloture.compte_cents)}, "
+            f"{_verdict(cloture.ecart_cents)}."
         )
         if cloture.commentaire:
-            lignes.append(f"- Commentaire : {cloture.commentaire}")
-    else:
+            lignes.append(f"  Commentaire : {cloture.commentaire}")
+    if clotures:
+        if boite is not None and boite["attendu_cents"]:
+            lignes.append(
+                "- Depuis la dernière clôture, espèces attendues dans la boîte : "
+                f"{_euros(boite['attendu_cents'])}."
+            )
+    elif boite is not None:
+        nature = "clôture" if boite["dernier"]["type"] == "cloture" else "inventaire"
         lignes.append(
-            f"- Pas encore faite. Espèces attendues en caisse : "
-            f"{_euros(donnees['attendu_especes'])}."
+            f"- Aucune clôture aujourd'hui. Dernier comptage le "
+            f"{_horodatage(boite['debut'])} ({nature}) ; espèces attendues dans la "
+            f"boîte : {_euros(boite['attendu_cents'])}."
         )
+    else:
+        lignes.append("- Aucun comptage des espèces enregistré pour l'instant.")
 
     lignes += ["", "Tablette de caisse"]
     etat = donnees["etat"]

@@ -24,7 +24,6 @@ from app.db.models import (
     BuvetteReglage,
     BuvetteSale,
     CaisseEtat,
-    ClotureCaisse,
 )
 from app.services import images
 from app.schemas.buvette import (
@@ -1063,94 +1062,6 @@ def statistiques(db: Session, debut: date, fin: date) -> dict[str, Any]:
             {"moyen": m, "ca_cents": v[0], "ventes": v[1]} for m, v in par_moyen.items()
         ],
     }
-
-
-# ---------------------------------------------------------------------------
-# Cloture de caisse especes
-# ---------------------------------------------------------------------------
-
-
-def especes_attendues(db: Session, jour: date) -> tuple[int, int]:
-    """(montant attendu en caisse, nombre de ventes en especes) pour ce jour.
-
-    Seules les ventes de la tablette sans code SumUp sont des especes : une
-    commande HelloAsso est payee en ligne et n'entre jamais dans la caisse.
-    """
-    lignes = [
-        l
-        for l in lignes_de_la_periode(db, jour, jour)
-        if moyen_de_paiement(l) == "especes"
-    ]
-    return sum(l.amount_cents for l in lignes), len(_grouper(lignes))
-
-
-def get_cloture(db: Session, jour: date) -> ClotureCaisse | None:
-    return db.execute(
-        select(ClotureCaisse).where(ClotureCaisse.jour == jour)
-    ).scalar_one_or_none()
-
-
-def list_clotures(db: Session, limit: int = 30) -> list[ClotureCaisse]:
-    return list(
-        db.execute(
-            select(ClotureCaisse)
-            .order_by(ClotureCaisse.jour.desc(), ClotureCaisse.id.desc())
-            .limit(max(1, min(limit, 366)))
-        ).scalars()
-    )
-
-
-def cloturer(
-    db: Session,
-    *,
-    jour: date,
-    compte_cents: int,
-    commentaire: str | None,
-    saisi_par: str | None,
-) -> ClotureCaisse:
-    """Enregistre la cloture du jour. Une seule par jour (409 sinon).
-
-    L'attendu est calcule ICI, au moment de la saisie, et fige avec l'ecart :
-    il ne doit pas venir de l'ecran, qui peut afficher un chiffre perime.
-    """
-    if jour > aujourd_hui():
-        raise AppException(
-            ErrorCode.VALIDATION_ERROR, detail="On ne cloture pas une journee a venir."
-        )
-    if get_cloture(db, jour) is not None:
-        raise AppException(
-            ErrorCode.CONFLICT, detail="La caisse de ce jour est deja cloturee."
-        )
-    attendu, _ = especes_attendues(db, jour)
-    texte = (commentaire or "").strip() or None
-    cloture = ClotureCaisse(
-        jour=jour,
-        attendu_cents=attendu,
-        compte_cents=compte_cents,
-        ecart_cents=compte_cents - attendu,
-        commentaire=texte,
-        saisi_par=saisi_par,
-        created_at=datetime.utcnow(),
-    )
-    db.add(cloture)
-    try:
-        db.commit()
-    except IntegrityError as exc:
-        # Deux saisies simultanees : l'index unique sur `jour` a tranche.
-        db.rollback()
-        raise AppException(
-            ErrorCode.CONFLICT, detail="La caisse de ce jour est deja cloturee."
-        ) from exc
-    db.refresh(cloture)
-    logger.info(
-        "Cloture caisse %s : attendu %d, compte %d, ecart %d (par %s).",
-        jour,
-        attendu,
-        compte_cents,
-        cloture.ecart_cents,
-        saisi_par,
-    )
-    return cloture
 
 
 # ---------------------------------------------------------------------------

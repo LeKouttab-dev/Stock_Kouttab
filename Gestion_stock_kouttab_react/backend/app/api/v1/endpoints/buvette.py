@@ -29,6 +29,7 @@ from app.core.exceptions import AppException
 from app.core.logger import get_logger
 from app.core.rate_limit import limiter
 from app.crud import buvette as buvette_crud
+from app.crud import buvette_cloture as cloture_crud
 from app.crud import buvette_inventaire as inventaire_crud
 from app.crud import buvette_reappro as reappro_crud
 from app.db.models import Admin
@@ -684,17 +685,27 @@ def statistiques(
     dependencies=[Depends(require_roles(*_VIEW_ROLES))],
 )
 def especes_attendues(
-    jour: date | None = Query(default=None), db: Session = Depends(get_db)
+    debut: date | None = Query(default=None), db: Session = Depends(get_db)
 ) -> Any:
-    """Ce que la caisse especes devrait contenir pour ce jour, et sa cloture si faite."""
-    jour = jour or buvette_crud.aujourd_hui()
-    attendu, nb = buvette_crud.especes_attendues(db, jour)
-    cloture = buvette_crud.get_cloture(db, jour)
-    return ClotureAttenduOut(
-        jour=jour,
-        attendu_cents=attendu,
-        nb_ventes_especes=nb,
-        cloture=ClotureOut.model_validate(cloture) if cloture else None,
+    """Ventes especes depuis le dernier comptage (cloture ou inventaire) et total
+    attendu dans la boite ; `debut` ne sert qu'au tout premier comptage."""
+    return cloture_crud.attendu(db, debut)
+
+
+@router.get(
+    "/clotures/export.xlsx",
+    dependencies=[Depends(require_roles(*_VIEW_ROLES))],
+)
+def exporter_clotures(
+    debut: date | None = Query(default=None),
+    fin: date | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> Response:
+    """Classeur « Clôtures de caisse » : memes filtres que GET /buvette/clotures."""
+    clotures = [cloture_crud.cloture_out(c) for c in cloture_crud.lister(db, debut, fin)]
+    return _xlsx(
+        buvette_export.classeur_clotures(clotures),
+        f"clotures-{buvette_export.nom_periode(debut, fin)}.xlsx",
     )
 
 
@@ -704,9 +715,13 @@ def especes_attendues(
     dependencies=[Depends(require_roles(*_VIEW_ROLES))],
 )
 def lister_clotures(
-    limit: int = Query(default=30, ge=1, le=366), db: Session = Depends(get_db)
+    debut: date | None = Query(default=None),
+    fin: date | None = Query(default=None),
+    limit: int = Query(default=100, ge=1, le=1000),
+    db: Session = Depends(get_db),
 ) -> Any:
-    return [ClotureOut.model_validate(c) for c in buvette_crud.list_clotures(db, limit)]
+    """Historique des clotures, plus recentes d'abord ; filtre sur le jour (Paris)."""
+    return [cloture_crud.cloture_out(c) for c in cloture_crud.lister(db, debut, fin, limit)]
 
 
 @router.post("/clotures", response_model=ClotureOut, status_code=201)
@@ -715,15 +730,18 @@ def cloturer_caisse(
     db: Session = Depends(get_db),
     current_user: Admin = Depends(require_roles(*_GESTION_ROLES)),
 ) -> Any:
-    """Cloture du jour : l'attendu est calcule ici, l'ecart fige. 409 si deja faite."""
-    cloture = buvette_crud.cloturer(
+    """Cloture depuis le dernier comptage : periode, attendu et ecart figes ici.
+
+    422 si premier comptage sans `debut` ; 409 si doublon probable (aucune vente
+    depuis une cloture de moins d'une minute)."""
+    cloture = cloture_crud.cloturer(
         db,
-        jour=payload.jour,
         compte_cents=payload.compte_cents,
         commentaire=payload.commentaire,
+        debut=payload.debut,
         saisi_par=current_user.full_name,
     )
-    return ClotureOut.model_validate(cloture)
+    return cloture_crud.cloture_out(cloture)
 
 
 # ---------------------------------------------------------------------------
@@ -779,7 +797,8 @@ def exporter_historique_inventaires(
     db: Session = Depends(get_db),
 ) -> Response:
     """Classeur de l'historique : « Inventaires » (resumes), « Detail » (lignes
-    produits) et « Reapprovisionnements » de la periode filtree."""
+    produits), « Reapprovisionnements » et « Clôtures de caisse » de la periode
+    filtree."""
     liste = inventaire_crud.historique(db, debut, fin)
     achats = reappro_crud.achats_par_inventaire(db, liste)
     inventaires = [
@@ -787,7 +806,11 @@ def exporter_historique_inventaires(
         for i in liste
     ]
     return _xlsx(
-        buvette_export.classeur_historique(inventaires, reappro_crud.par_jours(db, debut, fin)),
+        buvette_export.classeur_historique(
+            inventaires,
+            reappro_crud.par_jours(db, debut, fin),
+            [cloture_crud.cloture_out(c) for c in cloture_crud.lister(db, debut, fin)],
+        ),
         f"inventaires-{buvette_export.nom_periode(debut, fin)}.xlsx",
     )
 
@@ -895,8 +918,9 @@ def abandonner_inventaire(inventaire_id: int, db: Session = Depends(get_db)) -> 
 )
 def exporter_inventaire(inventaire_id: int, db: Session = Depends(get_db)) -> Response:
     """Classeur d'un inventaire : Synthese, Ecarts produits, Ventes especes,
-    Reapprovisionnements, Mouvements et Recap par produit (periode : de la
-    validation du stock de l'inventaire precedent a celle de celui-ci)."""
+    Reapprovisionnements, Mouvements, Recap par produit et Clôtures de caisse
+    (periode : de la validation du stock de l'inventaire precedent a celle de
+    celui-ci)."""
     inventaire = inventaire_crud.get_ou_404(db, inventaire_id)
     especes = inventaire_crud.especes(db, inventaire_id, None)
     mouvements = reappro_crud.mouvements_inventaire(db, inventaire)

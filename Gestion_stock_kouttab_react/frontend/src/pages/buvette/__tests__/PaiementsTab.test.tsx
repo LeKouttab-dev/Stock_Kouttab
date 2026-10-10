@@ -94,11 +94,11 @@ describe('pages/buvette/tabs/PaiementsTab', () => {
     window.URL.createObjectURL = vi.fn(() => 'blob:paiements');
     window.URL.revokeObjectURL = vi.fn();
     const noms: string[] = [];
-    const clic = vi
-      .spyOn(HTMLAnchorElement.prototype, 'click')
-      .mockImplementation(function (this: HTMLAnchorElement) {
-        noms.push(this.download);
-      });
+    const clic = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      noms.push(this.download);
+    });
     let params: URLSearchParams | null = null;
     server.use(
       http.get(`${BASE_URL}/buvette/paiements/export.xlsx`, ({ request }) => {
@@ -113,6 +113,8 @@ describe('pages/buvette/tabs/PaiementsTab', () => {
     );
     const user = userEvent.setup();
     renderWithProviders(<PaiementsTab />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Personnalisé' }));
 
     fireEvent.change(screen.getByLabelText('Du'), { target: { value: '2026-10-01' } });
     fireEvent.change(screen.getByLabelText('Au'), { target: { value: '2026-10-09' } });
@@ -133,11 +135,11 @@ describe('pages/buvette/tabs/PaiementsTab', () => {
     window.URL.createObjectURL = vi.fn(() => 'blob:paiements');
     window.URL.revokeObjectURL = vi.fn();
     const noms: string[] = [];
-    const clic = vi
-      .spyOn(HTMLAnchorElement.prototype, 'click')
-      .mockImplementation(function (this: HTMLAnchorElement) {
-        noms.push(this.download);
-      });
+    const clic = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      noms.push(this.download);
+    });
     let params: URLSearchParams | null = null;
     server.use(
       http.get(`${BASE_URL}/buvette/paiements/export.xlsx`, ({ request }) => {

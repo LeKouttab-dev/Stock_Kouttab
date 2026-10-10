@@ -374,8 +374,7 @@ export const fr = {
     aucunEvenement: 'Aucun événement — dépense courante',
     notListed: "Mon événement n'est pas dans la liste",
     poleDeduit: 'Pôle déduit de l’événement',
-    poleNonDeduit:
-      "Cet événement n'indique pas sa famille (T, G ou J) : choisissez le pôle.",
+    poleNonDeduit: "Cet événement n'indique pas sa famille (T, G ou J) : choisissez le pôle.",
     freeTextPlaceholder: "Saisissez le nom de l'événement",
     selected: 'Événement sélectionné',
     unavailable:
@@ -473,7 +472,7 @@ export const fr = {
   categories: {
     title: 'Catégories de dépense',
     subtitle:
-      "La nature de la dépense — ce qui a été acheté. Demandée à chaque dépôt, sous tous les pôles.",
+      'La nature de la dépense — ce qui a été acheté. Demandée à chaque dépôt, sous tous les pôles.',
     label: 'Catégorie',
     selectPlaceholder: 'Sélectionnez une catégorie',
     unavailable: 'La liste des catégories est momentanément indisponible.',
@@ -608,6 +607,15 @@ export const fr = {
     ongletCaisse: 'Onglet de la tablette de caisse',
     ongletCaisseAide:
       'Un produit sans onglet n’apparaît pas sur la tablette : il reste en stock, mais ne se vend pas.',
+    groupes: {
+      sucre_sale: 'Sucré-salé',
+      boissons: 'Boissons',
+      cafe: 'Café',
+      epicerie: 'Épicerie',
+      aucun: 'Hors tablette',
+    },
+    rechercheProduit: 'Rechercher un produit (nom ou code-barres)',
+    rechercheVide: 'Aucun produit ne correspond à cette recherche.',
     onglets: {
       aucun: 'Pas sur la tablette',
       sucre_sale: 'Sucré-salé',
@@ -758,24 +766,47 @@ export const fr = {
     cloture: {
       titre: 'Clôture de caisse espèces',
       aide:
-        'Comptez les espèces de la caisse en fin de journée et saisissez le montant : ' +
-        "l'écart avec les ventes en espèces enregistrées par la tablette est conservé.",
-      jour: 'Jour',
+        'Comptez les espèces de la boîte quand vous le souhaitez, saisissez le montant, ' +
+        'puis videz la boîte : la prochaine clôture repartira de celle-ci.',
+      depuisCloture: (date: string) => `Depuis le dernier comptage (clôture du ${date})`,
+      depuisInventaire: (date: string) => `Depuis le dernier comptage (inventaire du ${date})`,
+      premierComptage:
+        'Premier comptage : choisissez la date à partir de laquelle compter les ventes en espèces.',
+      dateDebut: 'Ventes en espèces depuis le',
+      choisirDate: 'Choisissez une date pour afficher les ventes.',
+      ventesTitre: 'Ventes en espèces de la période',
+      aucuneVente: 'Aucune vente en espèces depuis le dernier comptage.',
+      date: 'Date',
+      articles: 'Articles',
+      montant: 'Montant',
       attendu: 'Espèces attendues',
       nbVentes: (n: number) => `${n} vente(s) en espèces`,
-      compte: 'Montant compté (€)',
+      compte: 'Espèces comptées (€)',
       compteCourt: 'Compté',
       montantInvalide: 'Saisissez un montant en euros, par exemple 42,50.',
       commentaire: 'Commentaire (facultatif)',
       commentaireCourt: 'Commentaire',
       ecart: 'Écart',
       ecartAide: 'Compté moins attendu : négatif, il manque de l’argent dans la caisse.',
-      cloturer: 'Clôturer',
-      cloturee: 'Caisse clôturée.',
-      dejaCloture: 'Ce jour est déjà clôturé.',
-      saisiPar: 'Saisi par',
+      cloturer: 'Clôturer et vider la boîte',
+      rappelVider: 'La boîte doit être vidée après le comptage.',
+      confirmerTitre: 'Clôturer la caisse ?',
+      confirmerTexte: (compte: string, attendu: string) =>
+        `Espèces comptées : ${compte} (attendu : ${attendu}). ` +
+        'La clôture est définitive et la boîte doit être vidée juste après.',
+      confirmer: 'Clôturer',
+      annuler: 'Annuler',
+      cloturee: 'Caisse clôturée. Pensez à vider la boîte.',
+      saisiPar: 'Par',
+      periode: 'Période',
+      periodeDe: (debut: string, fin: string) => `du ${debut} au ${fin}`,
+      ventesCol: 'Ventes',
       historique: 'Historique des clôtures',
-      historiqueVide: 'Aucune clôture enregistrée.',
+      historiqueVide: 'Aucune clôture sur cette période.',
+      du: 'Du',
+      au: 'Au',
+      exporter: 'Exporter (Excel)',
+      exporte: (nom: string) => `Fichier ${nom} téléchargé.`,
       lectureSeule: 'Seuls les gestionnaires de la buvette peuvent clôturer la caisse.',
       erreur: 'Impossible de charger la clôture.',
     },
@@ -832,10 +863,13 @@ export const fr = {
       stockValide: 'Stock mis à jour.',
       // Étape 2
       especesAide:
-        'Ventes en espèces enregistrées par la tablette depuis le dernier inventaire terminé.',
+        'Ventes en espèces enregistrées par la tablette depuis le dernier comptage ' +
+        '(clôture de caisse ou inventaire terminé).',
       periode: (debut: string) => `Depuis le ${debut}`,
+      depuisCloture: (date: string) => `Depuis la clôture du ${date}`,
+      depuisInventaire: (date: string) => `Depuis l’inventaire du ${date}`,
       premierInventaire:
-        'Premier inventaire : choisissez la date à partir de laquelle compter les ventes en espèces.',
+        'Premier comptage : choisissez la date à partir de laquelle compter les ventes en espèces.',
       dateDebut: 'Ventes en espèces depuis le',
       choisirDate: 'Choisissez une date pour afficher les ventes.',
       ventesTitre: 'Ventes en espèces de la période',
@@ -918,8 +952,7 @@ export const fr = {
     },
   },
   scanner: {
-    fichierIllisible:
-      "Ce fichier ne peut pas être recadré ici. Il sera déposé tel quel.",
+    fichierIllisible: 'Ce fichier ne peut pas être recadré ici. Il sera déposé tel quel.',
     recadrerTitre: 'Recadrer le justificatif',
     recadrerAide:
       'Ajustez le cadre sur le ticket : le PDF envoyé à la comptabilité ne gardera que cette zone.',
@@ -958,7 +991,7 @@ export const fr = {
   contact: {
     title: 'Nous contacter',
     subtitle:
-      'Posez votre question à la comptabilité ou à l’administration. '  +
+      'Posez votre question à la comptabilité ou à l’administration. ' +
       'La conversation reste ici, et vous êtes prévenu par courriel de chaque réponse.',
     formTitle: 'Poser une question',
     destinataire: 'À qui souhaitez-vous écrire ?',
@@ -1022,5 +1055,17 @@ export const fr = {
     notFoundTitle: 'Page introuvable',
     notFoundText: "Désolé, la page demandée n'existe pas.",
     goHome: "Retour à l'accueil",
+  },
+  periodes: {
+    libelle: 'Période',
+    presets: {
+      aujourdhui: 'Aujourd’hui',
+      '7j': '7 derniers jours',
+      mois: 'Ce mois-ci',
+      '3mois': '3 derniers mois',
+      perso: 'Personnalisé',
+    },
+    du: 'Du',
+    au: 'Au',
   },
 } as const;

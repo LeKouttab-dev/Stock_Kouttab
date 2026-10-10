@@ -602,29 +602,46 @@ export interface BuvetteStats {
   par_moyen: { moyen: string; ca_cents: number; ventes: number }[];
 }
 
+/** D'où part la période des espèces : la dernière clôture ou le dernier inventaire. */
+export interface DernierComptage {
+  type: 'cloture' | 'inventaire';
+  /** UTC avec fuseau. */
+  le: string;
+}
+
 export interface Cloture {
   id: number;
+  /** Jour (heure de Paris) de la clôture ; plusieurs clôtures possibles le même jour. */
   jour: string;
+  /** Période couverte ]début ; fin], UTC avec fuseau. */
+  periode_debut: string;
+  periode_fin: string;
   attendu_cents: number;
   compte_cents: number;
   /** compté − attendu : négatif = il manque de l'argent dans la caisse. */
   ecart_cents: number;
+  nb_ventes: number;
   commentaire: string | null;
   saisi_par: string | null;
   created_at: string;
 }
 
 export interface ClotureAttendu {
-  jour: string;
+  periode_debut: string | null;
+  periode_fin: string;
+  /** Aucune clôture ni inventaire terminé : la date de début est à choisir. */
+  premier_comptage: boolean;
   attendu_cents: number;
-  nb_ventes_especes: number;
-  cloture: Cloture | null;
+  nb_ventes: number;
+  ventes: InventaireVenteEspeces[];
+  dernier_comptage: DernierComptage | null;
 }
 
 export interface ClotureCreate {
-  jour: string;
   compte_cents: number;
   commentaire: string | null;
+  /** Premier comptage seulement. */
+  debut: string | null;
 }
 
 /* ---- Inventaire de la buvette (stock + espèces) --------------------------- */
@@ -697,6 +714,7 @@ export interface InventaireEspeces {
   attendu_cents: number;
   nb_ventes: number;
   ventes: InventaireVenteEspeces[];
+  dernier_comptage?: DernierComptage | null;
 }
 
 export interface InventaireTerminer {

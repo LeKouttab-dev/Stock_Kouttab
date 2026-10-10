@@ -11,7 +11,6 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -32,13 +31,14 @@ import {
 import { EmptyState } from '@/components/shared/EmptyState';
 import { ErrorAlert } from '@/components/shared/ErrorAlert';
 import { KpiCard } from '@/components/shared/KpiCard';
+import { PeriodePreset } from '@/components/shared/PeriodePreset';
+import { usePeriode } from '@/hooks/usePeriode';
 import {
   paramsExportPaiements,
   useBuvettePaiements,
   useTelechargerExcel,
 } from '@/api/endpoints/buvette';
 import { useToast } from '@/hooks/useToast';
-import { jourIso } from '@/lib/buvette';
 import { formatCents, formatDateTime } from '@/lib/format';
 import { fr } from '@/lib/i18n/fr';
 import { cn } from '@/lib/utils';
@@ -70,9 +70,8 @@ function reference(p: Paiement): string {
 }
 
 export function PaiementsTab() {
-  const aujourdhui = jourIso();
-  const [debut, setDebut] = useState(aujourdhui);
-  const [fin, setFin] = useState(aujourdhui);
+  const [periode, setPeriode] = usePeriode('aujourdhui');
+  const { debut, fin } = periode;
   const [moyen, setMoyen] = useState<MoyenPaiement | typeof TOUS>(TOUS);
   const [ouverts, setOuverts] = useState<Set<string>>(new Set());
 
@@ -107,28 +106,7 @@ export function PaiementsTab() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end gap-3">
-        <div className="space-y-1">
-          <Label htmlFor="paiements-du">{t.du}</Label>
-          <Input
-            id="paiements-du"
-            type="date"
-            value={debut}
-            max={fin}
-            onChange={(e) => e.target.value && setDebut(e.target.value)}
-            className="w-40"
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="paiements-au">{t.au}</Label>
-          <Input
-            id="paiements-au"
-            type="date"
-            value={fin}
-            min={debut}
-            onChange={(e) => e.target.value && setFin(e.target.value)}
-            className="w-40"
-          />
-        </div>
+        <PeriodePreset id="paiements" valeur={periode} onChange={setPeriode} />
         <div className="space-y-1">
           <Label htmlFor="paiements-moyen">{t.moyen}</Label>
           <Select value={moyen} onValueChange={(v) => setMoyen(v as MoyenPaiement | typeof TOUS)}>
