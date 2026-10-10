@@ -342,7 +342,7 @@ def test_l_export_d_inventaire_recapitule_les_mouvements(admin, client: TestClie
     classeur = _classeur(admin.get(f"{API}/inventaires/{second['id']}/export.xlsx"))
     assert classeur.sheetnames == [
         "Synthèse", "Écarts produits", "Ventes espèces",
-        "Réapprovisionnements", "Mouvements", "Récap par produit",
+        "Réapprovisionnements", "Mouvements", "Récap par produit", "Clôtures de caisse",
     ]
 
     synthese = {l[0]: l[1] for l in _valeurs(classeur["Synthèse"]) if l[0]}
@@ -395,7 +395,7 @@ def test_l_export_de_l_historique_ajoute_les_reappros(admin) -> None:
     classeur = _classeur(
         admin.get(f"{API}/inventaires/export.xlsx", params={"debut": jour, "fin": jour})
     )
-    assert classeur.sheetnames == ["Inventaires", "Détail", "Réapprovisionnements"]
+    assert classeur.sheetnames == ["Inventaires", "Détail", "Réapprovisionnements", "Clôtures de caisse"]
     lignes = _valeurs(classeur["Réapprovisionnements"])
     assert lignes[1][2:6] == ("Pain", 8, 1.0, 8.0)
 

@@ -1,5 +1,5 @@
 """Classeurs Excel de la buvette : inventaire, historique des inventaires,
-paiements, reapprovisionnements.
+paiements, reapprovisionnements, clotures de caisse.
 
 Fonctions pures : elles recoivent les donnees deja calculees par le CRUD (les
 memes dictionnaires que l'API sert a l'ecran) et rendent les octets du classeur.
@@ -42,6 +42,7 @@ TYPES_MOUVEMENT = {
     "reappro": "Réapprovisionnement",
     "vente": "Vente",
     "ecart": "Écart d'inventaire",
+    "cloture": "Clôture de caisse",
 }
 CATEGORIES = {
     "sucre_sale": "Sucré / salé",
@@ -161,6 +162,7 @@ def _feuille_synthese(
         ("Perte estimée", euros(resume["perte_cents"]), FORMAT_EUROS),
         ("", None, None),
         *_lignes_achats(mouvements),
+        *_lignes_clotures(mouvements),
         ("Période des espèces : du", heure_paris(inv["periode_especes_debut"]), FORMAT_DATE_HEURE),
         ("Période des espèces : au", heure_paris(inv["periode_especes_fin"]), FORMAT_DATE_HEURE),
         ("Ventes en espèces", inv["nb_ventes_especes"], None),
@@ -196,6 +198,22 @@ def _lignes_achats(mouvements: dict[str, Any] | None) -> list[tuple[str, Any, st
         ("Réapprovisionnements", len(reappros), None),
         ("Unités réapprovisionnées", sum(r["quantite"] for r in reappros), None),
         ("Total des achats", euros(mouvements["achats_cents"]), FORMAT_EUROS),
+        ("", None, None),
+    ]
+
+
+def _lignes_clotures(mouvements: dict[str, Any] | None) -> list[tuple[str, Any, str | None]]:
+    """Lignes de la synthese consacrees aux clotures de caisse de la periode."""
+    if mouvements is None:
+        return []
+    clotures = mouvements.get("clotures") or []
+    return [
+        ("Clôtures de caisse de la période", len(clotures), None),
+        (
+            "Cumul des écarts des clôtures",
+            euros(sum(c["ecart_cents"] for c in clotures)),
+            FORMAT_EUROS,
+        ),
         ("", None, None),
     ]
 
@@ -286,7 +304,8 @@ ENTETES_RECAP = (
 
 
 def _feuille_mouvements(feuille: Worksheet, mouvements: list[dict[str, Any]]) -> None:
-    """Chronologie unique : reappros, ventes par article, ecarts d'inventaire."""
+    """Chronologie unique : reappros, ventes par article, clotures de caisse
+    (montant compte), ecarts d'inventaire."""
     _entetes(feuille, 1, ENTETES_MOUVEMENTS)
     formats = {1: FORMAT_DATE, 2: FORMAT_HEURE, 7: FORMAT_EUROS, 8: FORMAT_EUROS}
     rang = 2
@@ -295,6 +314,8 @@ def _feuille_mouvements(feuille: Worksheet, mouvements: list[dict[str, Any]]) ->
             moyen = MOYENS.get(m["moyen"], m["moyen"])
         elif m["type"] == "reappro":
             moyen = ORIGINES.get(m["moyen"], m["moyen"])
+        elif m["type"] == "cloture":
+            moyen = MOYENS["especes"]
         else:
             moyen = ""
         _ligne(
@@ -322,7 +343,7 @@ def _feuille_mouvements(feuille: Worksheet, mouvements: list[dict[str, Any]]) ->
             None,
             "",
             "",
-            sum(m["quantite"] for m in mouvements),
+            sum(m["quantite"] or 0 for m in mouvements),
             "",
             None,
             None,
@@ -392,7 +413,8 @@ def classeur_inventaire(
 ) -> bytes:
     """Feuilles « Synthèse », « Écarts produits », « Ventes espèces » ; avec
     `mouvements` (`crud.buvette_reappro.mouvements_inventaire`), en plus
-    « Réapprovisionnements », « Mouvements » et « Récap par produit »."""
+    « Réapprovisionnements », « Mouvements », « Récap par produit » et
+    « Clôtures de caisse » (celles de la période des mouvements)."""
     classeur = Workbook()
     synthese = classeur.active
     synthese.title = "Synthèse"
@@ -403,6 +425,9 @@ def classeur_inventaire(
         _feuille_reappros(classeur.create_sheet("Réapprovisionnements"), mouvements["reappros"])
         _feuille_mouvements(classeur.create_sheet("Mouvements"), mouvements["mouvements"])
         _feuille_recap(classeur.create_sheet("Récap par produit"), mouvements["recap"])
+        _feuille_clotures(
+            classeur.create_sheet("Clôtures de caisse"), mouvements.get("clotures") or []
+        )
     return _octets(classeur)
 
 
@@ -442,10 +467,13 @@ ENTETES_DETAIL = (
 
 
 def classeur_historique(
-    inventaires: list[dict[str, Any]], reappros: list[dict[str, Any]] | None = None
+    inventaires: list[dict[str, Any]],
+    reappros: list[dict[str, Any]] | None = None,
+    clotures: list[dict[str, Any]] | None = None,
 ) -> bytes:
     """Feuilles « Inventaires » (un résumé par ligne), « Détail » (les lignes
-    produits) et, avec `reappros`, « Réapprovisionnements » de la période filtrée."""
+    produits) et, si fournis, « Réapprovisionnements » et « Clôtures de caisse »
+    de la période filtrée."""
     classeur = Workbook()
     feuille = classeur.active
     feuille.title = "Inventaires"
@@ -546,6 +574,8 @@ def classeur_historique(
     _largeurs(detail, (14, 17, 32, 16, 13, 15, 16, 14, 17))
     if reappros is not None:
         _feuille_reappros(classeur.create_sheet("Réapprovisionnements"), reappros)
+    if clotures is not None:
+        _feuille_clotures(classeur.create_sheet("Clôtures de caisse"), clotures)
     return _octets(classeur)
 
 
@@ -707,6 +737,91 @@ def classeur_reappros(reappros: list[dict[str, Any]]) -> bytes:
     feuille = classeur.active
     feuille.title = "Réapprovisionnements"
     _feuille_reappros(feuille, reappros)
+    return _octets(classeur)
+
+
+# ---------------------------------------------------------------------------
+# Clotures de caisse
+# ---------------------------------------------------------------------------
+
+
+ENTETES_CLOTURES = (
+    "Date",
+    "Heure",
+    "Période : du",
+    "Période : au",
+    "Ventes en espèces",
+    "Attendu",
+    "Compté",
+    "Écart (compté moins attendu)",
+    "Commentaire",
+    "Par",
+)
+
+
+def _feuille_clotures(feuille: Worksheet, clotures: list[dict[str, Any]]) -> None:
+    """Une ligne par cloture (dans l'ordre recu), puis une ligne de totaux.
+
+    `clotures` : dictionnaires de `crud.buvette_cloture.cloture_out`.
+    """
+    _entetes(feuille, 1, ENTETES_CLOTURES)
+    formats = {
+        1: FORMAT_DATE,
+        2: FORMAT_HEURE,
+        3: FORMAT_DATE_HEURE,
+        4: FORMAT_DATE_HEURE,
+        6: FORMAT_EUROS,
+        7: FORMAT_EUROS,
+        8: FORMAT_EUROS,
+    }
+    rang = 2
+    for c in clotures:
+        instant = heure_paris(c["periode_fin"])
+        _ligne(
+            feuille,
+            rang,
+            (
+                instant,
+                instant,
+                heure_paris(c["periode_debut"]),
+                instant,
+                c["nb_ventes"],
+                euros(c["attendu_cents"]),
+                euros(c["compte_cents"]),
+                euros(c["ecart_cents"]),
+                c["commentaire"] or "",
+                c["saisi_par"] or "",
+            ),
+            formats,
+        )
+        rang += 1
+    _ligne(
+        feuille,
+        rang,
+        (
+            f"Total ({len(clotures)} clôtures)",
+            None,
+            None,
+            None,
+            sum(c["nb_ventes"] for c in clotures),
+            euros(sum(c["attendu_cents"] for c in clotures)),
+            euros(sum(c["compte_cents"] for c in clotures)),
+            euros(sum(c["ecart_cents"] for c in clotures)),
+            "",
+            "",
+        ),
+        formats,
+        total=True,
+    )
+    _largeurs(feuille, (20, 8, 17, 17, 11, 12, 12, 16, 40, 22))
+
+
+def classeur_clotures(clotures: list[dict[str, Any]]) -> bytes:
+    """Feuille « Clôtures de caisse » : l'historique filtré de l'écran."""
+    classeur = Workbook()
+    feuille = classeur.active
+    feuille.title = "Clôtures de caisse"
+    _feuille_clotures(feuille, clotures)
     return _octets(classeur)
 
 

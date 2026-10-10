@@ -16,6 +16,8 @@ from sqlalchemy.orm import Session
 from app.core.exceptions import AppException
 from app.core.errors import ErrorCode
 from app.crud import buvette as buvette_crud
+from app.crud import buvette_cloture as cloture_crud
+from app.crud.buvette_inventaire import paris_vers_utc
 from app.schemas.buvette import BuvetteProductCreate, CaisseEtatIn, CaisseVenteIn
 from app.services import recap_buvette
 
@@ -36,14 +38,16 @@ def _produit(db: Session, nom: str, *, prix: int, quantite: int = 10, seuil: int
     )
 
 
-def _vente(db: Session, produit, quantite: int, *, carte: bool = True, heure: int = 15) -> None:
+def _vente(
+    db: Session, produit, quantite: int, *, carte: bool = True, heure: int = 15, minute: int = 0
+) -> None:
     buvette_crud.record_caisse_sale(
         db,
         CaisseVenteIn(
             transaction_id=str(uuid.uuid4()),
             sumup_tx_code="TXRECAP1" if carte else None,
             total_cents=quantite * produit.price_cents,
-            sold_at=datetime.combine(JOUR, time(heure, 0)),
+            sold_at=datetime.combine(JOUR, time(heure, minute)),
             lines=[{
                 "product_id": produit.id, "name": produit.name,
                 "quantity": quantite, "unit_price_cents": produit.price_cents,
@@ -56,13 +60,22 @@ def _recaps(captured_emails) -> list:
     return [m for m in captured_emails if m.subject.startswith("Buvette : récapitulatif")]
 
 
+def _cloturer(db: Session, *, heure: int, compte: int, saisi_par: str = "Yusuf"):
+    """Cloture faite le JOUR a `heure` (Paris) ; premier comptage : depuis le JOUR."""
+    instant = paris_vers_utc(datetime.combine(JOUR, time(heure, 0))).replace(tzinfo=None)
+    return cloture_crud.cloturer(
+        db, compte_cents=compte, commentaire=None, debut=JOUR, saisi_par=saisi_par,
+        instant=instant,
+    )
+
+
 @pytest.fixture()
 def journee(db_session: Session):
     the = _produit(db_session, "Thé à la menthe", prix=150)
     cookie = _produit(db_session, "Cookie", prix=200, quantite=4, seuil=5)
     _vente(db_session, the, 3)
     _vente(db_session, cookie, 1, carte=False)
-    buvette_crud.cloturer(db_session, jour=JOUR, compte_cents=150, commentaire=None, saisi_par="Yusuf")
+    _cloturer(db_session, heure=22, compte=150, saisi_par="Yusuf")
     buvette_crud.enregistrer_etat(
         db_session,
         CaisseEtatIn(
@@ -84,7 +97,9 @@ def test_le_recap_dit_l_essentiel_de_la_journee(db_session: Session, journee) ->
     assert "HelloAsso : 0,00 €" in corps
     assert "Thé à la menthe : 3 vendu(s), 4,50 €" in corps
     assert "Cookie : il en reste 3 (seuil : 5)" in corps  # sous le seuil
-    assert "Faite par Yusuf" in corps and "manque de 0,50 €" in corps
+    assert "À 22 h 00, par Yusuf : attendu 2,00 €, compté 1,50 €, manque de 0,50 €." in corps
+    # Aucune vente especes depuis : pas de ligne sur la boite.
+    assert "Depuis la dernière clôture" not in corps
     assert "dernier contact il y a moins d'une minute" in corps
     assert "batterie 64 %" in corps
     assert "—" not in corps and "—" not in sujet
@@ -92,7 +107,7 @@ def test_le_recap_dit_l_essentiel_de_la_journee(db_session: Session, journee) ->
 
 def test_sans_cloture_ni_tablette_le_recap_le_dit(db_session: Session) -> None:
     _, corps = recap_buvette.composer(recap_buvette.donnees_du_jour(db_session, JOUR))
-    assert "Pas encore faite" in corps
+    assert "Aucun comptage des espèces enregistré" in corps
     assert "Aucun signal reçu de la tablette" in corps
     assert "Aucune vente aujourd'hui" in corps
 
@@ -153,3 +168,32 @@ def test_l_essai_manuel_n_ecrit_qu_a_l_adresse_donnee(
     assert recap.recipients == ["omar@exemple.fr"]
     # L'essai ne compte pas comme l'envoi du soir.
     assert buvette_crud.lire_reglage(db_session, buvette_crud.REGLAGE_DERNIER_RECAP) is None
+
+
+def test_deux_clotures_du_jour_et_la_boite_depuis_la_derniere(db_session: Session) -> None:
+    cookie = _produit(db_session, "Cookie", prix=200)
+    _vente(db_session, cookie, 1, carte=False, heure=10)
+    _cloturer(db_session, heure=12, compte=200, saisi_par="Yusuf")
+    _vente(db_session, cookie, 2, carte=False, heure=14)
+    _cloturer(db_session, heure=18, compte=450, saisi_par="Bilal")
+    _vente(db_session, cookie, 1, carte=False, heure=21, minute=30)
+
+    _, corps = recap_buvette.composer(recap_buvette.donnees_du_jour(db_session, JOUR))
+    assert "À 12 h 00, par Yusuf : attendu 2,00 €, compté 2,00 €, aucun écart." in corps
+    assert "À 18 h 00, par Bilal : attendu 4,00 €, compté 4,50 €, excédent de 0,50 €." in corps
+    assert "Depuis la dernière clôture, espèces attendues dans la boîte : 2,00 €." in corps
+    assert "—" not in corps
+
+
+def test_sans_cloture_du_jour_le_recap_donne_le_dernier_comptage(db_session: Session) -> None:
+    cookie = _produit(db_session, "Cookie", prix=200)
+    _vente(db_session, cookie, 1, carte=False, heure=10)
+    _cloturer(db_session, heure=12, compte=200)
+    _vente(db_session, cookie, 3, carte=False, heure=16)
+
+    lendemain = date(2026, 10, 6)
+    _, corps = recap_buvette.composer(recap_buvette.donnees_du_jour(db_session, lendemain))
+    assert (
+        "Aucune clôture aujourd'hui. Dernier comptage le 05/10/2026 à 12 h 00 (clôture) ; "
+        "espèces attendues dans la boîte : 6,00 €."
+    ) in corps

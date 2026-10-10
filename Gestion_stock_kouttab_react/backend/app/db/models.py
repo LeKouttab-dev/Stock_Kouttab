@@ -1098,18 +1098,35 @@ class CaisseEtat(Base):
 
 
 class ClotureCaisse(Base):
-    """Cloture quotidienne de la caisse especes : attendu contre compte.
+    """Cloture PONCTUELLE de la caisse especes : attendu contre compte.
 
-    `attendu_cents` est calcule par le serveur au moment de la saisie et FIGE :
-    une vente especes arrivee plus tard (tablette restee hors ligne) ne doit pas
-    changer apres coup l'ecart qu'une personne a constate et signe.
+    Faite quand on veut (pas forcement chaque jour), et a chaque comptage on
+    VIDE la boite. La periode couverte va donc du dernier comptage (cloture ou
+    fin d'inventaire, cf. `crud.buvette_inventaire.dernier_comptage`) jusqu'a la
+    saisie : ]periode_debut ; periode_fin], en UTC naif.
+
+    `attendu_cents`, la periode et `nb_ventes` sont calcules par le serveur au
+    moment de la saisie et FIGES : une vente especes arrivee plus tard
+    (tablette restee hors ligne) ne doit pas changer apres coup l'ecart qu'une
+    personne a constate et signe.
+
+    `jour` = jour (heure de Paris) de `periode_fin`. Plus unique depuis la
+    migration `e5f2a7b9c4d6` : plusieurs clotures le meme jour sont permises.
     """
 
     __tablename__ = "CloturesCaisse"
-    __table_args__ = (UniqueConstraint("jour", name="uq_cloture_caisse_jour"),)
+    __table_args__ = (
+        Index("ix_cloture_caisse_jour", "jour"),
+        Index("ix_cloture_caisse_periode_fin", "periode_fin"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     jour: Mapped[date] = mapped_column(Date, nullable=False)
+    periode_debut: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    periode_fin: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    nb_ventes: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
     attendu_cents: Mapped[int] = mapped_column(Integer, nullable=False)
     compte_cents: Mapped[int] = mapped_column(Integer, nullable=False)
     ecart_cents: Mapped[int] = mapped_column(Integer, nullable=False)

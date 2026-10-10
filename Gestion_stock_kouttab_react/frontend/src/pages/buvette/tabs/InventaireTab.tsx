@@ -37,6 +37,8 @@ import {
 import { EmptyState } from '@/components/shared/EmptyState';
 import { ErrorAlert } from '@/components/shared/ErrorAlert';
 import { KpiCard } from '@/components/shared/KpiCard';
+import { PeriodePreset } from '@/components/shared/PeriodePreset';
+import { usePeriode } from '@/hooks/usePeriode';
 import {
   paramsExportInventaires,
   useAbandonnerInventaire,
@@ -60,6 +62,7 @@ import {
   formatEcart,
   formatEcartUnites,
   jourParis,
+  libelleDernierComptage,
   libelleEcartEspeces,
   lireEuros,
   lireQuantite,
@@ -73,6 +76,7 @@ import { fr } from '@/lib/i18n/fr';
 import { eurosToCents } from '@/lib/money';
 import { cn } from '@/lib/utils';
 import type { Inventaire, InventaireLigne, InventaireStatut } from '@/types/api';
+import { VentesEspeces } from '../VentesEspeces';
 
 /** Délai d'enregistrement du brouillon après la dernière saisie. */
 const DELAI_ENREGISTREMENT_MS = 800;
@@ -577,42 +581,16 @@ function EtapeEspeces({ inv }: { inv: Inventaire }) {
             <p className="text-xs text-muted-foreground">
               {t.nbVentes(especes.data.nb_ventes)}
               {especes.data.periode_debut &&
-                `, ${t.periode(formatDateHeureParis(especes.data.periode_debut)).toLowerCase()}`}
+                `, ${(
+                  libelleDernierComptage(especes.data.dernier_comptage, t) ??
+                  t.periode(formatDateHeureParis(especes.data.periode_debut))
+                ).toLowerCase()}`}
             </p>
           </div>
 
           <div className="space-y-2">
             <h3 className="text-sm font-semibold">{t.ventesTitre}</h3>
-            {especes.data.ventes.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{t.aucuneVente}</p>
-            ) : (
-              <div className="max-h-80 overflow-auto rounded-md border border-border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>{t.date}</TableHead>
-                      <TableHead>{t.articles}</TableHead>
-                      <TableHead className="text-right">{t.montant}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {especes.data.ventes.map((v) => (
-                      <TableRow key={v.cle}>
-                        <TableCell className="whitespace-nowrap text-xs">
-                          {formatDateHeureParis(v.sold_at)}
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          {v.articles.map((a) => `${a.quantite} × ${a.nom}`).join(', ')}
-                        </TableCell>
-                        <TableCell className="text-right font-semibold">
-                          {formatCents(v.total_cents)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
+            <VentesEspeces ventes={especes.data.ventes} libelles={t} />
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -836,8 +814,8 @@ function InventaireVue({
 
 function Historique({ onOuvrir }: { onOuvrir: (id: number) => void }) {
   const toast = useToast();
-  const [debut, setDebut] = useState('');
-  const [fin, setFin] = useState('');
+  const [periode, setPeriode] = usePeriode('mois');
+  const { debut, fin } = periode;
   const historique = useInventaires({ debut, fin });
   const telecharger = useTelechargerExcel();
   const liste = historique.data ?? [];
@@ -857,28 +835,7 @@ function Historique({ onOuvrir }: { onOuvrir: (id: number) => void }) {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <h2 className="font-serif text-lg font-semibold text-forest">{t.historique}</h2>
         <div className="flex flex-wrap items-end gap-3">
-          <div className="space-y-1">
-            <Label htmlFor="inventaires-du">{t.du}</Label>
-            <Input
-              id="inventaires-du"
-              type="date"
-              value={debut}
-              max={fin || undefined}
-              onChange={(e) => setDebut(e.target.value)}
-              className="w-40"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="inventaires-au">{t.au}</Label>
-            <Input
-              id="inventaires-au"
-              type="date"
-              value={fin}
-              min={debut || undefined}
-              onChange={(e) => setFin(e.target.value)}
-              className="w-40"
-            />
-          </div>
+          <PeriodePreset id="inventaires" valeur={periode} onChange={setPeriode} />
           <Button variant="outline" onClick={exporter} loading={telecharger.isPending}>
             <FileSpreadsheet className="h-4 w-4" />
             {t.exporterHistorique}

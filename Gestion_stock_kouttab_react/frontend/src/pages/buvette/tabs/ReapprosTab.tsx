@@ -3,7 +3,6 @@ import { Coins, FileSpreadsheet, PackagePlus, ShoppingCart } from 'lucide-react'
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -24,6 +23,8 @@ import {
 import { EmptyState } from '@/components/shared/EmptyState';
 import { ErrorAlert } from '@/components/shared/ErrorAlert';
 import { KpiCard } from '@/components/shared/KpiCard';
+import { PeriodePreset } from '@/components/shared/PeriodePreset';
+import { usePeriode } from '@/hooks/usePeriode';
 import {
   paramsReappros,
   useBuvetteProducts,
@@ -32,7 +33,7 @@ import {
   type ReapprosFiltres,
 } from '@/api/endpoints/buvette';
 import { useToast } from '@/hooks/useToast';
-import { formatDateHeureParis, periodeGlissante } from '@/lib/buvette';
+import { formatDateHeureParis } from '@/lib/buvette';
 import { formatCents } from '@/lib/format';
 import { fr } from '@/lib/i18n/fr';
 import { cn } from '@/lib/utils';
@@ -56,9 +57,8 @@ function OrigineBadge({ origine }: { origine: OrigineReappro }) {
 /** Historique des réapprovisionnements : app stock (avec prix) et tablette (sans prix). */
 export function ReapprosTab() {
   const t = fr.buvette.reappros;
-  const defaut = periodeGlissante(30);
-  const [debut, setDebut] = useState(defaut.debut);
-  const [fin, setFin] = useState(defaut.fin);
+  const [periode, setPeriode] = usePeriode('mois');
+  const { debut, fin } = periode;
   const [produit, setProduit] = useState<string>(TOUS);
   const [origine, setOrigine] = useState<OrigineReappro | typeof TOUS>(TOUS);
 
@@ -90,28 +90,7 @@ export function ReapprosTab() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end gap-3">
-        <div className="space-y-1">
-          <Label htmlFor="reappros-du">{t.du}</Label>
-          <Input
-            id="reappros-du"
-            type="date"
-            value={debut}
-            max={fin}
-            onChange={(e) => e.target.value && setDebut(e.target.value)}
-            className="w-40"
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="reappros-au">{t.au}</Label>
-          <Input
-            id="reappros-au"
-            type="date"
-            value={fin}
-            min={debut}
-            onChange={(e) => e.target.value && setFin(e.target.value)}
-            className="w-40"
-          />
-        </div>
+        <PeriodePreset id="reappros" valeur={periode} onChange={setPeriode} />
         <div className="space-y-1">
           <Label htmlFor="reappros-produit">{t.produit}</Label>
           <Select value={produit} onValueChange={setProduit}>

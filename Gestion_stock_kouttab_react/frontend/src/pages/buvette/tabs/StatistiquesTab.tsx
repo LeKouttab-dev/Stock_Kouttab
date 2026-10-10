@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import {
   Bar,
   BarChart,
@@ -13,20 +13,16 @@ import {
   YAxis,
 } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { ErrorAlert } from '@/components/shared/ErrorAlert';
 import { KpiCard } from '@/components/shared/KpiCard';
+import { PeriodePreset } from '@/components/shared/PeriodePreset';
+import { usePeriode } from '@/hooks/usePeriode';
 import { useBuvetteStats } from '@/api/endpoints/buvette';
-import { jourIso, periodeGlissante } from '@/lib/buvette';
 import { CHART_AXIS, CHART_COLORS, CHART_GRID } from '@/lib/chart-theme';
 import { formatCents, formatDate } from '@/lib/format';
 import { fr } from '@/lib/i18n/fr';
-
-type Periode = '7' | '30' | 'perso';
 
 const euros = (cents: number) => Math.round(cents) / 100;
 const tooltipEuros = (v: number) => `${v.toFixed(2).replace('.', ',')} €`;
@@ -36,13 +32,8 @@ function libelleMoyen(moyen: string): string {
 }
 
 export function StatistiquesTab() {
-  const [periode, setPeriode] = useState<Periode>('30');
-  const defaut30 = periodeGlissante(30);
-  const [debutPerso, setDebutPerso] = useState(defaut30.debut);
-  const [finPerso, setFinPerso] = useState(jourIso());
-
-  const { debut, fin } =
-    periode === 'perso' ? { debut: debutPerso, fin: finPerso } : periodeGlissante(Number(periode));
+  const [periode, setPeriode] = usePeriode('mois');
+  const { debut, fin } = periode;
 
   const { data, isLoading, isError, error } = useBuvetteStats(debut, fin);
   const t = fr.buvette.stats;
@@ -65,58 +56,9 @@ export function StatistiquesTab() {
     };
   }, [data]);
 
-  const boutons: { v: Periode; label: string }[] = [
-    { v: '7', label: t.jours7 },
-    { v: '30', label: t.jours30 },
-    { v: 'perso', label: t.personnalisee },
-  ];
-
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="space-y-1">
-          <p className="text-sm font-medium">{t.periode}</p>
-          <div className="flex gap-1" role="group" aria-label={t.periode}>
-            {boutons.map((b) => (
-              <Button
-                key={b.v}
-                size="sm"
-                variant={periode === b.v ? 'primary' : 'outline'}
-                aria-pressed={periode === b.v}
-                onClick={() => setPeriode(b.v)}
-              >
-                {b.label}
-              </Button>
-            ))}
-          </div>
-        </div>
-        {periode === 'perso' && (
-          <>
-            <div className="space-y-1">
-              <Label htmlFor="stats-du">{fr.buvette.paiements.du}</Label>
-              <Input
-                id="stats-du"
-                type="date"
-                value={debutPerso}
-                max={finPerso}
-                onChange={(e) => e.target.value && setDebutPerso(e.target.value)}
-                className="w-40"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="stats-au">{fr.buvette.paiements.au}</Label>
-              <Input
-                id="stats-au"
-                type="date"
-                value={finPerso}
-                min={debutPerso}
-                onChange={(e) => e.target.value && setFinPerso(e.target.value)}
-                className="w-40"
-              />
-            </div>
-          </>
-        )}
-      </div>
+      <PeriodePreset id="stats" valeur={periode} onChange={setPeriode} />
 
       {isError ? (
         <ErrorAlert title={t.erreur} error={error} />

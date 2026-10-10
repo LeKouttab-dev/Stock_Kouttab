@@ -398,30 +398,43 @@ class StatsOut(BaseModel):
 
 
 class ClotureIn(BaseModel):
-    jour: date
     compte_cents: int = Field(ge=0, le=10_000_000)
     commentaire: str | None = Field(default=None, max_length=2000)
+    # Premier comptage seulement (aucune cloture ni inventaire termine) :
+    # debut de la periode des especes, minuit heure de Paris.
+    debut: date | None = None
 
 
 class ClotureOut(BaseModel):
     id: int
+    # Jour (heure de Paris) de la cloture ; plusieurs clotures possibles.
     jour: date
+    # Periode couverte ]debut ; fin], UTC avec fuseau.
+    periode_debut: datetime
+    periode_fin: datetime
     attendu_cents: int
     compte_cents: int
     # compte - attendu : negatif = il manque de l'argent dans la caisse.
     ecart_cents: int
+    nb_ventes: int
     commentaire: str | None = None
     saisi_par: str | None = None
     created_at: datetime
 
-    model_config = ConfigDict(from_attributes=True)
+
+class DernierComptageOut(BaseModel):
+    type: Literal["cloture", "inventaire"]
+    le: datetime
 
 
 class ClotureAttenduOut(BaseModel):
-    jour: date
+    periode_debut: datetime | None = None
+    periode_fin: datetime
+    premier_comptage: bool
     attendu_cents: int
-    nb_ventes_especes: int
-    cloture: ClotureOut | None = None
+    nb_ventes: int
+    ventes: list["InventaireVenteEspecesOut"]
+    dernier_comptage: DernierComptageOut | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -594,7 +607,10 @@ class InventaireVenteEspecesOut(BaseModel):
 class InventaireEspecesOut(BaseModel):
     periode_debut: datetime | None = None
     periode_fin: datetime
+    # Vrai s'il n'existe aucun comptage anterieur (ni cloture, ni inventaire).
     premier_inventaire: bool
     attendu_cents: int
     nb_ventes: int
     ventes: list[InventaireVenteEspecesOut]
+    # D'ou part la periode : la derniere cloture ou le dernier inventaire.
+    dernier_comptage: DernierComptageOut | None = None

@@ -1,4 +1,4 @@
-"""Suivi de la buvette (09/10/2026) : paiements, statistiques, cloture especes,
+"""Suivi de la buvette (09/10/2026) : paiements, statistiques,
 etat de la tablette, reappro atomique, reglages, role AdminStock, courriels.
 
 Contrat d'API commun backend / frontend / tablette : montants en centimes,
@@ -238,72 +238,6 @@ def test_les_statistiques_couvrent_trente_jours_par_defaut(client_authenticated_
     corps = client_authenticated_as(compta_user).get(f"{API}/stats").json()
     assert len(corps["par_jour"]) == 30
     assert corps["par_jour"][-1]["jour"] == buvette_crud.aujourd_hui().isoformat()
-
-
-# ---------------------------------------------------------------------------
-# Cloture de caisse especes
-# ---------------------------------------------------------------------------
-
-
-def test_la_cloture_compare_le_compte_aux_seules_especes(
-    journee, client_authenticated_as, admin_stock_user, compta_user
-) -> None:
-    lecture = client_authenticated_as(compta_user).get(
-        f"{API}/clotures/attendu", params={"jour": JOUR.isoformat()}
-    ).json()
-    assert lecture == {
-        "jour": JOUR.isoformat(),
-        "attendu_cents": 500,
-        "nb_ventes_especes": 1,
-        "cloture": None,
-    }
-
-    gerant = client_authenticated_as(admin_stock_user)
-    # L'ecran pourrait envoyer un attendu perime : il n'en envoie aucun.
-    reponse = gerant.post(
-        f"{API}/clotures",
-        json={"jour": JOUR.isoformat(), "compte_cents": 450, "commentaire": "  Pièce perdue  "},
-    )
-    assert reponse.status_code == 201, reponse.text
-    cloture = reponse.json()
-    assert cloture["attendu_cents"] == 500
-    assert cloture["ecart_cents"] == -50
-    assert cloture["commentaire"] == "Pièce perdue"
-    assert cloture["saisi_par"]
-
-    # Une seule cloture par jour.
-    assert gerant.post(f"{API}/clotures", json={"jour": JOUR.isoformat(), "compte_cents": 500}).status_code == 409
-
-    lecture = client_authenticated_as(compta_user).get(
-        f"{API}/clotures/attendu", params={"jour": JOUR.isoformat()}
-    ).json()
-    assert lecture["cloture"]["id"] == cloture["id"]
-    historique = client_authenticated_as(compta_user).get(f"{API}/clotures").json()
-    assert [c["jour"] for c in historique] == [JOUR.isoformat()]
-
-
-def test_la_compta_consulte_la_cloture_mais_ne_la_saisit_pas(
-    client_authenticated_as, compta_user
-) -> None:
-    reponse = client_authenticated_as(compta_user).post(
-        f"{API}/clotures", json={"jour": JOUR.isoformat(), "compte_cents": 0}
-    )
-    assert reponse.status_code == 403
-
-
-def test_on_ne_cloture_pas_un_jour_a_venir(client_authenticated_as, admin_benevoles_user) -> None:
-    demain = (buvette_crud.aujourd_hui() + timedelta(days=5)).isoformat()
-    reponse = client_authenticated_as(admin_benevoles_user).post(
-        f"{API}/clotures", json={"jour": demain, "compte_cents": 0}
-    )
-    assert reponse.status_code == 422
-
-
-def test_un_compte_negatif_est_refuse(client_authenticated_as, admin_benevoles_user) -> None:
-    reponse = client_authenticated_as(admin_benevoles_user).post(
-        f"{API}/clotures", json={"jour": JOUR.isoformat(), "compte_cents": -1}
-    )
-    assert reponse.status_code == 422
 
 
 # ---------------------------------------------------------------------------

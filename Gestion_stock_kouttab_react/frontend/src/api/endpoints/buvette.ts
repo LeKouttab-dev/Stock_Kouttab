@@ -42,9 +42,10 @@ export const buvetteQueryKeys = {
     [...buvetteQueryKeys.reappros(), filtres] as const,
   stats: (filters: Record<string, unknown>) => [...buvetteQueryKeys.all, 'stats', filters] as const,
   clotures: () => [...buvetteQueryKeys.all, 'clotures'] as const,
-  clotureAttendu: (jour: string) => [...buvetteQueryKeys.clotures(), 'attendu', jour] as const,
-  clotureHistorique: (limit: number) =>
-    [...buvetteQueryKeys.clotures(), 'historique', limit] as const,
+  clotureAttendu: (debut: string | null) =>
+    [...buvetteQueryKeys.clotures(), 'attendu', debut] as const,
+  clotureHistorique: (filtres: Record<string, unknown>) =>
+    [...buvetteQueryKeys.clotures(), 'historique', filtres] as const,
   caisseEtat: () => [...buvetteQueryKeys.all, 'caisse-etat'] as const,
   reglages: () => [...buvetteQueryKeys.all, 'reglages'] as const,
   inventaires: () => [...buvetteQueryKeys.all, 'inventaires'] as const,
@@ -355,23 +356,38 @@ export function useBuvetteStats(debut: string, fin: string) {
 
 /* ---- Clôture de caisse espèces ------------------------------------------- */
 
-export function useClotureAttendu(jour: string) {
+/** Ventes espèces depuis le dernier comptage ; `debut` ne sert qu'au tout premier comptage. */
+export function useClotureAttendu(debut: string | null) {
   return useQuery({
-    queryKey: buvetteQueryKeys.clotureAttendu(jour),
+    queryKey: buvetteQueryKeys.clotureAttendu(debut),
     queryFn: async () => {
       const { data } = await api.get<ClotureAttendu>('/buvette/clotures/attendu', {
-        params: { jour },
+        params: debut ? { debut } : {},
       });
       return data;
     },
   });
 }
 
-export function useClotures(limit = 30) {
+export interface CloturesFiltres {
+  debut?: string;
+  fin?: string;
+}
+
+/** Paramètres de la liste ET de l'export : le classeur reprend ce que l'écran montre. */
+export function paramsClotures(filtres: CloturesFiltres): Record<string, string> {
+  const params: Record<string, string> = {};
+  if (filtres.debut) params.debut = filtres.debut;
+  if (filtres.fin) params.fin = filtres.fin;
+  return params;
+}
+
+export function useClotures(filtres: CloturesFiltres) {
+  const params = paramsClotures(filtres);
   return useQuery({
-    queryKey: buvetteQueryKeys.clotureHistorique(limit),
+    queryKey: buvetteQueryKeys.clotureHistorique(params),
     queryFn: async () => {
-      const { data } = await api.get<Cloture[]>('/buvette/clotures', { params: { limit } });
+      const { data } = await api.get<Cloture[]>('/buvette/clotures', { params });
       return data;
     },
   });
@@ -384,8 +400,12 @@ export function useCreateCloture() {
       const { data } = await api.post<Cloture>('/buvette/clotures', payload);
       return data;
     },
-    // 409 (déjà clôturé) compris : l'écran relit l'état du jour dans les deux cas.
-    onSettled: () => qc.invalidateQueries({ queryKey: buvetteQueryKeys.clotures() }),
+    // Succès comme refus (doublon) : l'écran relit la période et l'historique.
+    // L'étape espèces d'un inventaire en cours part désormais de cette clôture.
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: buvetteQueryKeys.clotures() });
+      void qc.invalidateQueries({ queryKey: [...buvetteQueryKeys.inventaires(), 'especes'] });
+    },
   });
 }
 

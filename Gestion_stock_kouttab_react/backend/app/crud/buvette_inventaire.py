@@ -12,8 +12,10 @@ Deroule (cf. `Inventaire`) :
    calcule les ecarts et remplace le stock par les quantites comptees. Aucune
    alerte de stock bas n'est envoyee : `alert_sent` est seulement recale.
 4. `terminer` : especes comptees contre especes attendues sur la periode, qui
-   court de la fin du dernier inventaire termine jusqu'a maintenant (premier
-   inventaire : depuis une date choisie).
+   court du DERNIER COMPTAGE (cloture de caisse ou fin d'inventaire, cf.
+   `dernier_comptage`) jusqu'a maintenant ; premier comptage de tous : depuis
+   une date choisie. Une cloture intermediaire vide la boite : l'inventaire ne
+   recompte pas ses ventes.
 
 Horodatages stockes en UTC naif ; les ventes portent l'heure murale de Paris
 (`sold_at`, cf. `crud.buvette._instant`), d'ou les conversions de periode.
@@ -32,7 +34,13 @@ from app.core.errors import ErrorCode
 from app.core.exceptions import AppException
 from app.core.logger import get_logger
 from app.crud.buvette import PARIS, aujourd_hui, ventes_regroupees
-from app.db.models import BuvetteProduct, BuvetteSale, Inventaire, InventaireLigne
+from app.db.models import (
+    BuvetteProduct,
+    BuvetteSale,
+    ClotureCaisse,
+    Inventaire,
+    InventaireLigne,
+)
 
 
 logger = get_logger("crud.buvette_inventaire")
@@ -319,21 +327,71 @@ def dernier_termine(
     ).scalar_one_or_none()
 
 
-def ventes_especes(db: Session, debut: datetime, fin: datetime) -> list[dict[str, Any]]:
+def dernier_comptage(
+    db: Session,
+    *,
+    avant: datetime | None = None,
+    sauf_inventaire: int | None = None,
+    verrouiller: bool = False,
+) -> dict[str, Any] | None:
+    """Le dernier comptage des especes : `{"type", "le", "id"}`, ou None.
+
+    SEULE definition du debut d'une periode d'especes, partagee par la cloture
+    de caisse et l'etape especes de l'inventaire : a chaque comptage on vide la
+    boite, donc c'est le plus recent entre la derniere cloture (`periode_fin`)
+    et la fin du dernier inventaire termine (`termine_le`). `le` en UTC naif.
+
+    `verrouiller` : la derniere cloture est relue FOR UPDATE (MariaDB ; ignore
+    par SQLite), pour que deux clotures simultanees se succedent.
+    """
+    stmt = select(ClotureCaisse)
+    if avant is not None:
+        stmt = stmt.where(ClotureCaisse.periode_fin < avant)
+    stmt = stmt.order_by(ClotureCaisse.periode_fin.desc(), ClotureCaisse.id.desc()).limit(1)
+    if verrouiller:
+        stmt = stmt.with_for_update()
+    cloture = db.execute(stmt).scalar_one_or_none()
+    inventaire = dernier_termine(db, sauf=sauf_inventaire, avant=avant)
+
+    candidats: list[dict[str, Any]] = []
+    if cloture is not None:
+        candidats.append({"type": "cloture", "le": cloture.periode_fin, "id": cloture.id})
+    if inventaire is not None and inventaire.termine_le is not None:
+        candidats.append(
+            {"type": "inventaire", "le": inventaire.termine_le, "id": inventaire.id}
+        )
+    if not candidats:
+        return None
+    return max(candidats, key=lambda c: c["le"])
+
+
+def dernier_comptage_out(dernier: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Contrat d'API : `{type, le}` (UTC avec fuseau), ou null."""
+    if dernier is None:
+        return None
+    return {"type": dernier["type"], "le": en_utc(dernier["le"])}
+
+
+def ventes_especes(
+    db: Session, debut: datetime, fin: datetime, *, debut_inclus: bool = True
+) -> list[dict[str, Any]]:
     """Ventes en especes (tablette, sans code SumUp) entre deux instants UTC naifs.
 
     Bornes converties en heure de Paris : c'est l'heure que portent les ventes.
-    Regroupement et moyen de paiement : `crud.buvette.ventes_regroupees`, la
-    meme regle que l'onglet Paiements. Ordre chronologique.
+    `debut_inclus=False` quand le debut est un comptage : une vente a cet
+    instant appartient a la periode qui vient de se terminer. Regroupement et
+    moyen de paiement : `crud.buvette.ventes_regroupees`, la meme regle que
+    l'onglet Paiements. Ordre chronologique.
     """
     instant = func.coalesce(BuvetteSale.sold_at, BuvetteSale.processed_at)
+    borne = utc_vers_paris(debut)
     lignes = list(
         db.execute(
             select(BuvetteSale)
             .where(
                 BuvetteSale.source == "caisse",
                 BuvetteSale.sumup_tx_code.is_(None),
-                instant >= utc_vers_paris(debut),
+                instant >= borne if debut_inclus else instant > borne,
                 instant <= utc_vers_paris(fin),
             )
             .order_by(BuvetteSale.id.asc())
@@ -356,44 +414,59 @@ def _debut_choisi(debut: date | None) -> datetime | None:
 
 def periode_especes(
     db: Session, inventaire: Inventaire, debut: date | None
-) -> tuple[datetime | None, datetime, bool]:
-    """(debut, fin, premier_inventaire) de la periode des especes, en UTC naif.
+) -> tuple[datetime | None, datetime, bool, dict[str, Any] | None]:
+    """(debut, fin, premier_comptage, dernier) de la periode des especes, UTC naif.
 
-    Debut = fin du dernier inventaire termine ; sans inventaire termine avant
-    celui-ci, la date choisie (minuit, heure de Paris), ou rien.
+    Debut = dernier comptage (cloture de caisse ou inventaire termine, hors
+    celui-ci) ; sans aucun comptage, la date choisie (minuit, heure de Paris),
+    ou rien.
     """
-    precedent = dernier_termine(db, sauf=inventaire.id)
+    dernier = dernier_comptage(db, sauf_inventaire=inventaire.id)
     fin = maintenant()
-    if precedent is not None and precedent.termine_le is not None:
-        return precedent.termine_le, fin, False
-    return _debut_choisi(debut), fin, True
+    if dernier is not None:
+        return dernier["le"], fin, False, dernier
+    return _debut_choisi(debut), fin, True, None
+
+
+def _ventes_de_la_periode(
+    db: Session, debut: datetime | None, fin: datetime, premier: bool
+) -> list[dict[str, Any]]:
+    """Debut choisi (premier comptage) inclus ; debut = comptage exclu."""
+    if debut is None:
+        return []
+    return ventes_especes(db, debut, fin, debut_inclus=premier)
 
 
 def especes(db: Session, inventaire_id: int, debut: date | None) -> dict[str, Any]:
     """Periode, ventes en especes et total attendu.
 
-    Inventaire termine : la periode et l'attendu figes a la cloture.
+    Inventaire termine : la periode et l'attendu figes a la fin de l'inventaire.
     """
     inventaire = get_ou_404(db, inventaire_id)
     if inventaire.statut == TERMINE and inventaire.periode_especes_fin is not None:
         debut_p, fin_p = inventaire.periode_especes_debut, inventaire.periode_especes_fin
-        premier = dernier_termine(db, sauf=inventaire.id, avant=inventaire.termine_le) is None
-        ventes = ventes_especes(db, debut_p, fin_p) if debut_p else []
+        dernier = dernier_comptage(
+            db, sauf_inventaire=inventaire.id, avant=inventaire.termine_le
+        )
+        premier = dernier is None
+        ventes = _ventes_de_la_periode(db, debut_p, fin_p, premier)
         return {
             "periode_debut": en_utc(debut_p),
             "periode_fin": en_utc(fin_p),
             "premier_inventaire": premier,
+            "dernier_comptage": dernier_comptage_out(dernier),
             "attendu_cents": inventaire.especes_attendues_cents or 0,
             "nb_ventes": inventaire.nb_ventes_especes or 0,
             "ventes": [_vente_out(v) for v in ventes],
         }
 
-    debut_p, fin_p, premier = periode_especes(db, inventaire, debut)
-    ventes = ventes_especes(db, debut_p, fin_p) if debut_p else []
+    debut_p, fin_p, premier, dernier = periode_especes(db, inventaire, debut)
+    ventes = _ventes_de_la_periode(db, debut_p, fin_p, premier)
     return {
         "periode_debut": en_utc(debut_p),
         "periode_fin": en_utc(fin_p),
         "premier_inventaire": premier,
+        "dernier_comptage": dernier_comptage_out(dernier),
         "attendu_cents": sum(v["total_cents"] for v in ventes),
         "nb_ventes": len(ventes),
         "ventes": [_vente_out(v) for v in ventes],
@@ -430,14 +503,14 @@ def terminer(
         STOCK_VALIDE,
         "Validez d'abord le stock : l'inventaire n'est pas a l'etape des especes.",
     )
-    debut_p, fin_p, premier = periode_especes(db, inventaire, debut)
+    debut_p, fin_p, premier, _ = periode_especes(db, inventaire, debut)
     if debut_p is None:
         db.rollback()
         raise AppException(
             ErrorCode.VALIDATION_ERROR,
-            detail="Premier inventaire : indiquez la date de debut de la periode des especes.",
+            detail="Premier comptage : indiquez la date de debut de la periode des especes.",
         )
-    ventes = ventes_especes(db, debut_p, fin_p)
+    ventes = ventes_especes(db, debut_p, fin_p, debut_inclus=premier)
     attendu = sum(v["total_cents"] for v in ventes)
 
     inventaire.periode_especes_debut = debut_p

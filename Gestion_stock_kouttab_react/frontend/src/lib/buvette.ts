@@ -138,12 +138,17 @@ export function jourParis(iso: string): string {
   return d.toLocaleDateString('en-CA', { timeZone: FUSEAU_PARIS });
 }
 
-/** Nom de secours de l'export de l'historique, calqué sur celui du serveur. */
+/** Nom de secours d'un export filtré par période, calqué sur celui du serveur. */
+export function nomExportPeriode(prefixe: string, debut: string, fin: string): string {
+  if (debut && fin) return `${prefixe}-${debut}_${fin}.xlsx`;
+  if (debut) return `${prefixe}-depuis-${debut}.xlsx`;
+  if (fin) return `${prefixe}-jusqu-au-${fin}.xlsx`;
+  return `${prefixe}-tout.xlsx`;
+}
+
+/** Nom de secours de l'export de l'historique des inventaires. */
 export function nomExportInventaires(debut: string, fin: string): string {
-  if (debut && fin) return `inventaires-${debut}_${fin}.xlsx`;
-  if (debut) return `inventaires-depuis-${debut}.xlsx`;
-  if (fin) return `inventaires-jusqu-au-${fin}.xlsx`;
-  return 'inventaires-tout.xlsx';
+  return nomExportPeriode('inventaires', debut, fin);
 }
 
 export interface LigneComptee {
@@ -229,4 +234,56 @@ export function nomFichierDepuisEntete(entete: string | null | undefined): strin
   }
   const simple = /filename\s*=\s*"?([^";]+)"?/i.exec(entete);
   return simple ? simple[1].trim() || null : null;
+}
+
+/** « Depuis la clôture du … » / « Depuis l'inventaire du … » (heure de Paris), ou null. */
+export function libelleDernierComptage(
+  dernier: { type: 'cloture' | 'inventaire'; le: string } | null | undefined,
+  libelles: { depuisCloture: (d: string) => string; depuisInventaire: (d: string) => string },
+): string | null {
+  if (!dernier) return null;
+  const quand = formatDateHeureParis(dernier.le);
+  return dernier.type === 'cloture'
+    ? libelles.depuisCloture(quand)
+    : libelles.depuisInventaire(quand);
+}
+
+/** Ordre des groupes de l'onglet Produits : celui de la tablette, puis le reste. */
+export const GROUPES_PRODUITS = ['sucre_sale', 'boissons', 'cafe', 'epicerie', 'aucun'] as const;
+export type GroupeProduits = (typeof GROUPES_PRODUITS)[number];
+
+/** Normalise pour la recherche : minuscules, sans accents. */
+function sansAccents(texte: string): string {
+  return texte.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+}
+
+/** Le produit correspond-il à la recherche (nom ou code-barres) ? */
+export function produitCorrespond(
+  produit: { name: string; barcode?: string | null },
+  recherche: string,
+): boolean {
+  const r = sansAccents(recherche.trim());
+  if (!r) return true;
+  return sansAccents(produit.name).includes(r) || (produit.barcode ?? '').includes(r);
+}
+
+/**
+ * Produits rangés par onglet de la tablette, dans l'ordre de la tablette, puis
+ * « Hors tablette » (sans onglet ou onglet inconnu). Groupes vides retirés ;
+ * dans un groupe, l'ordre reçu est conservé.
+ */
+export function grouperProduits<P extends { caisse_category?: string | null }>(
+  produits: P[],
+): { groupe: GroupeProduits; produits: P[] }[] {
+  const connus = new Set<string>(GROUPES_PRODUITS);
+  const groupes = new Map<GroupeProduits, P[]>(GROUPES_PRODUITS.map((g) => [g, []]));
+  for (const p of produits) {
+    const cle = (
+      p.caisse_category && connus.has(p.caisse_category) ? p.caisse_category : 'aucun'
+    ) as GroupeProduits;
+    groupes.get(cle)?.push(p);
+  }
+  return GROUPES_PRODUITS.map((groupe) => ({ groupe, produits: groupes.get(groupe) ?? [] })).filter(
+    (g) => g.produits.length > 0,
+  );
 }
