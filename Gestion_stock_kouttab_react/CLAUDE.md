@@ -270,6 +270,7 @@ le démarrage en production. Les valeurs en clair héritées restent lisibles
 | Calendrier — état de l'intégration | — | — | — | ✅ |
 | Caisse — lire le catalogue, envoyer une vente | clé `CAISSE_API_KEY` (la tablette), aucun rôle | | | |
 | Caisse — envoyer son état, réappro depuis l'écran « Personnel » | clé `CAISSE_API_KEY` | | | |
+| Caisse — ouvrir la session « tablette » (droits `AdminStock`, nom de l'opérateur) | clé `CAISSE_API_KEY` | | | |
 
 **`AdminStock`** (hors tableau) : mêmes droits buvette qu'`AdminBenevoles`
 (consulter, CRUD, photos, synchro, réappro, clôture), sauf les réglages des
@@ -288,6 +289,9 @@ Préfixe : `/api/v1`. Auth : header `Authorization: Bearer <jwt>` (sauf `/auth/*
 - `POST /auth/logout` — révoquer refresh token
 - `GET /auth/me` — utilisateur courant
 - `POST /auth/admin-setup` — création Super Admin via token d'invitation
+- `POST /auth/caisse/session` — session du compte « Tablette buvette » au nom
+  saisi (`X-Caisse-Key`, 10/min) ; jetons porteurs de `op` (cf. §12 bis
+  « Session tablette »). `GET /auth/me` renvoie aussi `operateur`.
 - `GET /auth/validate-invitation?token=&email=` — pré-valider token
 
 ### Users
@@ -1208,6 +1212,50 @@ seul chemin possible, et il suppose que l'API serve le fichier.
 - `CAISSE_APK_MAX_MB` (150 par défaut) est un plafond **dédié**, séparé de
   `MAX_UPLOAD_MB` (10, les justificatifs) : relever la limite des tickets pour
   livrer une application serait une porte ouverte sans rapport.
+
+### Session « tablette » : l'app stock dans l'écran Personnel (10/10/2026)
+
+L'écran **Personnel** de la tablette (après sortie du mode borne) affiche l'app
+stock elle-même, page Buvette seule, sous un **compte partagé** sans mot de
+passe : la personne saisit seulement son **nom**, qui signe chaque action.
+
+- **Compte système** `tablette_buvette` (« Tablette buvette »), créé par la
+  migration **`f6a3b8c0d5e7`** : rôle `AdminStock` (buvette seule), actif,
+  `password_hash` **inutilisable**, email `tablette-buvette@lekouttab.fr`
+  (identifiant interne, pas une boîte). Constantes et helpers dans
+  `app/core/tablette.py` ; `crud/tablette.garantir_compte_tablette` le crée en
+  test / sur un poste monté par `create_all`.
+- **`POST /auth/caisse/session`** — `X-Caisse-Key` (même garde que les routes
+  caisse, `deps.verifier_cle_caisse` : 404 si clé non configurée, 401 si
+  absente/fausse), limiteur **10/min**, corps `{ "operateur": "…" }` nettoyé
+  (espaces réduits, caractères de contrôle/invisibles retirés) puis 2..60
+  caractères, sinon 422. Réponse = `TokenOut` + `operateur`. 404 si le compte
+  manque (migration non passée) ou n'est plus actif.
+- **Revendication `op`** dans le jeton d'accès ET le refresh ; `/auth/refresh`
+  la reporte à chaque rotation (ignorée pour tout autre compte).
+  `deps.get_current_user` la pose sur l'instance (`operateur_tablette`, jamais
+  persistée) ; `GET /auth/me` renvoie `operateur` (null hors tablette).
+- **Auteur** : toute écriture d'auteur passe par **`nom_auteur(current_user)`**
+  (`"<op> (tablette)"` ou `full_name`) : création produit (stock initial),
+  réappro `fait_par`, clôture `saisi_par`, inventaire `cree_par`. Ne plus
+  écrire `current_user.full_name` pour un auteur.
+- **Verrous** : connexion par mot de passe refusée explicitement (comme un
+  compte inconnu, `_do_login`), « mot de passe oublié » sans effet, passage
+  signé refusé, rôle non modifiable (`PATCH /users/{id}/role` → 403 hors
+  `AdminStock`). Exclu de `comptes_admin_stock` donc de
+  `destinataires_buvette` (aucun courriel) et de la liste des réglages.
+- **Interface** : route publique **`/tablette`** (`pages/auth/TablettePage`)
+  qui lit `#access=…&refresh=…&op=…`, efface l'ancre (`history.replaceState`)
+  avant tout appel, vide le cache et la session précédente, enregistre les
+  jetons, lit `/auth/me`, mémorise le nom (`sessionStorage`,
+  `lib/tablette.ts`) puis file vers `/buvette?mode=tablette`.
+  **Mode tablette** (`hooks/useModeTablette`, actif pour le compte tablette
+  seulement) : `AppLayout` rend une coquille sans menu latéral ni barre du
+  haut ni déconnexion, bandeau « Connecté : <Nom> (tablette) », toute autre
+  page ramène à `/buvette`, cibles tactiles ≥ 44 px (classe `mode-tablette`
+  posée aussi sur `<html>` pour les fenêtres en portail, cf. `index.css`).
+  La déconnexion du store efface le mode. Exports Excel inchangés (blob +
+  `a.download`, relayés par le pont JavaScript de la WebView).
 
 ### `edite_manuellement` : la synchro n'écrase plus le travail fait à la main
 

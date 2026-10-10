@@ -11,6 +11,7 @@ from app.api.deps import get_current_user, require_roles
 from app.core.errors import ErrorCode
 from app.core.exceptions import AppException
 from app.core.logger import get_logger
+from app.core.tablette import ROLE_TABLETTE, est_compte_tablette
 from app.crud import user as user_crud
 from app.db.models import Admin
 from app.db.session import get_db
@@ -258,6 +259,13 @@ def _annoncer_l_acces(
     dependencies=[Depends(require_roles("Super Admin"))],
 )
 def update_role(user_id: int, payload: UserRoleUpdate, db: Session = Depends(get_db)) -> Any:
+    # Le compte partage de la tablette s'ouvre sans mot de passe (cle de la
+    # caisse + un nom) : il doit rester confine a la buvette.
+    if est_compte_tablette(user_crud.get_user(db, user_id)) and payload.role != ROLE_TABLETTE:
+        raise AppException(
+            ErrorCode.FORBIDDEN,
+            detail="Le compte de la tablette reste « AdminStock » (buvette seule).",
+        )
     user = user_crud.update_role(db, user_id, payload.role)
     return UserOut.model_validate(user)
 

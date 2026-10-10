@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Literal
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from app.schemas.calendar import AgendaOut, EvenementOut
 from app.schemas.user import UserOut
@@ -107,6 +107,34 @@ class TokenOut(BaseModel):
     token_type: str = "bearer"
     user: UserOut
     password_must_change: bool = False
+    # Nom de l'operateur d'une session tablette (null pour toute autre session).
+    operateur: str | None = None
+
+
+class MeOut(UserOut):
+    """`GET /auth/me` : l'utilisateur, plus l'operateur d'une session tablette."""
+
+    operateur: str | None = None
+
+
+class CaisseSessionIn(BaseModel):
+    """`POST /auth/caisse/session` : le nom saisi sur la tablette (2 a 60 caracteres, nettoye)."""
+
+    operateur: str = Field(max_length=200)
+
+    @field_validator("operateur")
+    @classmethod
+    def _nettoyer(cls, valeur: str) -> str:
+        from pydantic_core import PydanticCustomError
+
+        from app.core.tablette import nettoyer_operateur
+
+        try:
+            return nettoyer_operateur(valeur)
+        except ValueError as exc:
+            # Erreur « personnalisee » : un ValueError brut finirait dans `ctx`
+            # de la reponse 422, que le gestionnaire ne sait pas serialiser.
+            raise PydanticCustomError("operateur_invalide", str(exc)) from None
 
 
 class RefreshIn(BaseModel):

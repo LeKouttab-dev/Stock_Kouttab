@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import secrets
 from typing import Iterable
 
-from fastapi import Depends
+from fastapi import Depends, Header
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.errors import ErrorCode
 from app.core.exceptions import AppException
 from app.core.security import decode_token
+from app.core.tablette import ATTRIBUT_OPERATEUR, est_compte_tablette
 from app.crud.user import get_user
 from app.db.models import Admin
 from app.db.session import get_db
@@ -38,7 +41,30 @@ def get_current_user(
         raise AppException(ErrorCode.ACCOUNT_REJECTED)
     if user.validation_status != "active":
         raise AppException(ErrorCode.ACCOUNT_PENDING)
+    # Session tablette : le nom de l'operateur (revendication `op`) signe les
+    # actions via `core.tablette.nom_auteur`. Pose sur l'instance, jamais
+    # persiste ; ignore pour tout autre compte. Toujours reecrit, pour ne rien
+    # heriter d'une requete precedente si l'instance etait reutilisee.
+    op = payload.get("op") if est_compte_tablette(user) else None
+    setattr(user, ATTRIBUT_OPERATEUR, op if isinstance(op, str) and op else None)
     return user
+
+
+def verifier_cle_caisse(
+    x_caisse_key: str | None = Header(default=None, alias="X-Caisse-Key"),
+) -> None:
+    """Garde des routes de la tablette de caisse (en-tete `X-Caisse-Key`).
+
+    Cle absente du `.env` : la caisse n'existe pas (404), comme le passage
+    signe. Sans ce choix, une cle vide comparee a un en-tete vide ouvrirait la
+    porte. Comparaison en temps constant, sur des octets : `compare_digest`
+    leve sur une chaine non ASCII, qu'un appelant peut envoyer.
+    """
+    attendue = settings.caisse_api_key.strip()
+    if not attendue:
+        raise AppException(ErrorCode.NOT_FOUND)
+    if not secrets.compare_digest((x_caisse_key or "").encode(), attendue.encode()):
+        raise AppException(ErrorCode.TOKEN_INVALID)
 
 
 # Tous les rôles SAUF BenevoleFrais, qui est confiné aux notes de frais.

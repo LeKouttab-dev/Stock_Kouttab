@@ -182,3 +182,24 @@
     @apply px-2 py-1 text-xs;
   }
 }
+
+/* Mode tablette (écran Personnel de la tablette de caisse, cf. AppLayout) :
+   cibles tactiles d'au moins 44 px, quel que soit le gabarit du bouton. */
+.mode-tablette button,
+.mode-tablette [role='button'],
+.mode-tablette [role='tab'],
+.mode-tablette a,
+.mode-tablette input:not([type='checkbox']):not([type='radio']),
+.mode-tablette select {
+  min-height: 44px;
+}
+.mode-tablette button,
+.mode-tablette [role='button'],
+.mode-tablette [role='tab'] {
+  min-width: 44px;
+}
+.mode-tablette input[type='checkbox'],
+.mode-tablette input[type='radio'] {
+  min-height: 24px;
+  min-width: 24px;
+}

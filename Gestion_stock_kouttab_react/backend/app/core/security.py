@@ -86,12 +86,17 @@ def create_access_token(
     return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
 
-def create_refresh_token(subject: str | int) -> tuple[str, str, datetime]:
+def create_refresh_token(
+    subject: str | int, extra: dict[str, Any] | None = None
+) -> tuple[str, str, datetime]:
     """Sign a long-lived refresh token.
 
     Retourne ``(token, jti, expires_at)``. Le ``jti`` identifie le token de
     maniere unique et permet de le revoquer cote base : sans lui, un refresh
     token vole restait utilisable jusqu'a son expiration naturelle.
+
+    ``extra`` : revendications reportees (ex. ``op``, le nom de l'operateur
+    d'une session tablette, conserve a chaque rafraichissement).
     """
     expire = _now() + timedelta(days=settings.jwt_refresh_token_days)
     jti = secrets.token_urlsafe(32)
@@ -102,6 +107,8 @@ def create_refresh_token(subject: str | int) -> tuple[str, str, datetime]:
         "iat": int(_now().timestamp()),
         "exp": int(expire.timestamp()),
     }
+    if extra:
+        payload.update({k: v for k, v in extra.items() if k not in payload})
     token = jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
     return token, jti, expire
 

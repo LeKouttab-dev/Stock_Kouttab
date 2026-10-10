@@ -28,6 +28,8 @@ export interface User {
   rib_document_type?: string | null;
   password_must_change?: boolean;
   created_at?: string;
+  /** Session tablette : nom saisi sur la tablette (`GET /auth/me`), `null` sinon. */
+  operateur?: string | null;
 }
 
 export interface LoginRequest {
