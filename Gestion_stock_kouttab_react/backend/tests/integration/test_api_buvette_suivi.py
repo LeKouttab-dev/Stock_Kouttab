@@ -290,6 +290,56 @@ def test_le_dernier_etat_recu_est_lisible_par_l_admin(
     assert db_session.query(CaisseEtat).count() == 1
 
 
+def test_les_etats_fins_sumup_et_lecteur_sont_relus(
+    client: TestClient, client_authenticated_as, admin_stock_user
+) -> None:
+    lecteur = client_authenticated_as(admin_stock_user)
+    reponse = client.post(
+        f"{API}/caisse/etat",
+        json=_etat(sumup_etat="enregistre", lecteur_etat=" EN_VEILLE "),
+        headers=_entetes(),
+    )
+    assert reponse.status_code == 204
+
+    etat = lecteur.get(f"{API}/caisse/etat").json()["etat"]
+    assert etat["sumup_etat"] == "enregistre"
+    assert etat["lecteur_etat"] == "en_veille"  # normalise
+
+
+@pytest.mark.parametrize("inconnu", ["endormi", "", 3, True, ["connecte"]])
+def test_un_etat_fin_inconnu_vaut_null_sans_rejeter_le_releve(
+    client: TestClient, client_authenticated_as, admin_stock_user, inconnu
+) -> None:
+    reponse = client.post(
+        f"{API}/caisse/etat",
+        json=_etat(sumup_etat=inconnu, lecteur_etat=inconnu, batterie_pct=33),
+        headers=_entetes(),
+    )
+    assert reponse.status_code == 204
+
+    etat = client_authenticated_as(admin_stock_user).get(f"{API}/caisse/etat").json()["etat"]
+    assert etat["batterie_pct"] == 33  # le releve est bien enregistre
+    assert etat["sumup_etat"] is None
+    assert etat["lecteur_etat"] is None
+
+
+def test_une_ancienne_app_sans_etats_fins_remet_null(
+    client: TestClient, client_authenticated_as, admin_stock_user
+) -> None:
+    client.post(
+        f"{API}/caisse/etat",
+        json=_etat(sumup_etat="connecte", lecteur_etat="connecte"),
+        headers=_entetes(),
+    )
+    # Releve suivant d'une ancienne version : les champs sont absents.
+    assert client.post(f"{API}/caisse/etat", json=_etat(), headers=_entetes()).status_code == 204
+
+    etat = client_authenticated_as(admin_stock_user).get(f"{API}/caisse/etat").json()["etat"]
+    assert etat["sumup_etat"] is None
+    assert etat["lecteur_etat"] is None
+    assert etat["sumup_connecte"] is True
+
+
 def test_un_benevole_ne_lit_pas_l_etat(client_authenticated_as, benevole_user) -> None:
     assert client_authenticated_as(benevole_user).get(f"{API}/caisse/etat").status_code == 403
 

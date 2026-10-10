@@ -29,9 +29,66 @@ function Ligne({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-function Connexion({ ok }: { ok: boolean }) {
+/** ok = vert, veille = gris neutre (rien d'anormal), ko = rouge. */
+type Ton = 'ok' | 'veille' | 'ko';
+
+interface EtatAffiche {
+  ton: Ton;
+  libelle: string;
+}
+
+/**
+ * Compte SumUp : l'état fin prime ; à défaut (ancienne version de l'app), le
+ * booléen. « Enregistré » = jeton pas encore rechargé après un redémarrage, le
+ * compte se réveille seul au prochain paiement : rien à faire, donc vert.
+ */
+function etatSumup(etat: CaisseEtat): EtatAffiche {
   const t = fr.buvette.tablette;
-  return <Badge variant={ok ? 'success' : 'destructive'}>{ok ? t.connecte : t.deconnecte}</Badge>;
+  switch (etat.sumup_etat) {
+    case 'connecte':
+      return { ton: 'ok', libelle: t.connecte };
+    case 'enregistre':
+      return { ton: 'ok', libelle: t.sumupEnregistre };
+    case 'deconnecte':
+      return { ton: 'ko', libelle: t.deconnecte };
+    default:
+      return etat.sumup_connecte
+        ? { ton: 'ok', libelle: t.connecte }
+        : { ton: 'ko', libelle: t.deconnecte };
+  }
+}
+
+/**
+ * Lecteur de carte : en veille (Bluetooth coupé, il se réveille au paiement)
+ * n'est pas une panne, d'où le gris neutre et non le rouge.
+ */
+function etatLecteur(etat: CaisseEtat): EtatAffiche {
+  const t = fr.buvette.tablette;
+  switch (etat.lecteur_etat) {
+    case 'connecte':
+      return { ton: 'ok', libelle: t.connecte };
+    case 'en_veille':
+      return { ton: 'veille', libelle: t.lecteurEnVeille };
+    case 'non_appaire':
+      return { ton: 'ko', libelle: t.lecteurNonAppaire };
+    default:
+      return etat.lecteur_connecte
+        ? { ton: 'ok', libelle: t.connecte }
+        : { ton: 'ko', libelle: t.deconnecte };
+  }
+}
+
+function Connexion({ etat, testId }: { etat: EtatAffiche; testId: string }) {
+  return (
+    <Badge
+      data-testid={testId}
+      data-ton={etat.ton}
+      variant={etat.ton === 'ok' ? 'success' : etat.ton === 'ko' ? 'destructive' : 'outline'}
+      className={cn(etat.ton === 'veille' && 'border-gray-300 bg-gray-100 text-gray-700')}
+    >
+      {etat.libelle}
+    </Badge>
+  );
 }
 
 function pct(v: number | null): string {
@@ -40,6 +97,8 @@ function pct(v: number | null): string {
 
 function DetailEtat({ etat }: { etat: CaisseEtat }) {
   const t = fr.buvette.tablette;
+  const sumup = etatSumup(etat);
+  const lecteur = etatLecteur(etat);
   return (
     <dl>
       <Ligne label={t.batterie}>
@@ -57,14 +116,14 @@ function DetailEtat({ etat }: { etat: CaisseEtat }) {
         {etat.version_name} <span className="text-muted-foreground">({etat.version_code})</span>
       </Ligne>
       <Ligne label={t.sumup}>
-        <Connexion ok={etat.sumup_connecte} />
+        <Connexion etat={sumup} testId="etat-sumup" />
       </Ligne>
       <Ligne label={t.lecteur}>
         <span className="inline-flex items-center gap-2">
-          {etat.lecteur_connecte && etat.lecteur_batterie_pct !== null && (
+          {lecteur.ton === 'ok' && etat.lecteur_batterie_pct !== null && (
             <span className="text-muted-foreground">{pct(etat.lecteur_batterie_pct)}</span>
           )}
-          <Connexion ok={etat.lecteur_connecte} />
+          <Connexion etat={lecteur} testId="etat-lecteur" />
         </span>
       </Ligne>
       <Ligne label={t.ventesAttente}>

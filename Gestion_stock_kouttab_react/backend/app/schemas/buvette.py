@@ -211,6 +211,20 @@ def _tronquer_32(valeur: Any) -> Any:
     return valeur[:32] if isinstance(valeur, str) else valeur
 
 
+SUMUP_ETATS = ("connecte", "enregistre", "deconnecte")
+LECTEUR_ETATS = ("connecte", "en_veille", "non_appaire")
+
+
+def _etat_connu(valeur: Any, autorises: tuple[str, ...]) -> str | None:
+    # Valeur inconnue (version future de l'app, faute de frappe, autre type) :
+    # null, l'ecran retombe sur les booleens. Jamais de rejet du releve, qui
+    # ferait passer une tablette en parfait etat pour muette.
+    if not isinstance(valeur, str):
+        return None
+    valeur = valeur.strip().lower()
+    return valeur if valeur in autorises else None
+
+
 class CaisseEtatIn(BaseModel):
     """Ce que la tablette envoie toutes les minutes (`POST /buvette/caisse/etat`)."""
 
@@ -221,6 +235,9 @@ class CaisseEtatIn(BaseModel):
     sumup_connecte: bool
     lecteur_connecte: bool
     lecteur_batterie_pct: int | None = None
+    # Absents des anciennes versions de l'app : null.
+    sumup_etat: str | None = None
+    lecteur_etat: str | None = None
     ventes_en_attente: int = Field(ge=0)
     ventes_rejetees: int = Field(ge=0)
     # "accueil" | "buvette" | "especes" | "merci" | "personnel" ; texte libre.
@@ -231,6 +248,16 @@ class CaisseEtatIn(BaseModel):
     def _court(cls, valeur: str) -> str:
         return _tronquer_32(valeur)
 
+    @field_validator("sumup_etat", mode="before")
+    @classmethod
+    def _sumup_etat(cls, valeur: Any) -> str | None:
+        return _etat_connu(valeur, SUMUP_ETATS)
+
+    @field_validator("lecteur_etat", mode="before")
+    @classmethod
+    def _lecteur_etat(cls, valeur: Any) -> str | None:
+        return _etat_connu(valeur, LECTEUR_ETATS)
+
 
 class CaisseEtatOut(BaseModel):
     batterie_pct: int | None = None
@@ -240,6 +267,8 @@ class CaisseEtatOut(BaseModel):
     sumup_connecte: bool
     lecteur_connecte: bool
     lecteur_batterie_pct: int | None = None
+    sumup_etat: str | None = None
+    lecteur_etat: str | None = None
     ventes_en_attente: int
     ventes_rejetees: int
     ecran: str

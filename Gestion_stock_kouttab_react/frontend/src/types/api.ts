@@ -725,6 +725,11 @@ export interface InventaireTerminer {
   debut: string | null;
 }
 
+/** État fin du compte SumUp, null pour une ancienne version de l'app. */
+export type SumupEtat = 'connecte' | 'enregistre' | 'deconnecte';
+/** État fin du lecteur de carte, null pour une ancienne version de l'app. */
+export type LecteurEtat = 'connecte' | 'en_veille' | 'non_appaire';
+
 export interface CaisseEtat {
   batterie_pct: number | null;
   en_charge: boolean | null;
@@ -733,6 +738,8 @@ export interface CaisseEtat {
   sumup_connecte: boolean;
   lecteur_connecte: boolean;
   lecteur_batterie_pct: number | null;
+  sumup_etat?: SumupEtat | null;
+  lecteur_etat?: LecteurEtat | null;
   ventes_en_attente: number;
   ventes_rejetees: number;
   ecran: string;
