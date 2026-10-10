@@ -142,6 +142,29 @@ export const handlers = [
     }),
   ),
   http.get(`${BASE_URL}/buvette/sales`, () => HttpResponse.json([])),
+  // Menu de la tablette : aucune vente par défaut, ordre enregistré renvoyé tel quel.
+  http.get(`${BASE_URL}/buvette/caisse/ordre-par-ventes`, ({ request }) => {
+    const url = new URL(request.url);
+    return HttpResponse.json({
+      categorie: url.searchParams.get('categorie'),
+      jours: Number(url.searchParams.get('jours') ?? 30),
+      debut: '2026-09-11',
+      fin: '2026-10-10',
+      produits: [],
+    });
+  }),
+  http.put(`${BASE_URL}/buvette/caisse/ordre`, async ({ request }) => {
+    const corps = (await request.json()) as { categorie: string; product_ids: number[] };
+    return HttpResponse.json({
+      categorie: corps.categorie,
+      produits: corps.product_ids.map((id, i) => ({
+        product_id: id,
+        name: `Produit ${id}`,
+        ordre_caisse: i + 1,
+        quantite_vendue: null,
+      })),
+    });
+  }),
   http.get(`${BASE_URL}/buvette/webhook/status`, () =>
     HttpResponse.json({
       url_a_enregistrer: null,

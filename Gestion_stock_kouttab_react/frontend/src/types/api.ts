@@ -444,6 +444,41 @@ export interface BuvetteProduct {
   a_une_photo?: boolean;
   /** Dernier prix d'achat unitaire saisi au réappro : pré-remplit le suivant. */
   dernier_prix_achat_cents?: number | null;
+  /** Rang dans l'onglet de la tablette (1..n) ; `null` = pas encore rangé (en fin). */
+  ordre_caisse?: number | null;
+  /** Étiquette affichée sur la tablette ; `null` = aucune. */
+  etiquette_type?: EtiquetteType | null;
+  /** Texte d'une étiquette `libre` (20 caractères au plus). */
+  etiquette_texte?: string | null;
+}
+
+/** Étiquette d'un produit sur la tablette : cinq types fixes, ou un texte libre. */
+export type EtiquetteType =
+  | 'nouveaute'
+  | 'edition_limitee'
+  | 'derniers'
+  | 'coup_de_coeur'
+  | 'promo'
+  | 'libre';
+
+/** Ordre d'un onglet de la tablette, proposé (ventes) ou enregistré. */
+export interface CaisseOrdreProduit {
+  product_id: number;
+  name: string;
+  ordre_caisse: number | null;
+  /** Renseignée par l'ordre par ventes ; `null` dans la réponse de l'enregistrement. */
+  quantite_vendue: number | null;
+}
+
+export interface CaisseOrdre {
+  categorie: CaisseCategory;
+  produits: CaisseOrdreProduit[];
+}
+
+export interface CaisseOrdreVentes extends CaisseOrdre {
+  jours: number;
+  debut: string;
+  fin: string;
 }
 
 /**
@@ -460,6 +495,9 @@ export interface BuvetteProductUpdate {
   barcode?: string | null;
   /** `null` retire le produit de la tablette ; absent = inchangé. */
   caisse_category?: CaisseCategory | null;
+  /** `null` retire l'étiquette ; le texte n'est lu que pour `libre`. */
+  etiquette_type?: EtiquetteType | null;
+  etiquette_texte?: string | null;
 }
 
 export interface BuvetteProductCreate {

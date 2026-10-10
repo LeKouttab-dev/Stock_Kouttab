@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import re
 import secrets
+import unicodedata
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
@@ -28,6 +30,8 @@ from app.db.models import (
 )
 from app.services import images
 from app.schemas.buvette import (
+    ETIQUETTE_TEXTE_MAX,
+    LIBELLES_ETIQUETTE,
     BuvetteProductCreate,
     BuvetteProductUpdate,
     CaisseEtatIn,
@@ -194,7 +198,12 @@ def update_product(
         product.is_active = payload["is_active"]
     # `None` explicite est une valeur a part entiere : retirer de la tablette.
     if "caisse_category" in payload:
+        if payload["caisse_category"] != product.caisse_category:
+            # Le rang valait dans l'ancien onglet : dans le nouveau, le produit
+            # passe en fin, jusqu'a ce que quelqu'un le range.
+            product.ordre_caisse = None
         product.caisse_category = payload["caisse_category"]
+    _appliquer_etiquette(product, payload)
 
     # HelloAsso ecrit ces quatre champs a chaque synchronisation. Une
     # modification a la main les lui retire, sinon le prochain « Synchroniser »
@@ -233,6 +242,58 @@ def update_product(
         )
     db.refresh(product)
     return product
+
+
+_ESPACES = re.compile(r"\s+")
+
+
+def nettoyer_etiquette(brut: str | None) -> str:
+    """Texte libre d'une etiquette : espaces reduits, caracteres invisibles retires.
+
+    Leve ``AppException`` (422) si le resultat est vide ou depasse 20 caracteres.
+    """
+    texte = _ESPACES.sub(" ", brut or "")
+    texte = "".join(c for c in texte if not unicodedata.category(c).startswith("C"))
+    texte = _ESPACES.sub(" ", texte).strip()
+    if not texte:
+        raise AppException(
+            ErrorCode.VALIDATION_ERROR, detail="Saisissez le texte de l'étiquette."
+        )
+    if len(texte) > ETIQUETTE_TEXTE_MAX:
+        raise AppException(
+            ErrorCode.VALIDATION_ERROR,
+            detail=f"L'étiquette fait {ETIQUETTE_TEXTE_MAX} caractères au plus.",
+        )
+    return texte
+
+
+def _appliquer_etiquette(product: BuvetteProduct, payload: dict[str, Any]) -> None:
+    """Etiquette d'un PATCH : `etiquette_type` null = aucune ; le texte ne vaut que pour `libre`."""
+    if "etiquette_type" in payload:
+        type_ = payload["etiquette_type"]
+        if type_ == "libre":
+            product.etiquette_texte = nettoyer_etiquette(payload.get("etiquette_texte"))
+        else:
+            product.etiquette_texte = None
+        product.etiquette_type = type_
+    elif "etiquette_texte" in payload and product.etiquette_type == "libre":
+        # Texte seul : corrige une etiquette libre existante, ignore sinon.
+        product.etiquette_texte = nettoyer_etiquette(payload["etiquette_texte"])
+
+
+def etiquette_de(product: Any) -> dict[str, str] | None:
+    """Etiquette affichee par la tablette : `{type, texte}` (libelle final) ou None.
+
+    Une valeur incoherente en base (type inconnu, libre sans texte) vaut
+    « aucune » : la tablette n'affiche jamais une pastille vide.
+    """
+    type_ = getattr(product, "etiquette_type", None)
+    if type_ == "libre":
+        texte = (getattr(product, "etiquette_texte", None) or "").strip()
+        return {"type": "libre", "texte": texte} if texte else None
+    if type_ in LIBELLES_ETIQUETTE:
+        return {"type": type_, "texte": LIBELLES_ETIQUETTE[type_]}
+    return None
 
 
 # Les champs que la synchronisation HelloAsso ecrit — et qu'elle cesse d'ecrire
@@ -654,17 +715,119 @@ def list_sales(db: Session, *, limit: int = 50, offset: int = 0) -> list[Buvette
 # ---------------------------------------------------------------------------
 
 
+# Ordre d'un onglet : rang choisi dans l'onglet Tablette, les produits pas
+# encore ranges (NULL) en fin, puis par nom. `CASE` plutot que `NULLS LAST`,
+# que MariaDB ne connait pas (cf. tests/unit/test_sql_dialect_compat.py).
+_ORDRE_ONGLET = (
+    case((BuvetteProduct.ordre_caisse.is_(None), 1), else_=0).asc(),
+    BuvetteProduct.ordre_caisse.asc(),
+    BuvetteProduct.name.asc(),
+    BuvetteProduct.id.asc(),
+)
+
+
 def list_caisse_catalogue(db: Session) -> list[BuvetteProduct]:
-    """Produits vendus par la tablette : actifs ET ranges dans un onglet."""
+    """Produits vendus par la tablette : actifs ET ranges dans un onglet.
+
+    Tries par onglet, puis par rang (`ordre_caisse`, non ranges en fin), puis
+    par nom : la tablette garde l'ordre recu, c'est lui qui fait son menu.
+    """
     stmt = (
         select(BuvetteProduct)
         .where(
             BuvetteProduct.is_active.is_(True),
             BuvetteProduct.caisse_category.is_not(None),
         )
-        .order_by(BuvetteProduct.caisse_category.asc(), BuvetteProduct.name.asc())
+        .order_by(BuvetteProduct.caisse_category.asc(), *_ORDRE_ONGLET)
     )
     return list(db.execute(stmt).scalars().all())
+
+
+def produits_de_l_onglet(
+    db: Session, categorie: str, *, actifs_seulement: bool = True
+) -> list[BuvetteProduct]:
+    """Produits d'un onglet de la tablette, dans l'ordre ou elle les affiche."""
+    stmt = select(BuvetteProduct).where(BuvetteProduct.caisse_category == categorie)
+    if actifs_seulement:
+        stmt = stmt.where(BuvetteProduct.is_active.is_(True))
+    return list(db.execute(stmt.order_by(*_ORDRE_ONGLET)).scalars().all())
+
+
+def enregistrer_ordre(
+    db: Session, categorie: str, product_ids: list[int]
+) -> list[BuvetteProduct]:
+    """Reecrit `ordre_caisse` de 1 a n pour l'onglet, dans l'ordre recu.
+
+    Un identifiant hors de l'onglet ou en double : 422, rien n'est ecrit. Les
+    produits de l'onglet absents de la liste (desactives, ou ajoutes entre-temps
+    depuis un autre poste) suivent, dans leur ordre actuel : aucun ne garde un
+    rang en double.
+    """
+    if len(set(product_ids)) != len(product_ids):
+        raise AppException(
+            ErrorCode.VALIDATION_ERROR, detail="Un produit figure deux fois dans l'ordre."
+        )
+    onglet = produits_de_l_onglet(db, categorie, actifs_seulement=False)
+    par_id = {p.id: p for p in onglet}
+    if any(i not in par_id for i in product_ids):
+        raise AppException(
+            ErrorCode.VALIDATION_ERROR,
+            detail="Certains produits ne sont pas dans cet onglet de la tablette.",
+        )
+    vus = set(product_ids)
+    ordonnes = [par_id[i] for i in product_ids] + [p for p in onglet if p.id not in vus]
+    for rang, produit in enumerate(ordonnes, start=1):
+        produit.ordre_caisse = rang
+    db.commit()
+    return produits_de_l_onglet(db, categorie)
+
+
+def quantites_vendues(db: Session, debut: date, fin: date) -> dict[int, int]:
+    """Quantites vendues par produit sur [debut, fin], toutes sources confondues.
+
+    Meme filtre de date que `lignes_de_la_periode` ; une ligne sans produit
+    (article libre, produit supprime) ne compte pour aucun produit.
+    """
+    instant = func.coalesce(BuvetteSale.sold_at, BuvetteSale.processed_at)
+    stmt = (
+        select(BuvetteSale.buvette_product_id, func.sum(BuvetteSale.quantity_sold))
+        .where(
+            BuvetteSale.buvette_product_id.is_not(None),
+            instant >= datetime.combine(debut, datetime.min.time()),
+            instant < datetime.combine(fin + timedelta(days=1), datetime.min.time()),
+        )
+        .group_by(BuvetteSale.buvette_product_id)
+    )
+    return {pid: int(total or 0) for pid, total in db.execute(stmt).all()}
+
+
+def ordre_par_ventes(db: Session, categorie: str, jours: int) -> dict[str, Any]:
+    """Ordre PROPOSE pour un onglet : du plus vendu au moins vendu sur `jours` jours.
+
+    Rien n'est enregistre : l'ecran l'applique, la personne ajuste, puis
+    l'enregistre par `enregistrer_ordre`. A ventes egales, l'ordre actuel tient.
+    """
+    fin = aujourd_hui()
+    debut = fin - timedelta(days=jours - 1)
+    ventes = quantites_vendues(db, debut, fin)
+    produits = produits_de_l_onglet(db, categorie)
+    rang_actuel = {p.id: i for i, p in enumerate(produits)}
+    produits.sort(key=lambda p: (-ventes.get(p.id, 0), rang_actuel[p.id]))
+    return {
+        "categorie": categorie,
+        "jours": jours,
+        "debut": debut,
+        "fin": fin,
+        "produits": [
+            {
+                "product_id": p.id,
+                "name": p.name,
+                "ordre_caisse": p.ordre_caisse,
+                "quantite_vendue": ventes.get(p.id, 0),
+            }
+            for p in produits
+        ],
+    }
 
 
 def record_caisse_sale(

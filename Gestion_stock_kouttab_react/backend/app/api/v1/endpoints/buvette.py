@@ -43,9 +43,13 @@ from app.schemas.buvette import (
     BuvetteProductUpdate,
     BuvetteSaleOut,
     CaisseCatalogueOut,
+    CaisseCategory,
     CaisseEtatEnveloppeOut,
     CaisseEtatIn,
     CaisseEtatOut,
+    CaisseOrdreIn,
+    CaisseOrdreOut,
+    CaisseOrdreVentesOut,
     CaisseProduitOut,
     CaisseReapproIn,
     CaisseReapproOut,
@@ -445,11 +449,45 @@ def caisse_catalogue(request: Request, db: Session = Depends(get_db)) -> Any:
                 image_url=_url_photo(p),
                 quantity=p.quantity,
                 low_stock=p.low_stock,
+                etiquette=buvette_crud.etiquette_de(p),
             )
             for p in buvette_crud.list_caisse_catalogue(db)
         ],
         generated_at=datetime.now(timezone.utc),
     )
+
+
+# Menu de la tablette (onglet Tablette de l'app stock). Session, PAS la cle de
+# la caisse : c'est l'app stock qui range le menu, la tablette ne fait que le lire.
+@router.put(
+    "/caisse/ordre",
+    response_model=CaisseOrdreOut,
+    dependencies=[Depends(require_roles(*_GESTION_ROLES))],
+)
+def enregistrer_ordre_caisse(payload: CaisseOrdreIn, db: Session = Depends(get_db)) -> Any:
+    """Ordre d'un onglet de la tablette : `ordre_caisse` reecrit de 1 a n."""
+    produits = buvette_crud.enregistrer_ordre(db, payload.categorie, payload.product_ids)
+    return {
+        "categorie": payload.categorie,
+        "produits": [
+            {"product_id": p.id, "name": p.name, "ordre_caisse": p.ordre_caisse}
+            for p in produits
+        ],
+    }
+
+
+@router.get(
+    "/caisse/ordre-par-ventes",
+    response_model=CaisseOrdreVentesOut,
+    dependencies=[Depends(require_roles(*_GESTION_ROLES))],
+)
+def ordre_caisse_par_ventes(
+    categorie: CaisseCategory = Query(...),
+    jours: int = Query(default=30, ge=1, le=366),
+    db: Session = Depends(get_db),
+) -> Any:
+    """Ordre propose (du plus vendu au moins vendu), sans l'enregistrer."""
+    return buvette_crud.ordre_par_ventes(db, categorie, jours)
 
 
 @router.post(

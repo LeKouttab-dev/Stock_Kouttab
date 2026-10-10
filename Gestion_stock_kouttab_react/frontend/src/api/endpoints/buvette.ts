@@ -5,7 +5,10 @@ import type {
   BuvetteProduct,
   BuvetteReglages,
   BuvetteStats,
+  CaisseCategory,
   CaisseEtatResponse,
+  CaisseOrdre,
+  CaisseOrdreVentes,
   Cloture,
   ClotureAttendu,
   ClotureCreate,
@@ -47,6 +50,8 @@ export const buvetteQueryKeys = {
   clotureHistorique: (filtres: Record<string, unknown>) =>
     [...buvetteQueryKeys.clotures(), 'historique', filtres] as const,
   caisseEtat: () => [...buvetteQueryKeys.all, 'caisse-etat'] as const,
+  ordreParVentes: (categorie: string, jours: number) =>
+    [...buvetteQueryKeys.all, 'ordre-par-ventes', categorie, jours] as const,
   reglages: () => [...buvetteQueryKeys.all, 'reglages'] as const,
   inventaires: () => [...buvetteQueryKeys.all, 'inventaires'] as const,
   inventaireEnCours: () => [...buvetteQueryKeys.inventaires(), 'en-cours'] as const,
@@ -465,6 +470,53 @@ export function useUpdateTauxFraisCarte() {
         predicate: (q) => q.queryKey[1] !== 'reglages',
       });
     },
+  });
+}
+
+/* ---- Menu de la tablette : ordre et étiquettes ---------------------------- */
+
+async function fetchOrdreParVentes(
+  categorie: CaisseCategory,
+  jours: number,
+): Promise<CaisseOrdreVentes> {
+  const { data } = await api.get<CaisseOrdreVentes>('/buvette/caisse/ordre-par-ventes', {
+    params: { categorie, jours },
+  });
+  return data;
+}
+
+/**
+ * Ventes d'un onglet sur `jours` jours, par produit (du plus vendu au moins
+ * vendu). Sert à afficher les ventes à côté de chaque produit du menu.
+ */
+export function useOrdreParVentes(categorie: CaisseCategory, jours = 30, actif = true) {
+  return useQuery({
+    queryKey: buvetteQueryKeys.ordreParVentes(categorie, jours),
+    enabled: actif,
+    queryFn: () => fetchOrdreParVentes(categorie, jours),
+  });
+}
+
+/** Ordre proposé par les ventes, lu au clic sur « Trier par ventes » (rien n'est enregistré). */
+export function useProposerOrdreParVentes() {
+  return useApiMutation({
+    mutationFn: ({ categorie, jours }: { categorie: CaisseCategory; jours: number }) =>
+      fetchOrdreParVentes(categorie, jours),
+  });
+}
+
+/**
+ * Enregistre l'ordre complet d'un onglet : le serveur réécrit les rangs de 1 à n.
+ * La tablette suit cet ordre dès sa prochaine lecture du catalogue.
+ */
+export function useEnregistrerOrdreCaisse() {
+  const qc = useQueryClient();
+  return useApiMutation({
+    mutationFn: async (payload: { categorie: CaisseCategory; product_ids: number[] }) => {
+      const { data } = await api.put<CaisseOrdre>('/buvette/caisse/ordre', payload);
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: buvetteQueryKeys.products() }),
   });
 }
 
