@@ -39,7 +39,7 @@ from app.crud import tablette as tablette_crud
 from app.crud import user as user_crud
 from sqlalchemy import func, select
 
-from app.db.models import Admin, Event, Expense, Invoice
+from app.db.models import Admin, BuvetteProduct, Event, Expense, Invoice
 from app.db.session import SessionLocal, get_db
 from app.schemas.auth import (
     AdminSetupIn,
@@ -47,6 +47,7 @@ from app.schemas.auth import (
     ForgotPasswordIn,
     InvitationValidateOut,
     LoginIn,
+    SsoBuvetteLaitOut,
     SsoCalendrierOut,
     SsoDepensesOut,
     SsoExchangeIn,
@@ -743,4 +744,79 @@ async def sso_calendrier(request: Request, payload: SsoExchangeIn) -> Any:
         evenements=evenements,
         instantane=fige,
         genere_le=calendrier_instantane.genere_le() if fige else None,
+    )
+
+
+_ACTIONS_LAIT = {"etat": None, "activer": True, "desactiver": False}
+
+
+@router.post("/sso/buvette-lait", response_model=SsoBuvetteLaitOut)
+# Meme client unique que les autres appels de gestion : l'IP de son VPS.
+@limiter.limit("60/minute")
+def sso_buvette_lait(
+    request: Request,
+    payload: SsoExchangeIn,
+    db: Session = Depends(get_db),
+) -> Any:
+    """Lit ou bascule les boissons au lait de la buvette depuis gestion.lekouttab.fr.
+
+    Jeton dedie (typ 'sso-buvette-lait', 60 s) signe du secret partage, avec
+    `action` dans le jeton : `etat` (lecture), `activer` ou `desactiver`. Une
+    bascule exige un `jti`, consomme ici (rejeu = 409) : un jeton intercepte
+    ne rejoue pas un clic. Le droit (responsables de pole et de sous-pole) est
+    verifie cote gestion, ou vivent les roles ; `email` signe le journal.
+
+    Seuls les produits de `BUVETTE_PRODUITS_LAIT_IDS` sont concernes : le
+    jeton ne porte aucun id, il n'y a donc rien a substituer pour masquer un
+    autre article. La tablette suit au prochain rafraichissement (30 s).
+    """
+    from datetime import datetime as _dt, timezone as _tz
+
+    secret = settings.sso_shared_secret.strip()
+    if not secret:
+        raise AppException(ErrorCode.NOT_FOUND)
+
+    charge = sso_crud.verifier_jeton(
+        payload.token, secret, typ_attendu="sso-buvette-lait", exiger_jti=False
+    )
+    action = charge.get("action")
+    if action not in _ACTIONS_LAIT:
+        raise AppException(ErrorCode.VALIDATION_ERROR, detail="Action inconnue.")
+    cible = _ACTIONS_LAIT[action]
+
+    ids = settings.ids_produits_lait
+    produits = list(
+        db.execute(
+            select(BuvetteProduct)
+            .where(BuvetteProduct.id.in_(ids))
+            .order_by(BuvetteProduct.id)
+        ).scalars().all()
+    ) if ids else []
+
+    if cible is not None:
+        if not charge.get("jti"):
+            raise AppException(ErrorCode.TOKEN_INVALID, detail="Jeton incomplet.")
+        try:
+            sso_crud.consommer_jti(
+                db,
+                charge["jti"],
+                _dt.fromtimestamp(int(charge["exp"]), tz=_tz.utc).replace(tzinfo=None),
+            )
+        except AppException as exc:
+            # Rejeu : 409 et non 401, pour que gestion distingue un double clic
+            # d'un secret mal configure.
+            raise AppException(ErrorCode.CONFLICT, detail="Jeton deja utilise.") from exc
+        for p in produits:
+            p.is_active = cible
+        db.commit()
+        logger.info(
+            "Boissons au lait %s depuis gestion par %s (produits %s)",
+            "activees" if cible else "desactivees",
+            str(charge["email"]).strip().lower(),
+            [p.id for p in produits],
+        )
+
+    return SsoBuvetteLaitOut(
+        actif=bool(produits) and all(p.is_active for p in produits),
+        produits=[{"id": p.id, "nom": p.name, "actif": bool(p.is_active)} for p in produits],
     )

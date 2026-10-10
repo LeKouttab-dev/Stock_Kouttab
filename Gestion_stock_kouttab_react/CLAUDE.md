@@ -806,6 +806,12 @@ AdminBenevoles, Compta, Super Admin (`_ROLES_LECTURE` dans
   ne porte que le jeton, il n'y a rien à substituer pour balayer l'année.
   **Les agendas réservés ne traversent jamais la frontière**, quel que soit le
   demandeur : les servir reviendrait à confier leur filtrage à l'autre outil.
+- `POST /auth/sso/buvette-lait` — **les boissons au lait de la buvette, depuis
+  gestion** (jeton `typ: 'sso-buvette-lait'`, 60 s, `action` = `etat` |
+  `activer` | `desactiver` dans le jeton). Bascule `is_active` des seuls ids de
+  `BUVETTE_PRODUITS_LAIT_IDS` (35,36 : Cappuccino, Latte macchiato) ; une
+  bascule consomme son `jti` (rejeu = 409). Le droit (responsables de pôle et
+  de sous-pôle) est vérifié côté gestion. La tablette suit en 30 s.
   Le droit d'ouvrir l'onglet est vérifié côté gestion, où vivent ses rôles.
 
 Le calcul (source, fenêtre, normalisation) vit dans **`services/calendrier.py`**,
