@@ -24,7 +24,7 @@ from app.core.logger import get_logger
 from app.crud import buvette as buvette_crud
 from app.crud import buvette_cloture as cloture_crud
 from app.crud.buvette_inventaire import dernier_comptage, utc_vers_paris
-from app.db.models import BuvetteProduct
+from app.db.models import BuvetteProduct, CaisseEtat
 from app.services import email as email_service
 from app.services import email_layout, liens
 
@@ -192,6 +192,8 @@ def composer(donnees: dict[str, Any]) -> tuple[str, str]:
         if etat.ventes_rejetees:
             details.append(f"{etat.ventes_rejetees} vente(s) rejetée(s)")
         lignes.append("- " + ", ".join(details) + ".")
+        lignes.append(f"- Compte SumUp : {libelle_sumup(etat)}.")
+        lignes.append(f"- Lecteur de carte : {libelle_lecteur(etat)}.")
 
     lignes += [
         "",
@@ -200,6 +202,30 @@ def composer(donnees: dict[str, Any]) -> tuple[str, str]:
         email_layout.SIGNATURE,
     ]
     return sujet, "\n".join(lignes)
+
+
+def libelle_sumup(etat: CaisseEtat) -> str:
+    """Memes libelles que l'onglet Tablette ; booleen pour une ancienne app."""
+    if etat.sumup_etat == "connecte":
+        return "connecté"
+    if etat.sumup_etat == "enregistre":
+        return "connecté, se réveillera au prochain paiement"
+    if etat.sumup_etat == "deconnecte":
+        return "non connecté"
+    return "connecté" if etat.sumup_connecte else "non connecté"
+
+
+def libelle_lecteur(etat: CaisseEtat) -> str:
+    """En veille n'est pas une panne : le lecteur se reveille au paiement."""
+    if etat.lecteur_etat == "en_veille":
+        return "en veille, se réveille au paiement"
+    if etat.lecteur_etat == "non_appaire":
+        return "non appairé"
+    if etat.lecteur_etat == "connecte" or (etat.lecteur_etat is None and etat.lecteur_connecte):
+        if etat.lecteur_batterie_pct is not None:
+            return f"connecté (batterie {etat.lecteur_batterie_pct} %)"
+        return "connecté"
+    return "non connecté"
 
 
 async def envoyer_recap(

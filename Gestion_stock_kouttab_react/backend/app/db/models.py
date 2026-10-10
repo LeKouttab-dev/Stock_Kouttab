@@ -1089,6 +1089,11 @@ class CaisseEtat(Base):
     sumup_connecte: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     lecteur_connecte: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     lecteur_batterie_pct: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Etats fins (migration a7b4c9d1e6f8), NULL pour une ancienne version de
+    # l'app : "connecte" | "enregistre" | "deconnecte" pour le compte SumUp,
+    # "connecte" | "en_veille" | "non_appaire" pour le lecteur.
+    sumup_etat: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    lecteur_etat: Mapped[str | None] = mapped_column(String(16), nullable=True)
     ventes_en_attente: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     ventes_rejetees: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     ecran: Mapped[str] = mapped_column(String(32), nullable=False, default="")

@@ -102,7 +102,50 @@ def test_le_recap_dit_l_essentiel_de_la_journee(db_session: Session, journee) ->
     assert "Depuis la dernière clôture" not in corps
     assert "dernier contact il y a moins d'une minute" in corps
     assert "batterie 64 %" in corps
+    # Ancienne app (sans etats fins) : les booleens.
+    assert "- Compte SumUp : connecté." in corps
+    assert "- Lecteur de carte : connecté (batterie 80 %)." in corps
     assert "—" not in corps and "—" not in sujet
+
+
+@pytest.mark.parametrize(
+    ("sumup_etat", "lecteur_etat", "attendus"),
+    [
+        (
+            "enregistre",
+            "en_veille",
+            [
+                "- Compte SumUp : connecté, se réveillera au prochain paiement.",
+                "- Lecteur de carte : en veille, se réveille au paiement.",
+            ],
+        ),
+        (
+            "deconnecte",
+            "non_appaire",
+            ["- Compte SumUp : non connecté.", "- Lecteur de carte : non appairé."],
+        ),
+        (
+            "connecte",
+            "connecte",
+            ["- Compte SumUp : connecté.", "- Lecteur de carte : connecté (batterie 80 %)."],
+        ),
+    ],
+)
+def test_le_recap_reprend_les_etats_fins_de_l_onglet_tablette(
+    db_session: Session, sumup_etat, lecteur_etat, attendus
+) -> None:
+    buvette_crud.enregistrer_etat(
+        db_session,
+        CaisseEtatIn(
+            batterie_pct=64, en_charge=False, version_code=8, version_name="0.8.0",
+            sumup_connecte=sumup_etat != "deconnecte", lecteur_connecte=lecteur_etat == "connecte",
+            lecteur_batterie_pct=80, sumup_etat=sumup_etat, lecteur_etat=lecteur_etat,
+            ventes_en_attente=0, ventes_rejetees=0, ecran="accueil",
+        ),
+    )
+    _, corps = recap_buvette.composer(recap_buvette.donnees_du_jour(db_session, JOUR))
+    for attendu in attendus:
+        assert attendu in corps
 
 
 def test_sans_cloture_ni_tablette_le_recap_le_dit(db_session: Session) -> None:

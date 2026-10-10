@@ -38,6 +38,8 @@ describe('pages/buvette/tabs/TabletteTab : état', () => {
     expect(screen.getByText(/0\.7\.0/)).toBeInTheDocument();
     expect(screen.getByText('64 %')).toBeInTheDocument();
     expect(screen.getByText('Accueil')).toBeInTheDocument();
+    expect(screen.getByTestId('etat-sumup')).toHaveTextContent('Connecté');
+    expect(screen.getByTestId('etat-lecteur')).toHaveAttribute('data-ton', 'ok');
   });
 
   it('passe en rouge au-delà de 5 minutes sans nouvelles', async () => {
@@ -48,6 +50,56 @@ describe('pages/buvette/tabs/TabletteTab : état', () => {
     expect(contact).toHaveTextContent('il y a 10 min');
     expect(contact).toHaveAttribute('data-silencieuse', 'true');
     expect(contact).toHaveClass('text-red-700');
+  });
+
+  it('compte « enregistré » : connecté, se réveillera au prochain paiement (vert)', async () => {
+    etat({ ...ETAT, sumup_connecte: true, sumup_etat: 'enregistre' });
+    renderWithProviders(<TabletteTab />);
+
+    const sumup = await screen.findByTestId('etat-sumup');
+    expect(sumup).toHaveTextContent('Connecté, se réveillera au prochain paiement');
+    expect(sumup).toHaveAttribute('data-ton', 'ok');
+  });
+
+  it('compte déconnecté explicitement : rouge, même si le booléen disait vrai', async () => {
+    etat({ ...ETAT, sumup_connecte: true, sumup_etat: 'deconnecte' });
+    renderWithProviders(<TabletteTab />);
+
+    const sumup = await screen.findByTestId('etat-sumup');
+    expect(sumup).toHaveTextContent('Non connecté');
+    expect(sumup).toHaveAttribute('data-ton', 'ko');
+  });
+
+  it('lecteur en veille : gris neutre, pas rouge, sans batterie', async () => {
+    etat({ ...ETAT, lecteur_connecte: false, lecteur_etat: 'en_veille', lecteur_batterie_pct: 64 });
+    renderWithProviders(<TabletteTab />);
+
+    const lecteur = await screen.findByTestId('etat-lecteur');
+    expect(lecteur).toHaveTextContent('En veille, se réveille au paiement');
+    expect(lecteur).toHaveAttribute('data-ton', 'veille');
+    expect(lecteur).not.toHaveClass('bg-destructive');
+    expect(lecteur).toHaveClass('bg-gray-100');
+    expect(screen.queryByText('64 %')).not.toBeInTheDocument();
+  });
+
+  it('lecteur non appairé : rouge', async () => {
+    etat({ ...ETAT, lecteur_connecte: false, lecteur_etat: 'non_appaire' });
+    renderWithProviders(<TabletteTab />);
+
+    const lecteur = await screen.findByTestId('etat-lecteur');
+    expect(lecteur).toHaveTextContent('Non appairé');
+    expect(lecteur).toHaveClass('bg-destructive');
+  });
+
+  it('ancienne version de l’app (sans états fins) : retombe sur les booléens', async () => {
+    etat({ ...ETAT, sumup_connecte: false, lecteur_connecte: false });
+    renderWithProviders(<TabletteTab />);
+
+    const sumup = await screen.findByTestId('etat-sumup');
+    expect(sumup).toHaveTextContent('Non connecté');
+    expect(sumup).toHaveAttribute('data-ton', 'ko');
+    expect(screen.getByTestId('etat-lecteur')).toHaveTextContent('Non connecté');
+    expect(screen.getByTestId('etat-lecteur')).toHaveAttribute('data-ton', 'ko');
   });
 
   it('dit « jamais vue » quand la tablette ne s’est jamais annoncée', async () => {
