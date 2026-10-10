@@ -22,6 +22,13 @@ function espionner(chemin: string, reponse: JsonBodyType) {
 describe('components/shared/PeriodePreset', () => {
   it('Statistiques : « Ce mois-ci » par défaut, puis chaque préréglage envoie ses dates', async () => {
     const dernier = espionner('/buvette/stats', {
+      totaux: {
+        ca_cents: 0,
+        frais_carte_cents: 0,
+        net_cents: 0,
+        ventes: 0,
+        taux_frais_carte_pb: 170,
+      },
       par_jour: [],
       par_heure: [],
       par_produit: [],

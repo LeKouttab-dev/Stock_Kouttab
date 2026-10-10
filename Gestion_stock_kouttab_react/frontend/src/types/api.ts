@@ -578,6 +578,10 @@ export interface Paiement {
   moyen: MoyenPaiement;
   sold_at: string;
   total_cents: number;
+  /** Frais SumUp de la transaction (carte seulement, calculés par le serveur). */
+  frais_cents: number | null;
+  /** total moins frais. */
+  net_cents: number;
   sumup_tx_code: string | null;
   helloasso_order_id: number | null;
   client: string | null;
@@ -589,7 +593,12 @@ export interface PaiementsTotaux {
   especes_cents: number;
   helloasso_cents: number;
   total_cents: number;
+  frais_carte_cents: number;
+  carte_net_cents: number;
+  net_total_cents: number;
   nb_ventes: number;
+  /** Points de base : 170 = 1,70 %. */
+  taux_frais_carte_pb: number;
 }
 
 export interface PaiementsResponse {
@@ -598,10 +607,18 @@ export interface PaiementsResponse {
 }
 
 export interface BuvetteStats {
-  par_jour: { jour: string; ca_cents: number; ventes: number }[];
-  par_heure: { heure: number; ca_cents: number; ventes: number }[];
+  /** CA brut, frais SumUp (carte) et CA net de la période. */
+  totaux: {
+    ca_cents: number;
+    frais_carte_cents: number;
+    net_cents: number;
+    ventes: number;
+    taux_frais_carte_pb: number;
+  };
+  par_jour: { jour: string; ca_cents: number; ventes: number; net_cents: number }[];
+  par_heure: { heure: number; ca_cents: number; ventes: number; net_cents: number }[];
   par_produit: { nom: string; quantite: number; ca_cents: number }[];
-  par_moyen: { moyen: string; ca_cents: number; ventes: number }[];
+  par_moyen: { moyen: string; ca_cents: number; ventes: number; net_cents: number }[];
 }
 
 /** D'où part la période des espèces : la dernière clôture ou le dernier inventaire. */
@@ -677,6 +694,15 @@ export interface InventaireSynthese {
   perte_cents: number;
   /** Total des réappros de la période (absent des rapports antérieurs). */
   achats_cents?: number | null;
+  /** Ventes carte de la période des mouvements (lecture d'un inventaire seulement). */
+  ventes_carte?: VentesCarte | null;
+}
+
+export interface VentesCarte {
+  nb: number;
+  brut_cents: number;
+  frais_cents: number;
+  net_cents: number;
 }
 
 /** Un inventaire sans ses lignes : une ligne de l'historique. */
@@ -754,6 +780,8 @@ export interface CaisseEtatResponse {
 export interface BuvetteReglages {
   recap_destinataires: string[];
   comptes_admin_stock: { id: number; email: string; nom: string }[];
+  /** Frais SumUp sur la carte, en points de base (170 = 1,70 %). */
+  taux_frais_carte_pb: number;
 }
 
 /* Scan de justificatifs */

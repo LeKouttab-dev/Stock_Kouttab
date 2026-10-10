@@ -13,6 +13,8 @@ const REPONSE: PaiementsResponse = {
       moyen: 'carte',
       sold_at: '2026-10-09T18:42:00',
       total_cents: 450,
+      frais_cents: 8,
+      net_cents: 442,
       sumup_tx_code: 'TBX9QK',
       helloasso_order_id: null,
       client: null,
@@ -26,6 +28,8 @@ const REPONSE: PaiementsResponse = {
       moyen: 'helloasso',
       sold_at: '2026-10-09T12:05:00',
       total_cents: 200,
+      frais_cents: null,
+      net_cents: 200,
       sumup_tx_code: null,
       helloasso_order_id: 123,
       client: 'Yanis B.',
@@ -37,7 +41,11 @@ const REPONSE: PaiementsResponse = {
     especes_cents: 0,
     helloasso_cents: 200,
     total_cents: 650,
+    frais_carte_cents: 8,
+    carte_net_cents: 442,
+    net_total_cents: 642,
     nb_ventes: 2,
+    taux_frais_carte_pb: 170,
   },
 };
 
@@ -57,13 +65,34 @@ describe('pages/buvette/tabs/PaiementsTab', () => {
     expect(screen.getByText('TBX9QK')).toBeInTheDocument();
     expect(screen.getByText('Commande 123')).toBeInTheDocument();
     expect(screen.getByText('Yanis B.')).toBeInTheDocument();
-    // Badge du moyen + carte KPI « Carte ».
-    expect(screen.getAllByText('Carte').length).toBeGreaterThanOrEqual(2);
+    // Badge du moyen ; la carte KPI dit « brut ».
+    expect(screen.getAllByText('Carte').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('Carte (brut)')).toBeInTheDocument();
 
     await waitFor(() => expect(params).not.toBeNull());
     const p = params as unknown as URLSearchParams;
     expect(p.get('debut')).toBe(p.get('fin'));
     expect(p.get('moyen')).toBeNull();
+  });
+
+  it('affiche les frais SumUp et le net, en KPI et en colonnes (vides hors carte)', async () => {
+    server.use(http.get(`${BASE_URL}/buvette/paiements`, () => HttpResponse.json(REPONSE)));
+    renderWithProviders(<PaiementsTab />);
+
+    await screen.findByText('TBX9QK');
+    expect(screen.getByTestId('kpi-carte-brut')).toHaveTextContent('4.50 €');
+    expect(screen.getByTestId('kpi-frais-sumup')).toHaveTextContent('0.08 €');
+    expect(screen.getByText('1,70 % par paiement par carte')).toBeInTheDocument();
+    expect(screen.getByTestId('kpi-total-net')).toHaveTextContent('6.42 €');
+    expect(screen.getByText('Frais SumUp')).toBeInTheDocument();
+    expect(screen.getByText('Total net encaissé')).toBeInTheDocument();
+
+    expect(screen.getByRole('columnheader', { name: 'Frais' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Net' })).toBeInTheDocument();
+    expect(screen.getByTestId('frais-tx-1')).toHaveTextContent('0.08 €');
+    expect(screen.getByTestId('net-tx-1')).toHaveTextContent('4.42 €');
+    expect(screen.getByTestId('frais-ha-123')).toBeEmptyDOMElement();
+    expect(screen.getByTestId('net-ha-123')).toBeEmptyDOMElement();
   });
 
   it('déplie le détail des articles, puis le replie', async () => {

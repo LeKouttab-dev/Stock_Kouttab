@@ -903,6 +903,63 @@ def moyen_de_paiement(sale: BuvetteSale) -> str:
     return "helloasso"
 
 
+# Frais preleves par SumUp sur chaque paiement par carte, en points de base
+# (170 = 1,70 %). Reglable (`BuvetteReglages`, cle `taux_frais_carte_pb`) ; ce
+# repli vaut si la ligne manque. Aucune migration : la valeur par defaut suffit.
+REGLAGE_TAUX_FRAIS_CARTE = "taux_frais_carte_pb"
+TAUX_FRAIS_CARTE_PB_DEFAUT = 170
+TAUX_FRAIS_CARTE_PB_MAX = 1000
+
+
+def frais_carte_cents(total_cents: int, taux_pb: int) -> int:
+    """Frais SumUp d'UNE transaction carte, en centimes entiers.
+
+    Seule definition des frais : ecran, Excel et courriels l'appellent. SumUp
+    preleve par transaction, arrondi au centime le plus proche (demi vers le
+    haut) : jamais de float, jamais de calcul par ligne d'article.
+    """
+    signe = -1 if total_cents < 0 else 1
+    return signe * ((abs(total_cents) * taux_pb + 5000) // 10000)
+
+
+def taux_frais_carte(db: Session) -> int:
+    """Taux en vigueur (points de base) ; repli sur 170 si absent ou illisible."""
+    valeur = lire_reglage(db, REGLAGE_TAUX_FRAIS_CARTE, None)
+    if isinstance(valeur, bool) or not isinstance(valeur, int):
+        return TAUX_FRAIS_CARTE_PB_DEFAUT
+    if not 0 <= valeur <= TAUX_FRAIS_CARTE_PB_MAX:
+        return TAUX_FRAIS_CARTE_PB_DEFAUT
+    return valeur
+
+
+def enregistrer_taux_frais_carte(db: Session, taux_pb: int) -> int:
+    if not 0 <= taux_pb <= TAUX_FRAIS_CARTE_PB_MAX:
+        raise AppException(
+            ErrorCode.VALIDATION_ERROR,
+            detail="Le taux des frais carte doit être compris entre 0 et 10 %.",
+        )
+    ecrire_reglage(db, REGLAGE_TAUX_FRAIS_CARTE, int(taux_pb))
+    return int(taux_pb)
+
+
+def appliquer_frais(vente: dict[str, Any], taux_pb: int) -> dict[str, Any]:
+    """Ajoute `frais_cents` (None hors carte) et `net_cents` a une vente regroupee."""
+    frais = (
+        frais_carte_cents(vente["total_cents"], taux_pb) if vente["moyen"] == "carte" else None
+    )
+    vente["frais_cents"] = frais
+    vente["net_cents"] = vente["total_cents"] - (frais or 0)
+    return vente
+
+
+def resume_carte(ventes: list[dict[str, Any]]) -> dict[str, int]:
+    """Ventes carte d'une liste de ventes regroupees (avec frais) : nb, brut, frais, net."""
+    carte = [v for v in ventes if v["moyen"] == "carte"]
+    brut = sum(v["total_cents"] for v in carte)
+    frais = sum(v["frais_cents"] or 0 for v in carte)
+    return {"nb": len(carte), "brut_cents": brut, "frais_cents": frais, "net_cents": brut - frais}
+
+
 def _instant(sale: BuvetteSale) -> datetime:
     """Heure murale de la vente (`sold_at`), a defaut l'heure de reception."""
     instant = sale.sold_at or sale.processed_at
@@ -969,12 +1026,15 @@ def _client(lignes: list[BuvetteSale]) -> str | None:
 
 
 def ventes_regroupees(
-    lignes_vente: list[BuvetteSale], moyen: str | None = None
+    lignes_vente: list[BuvetteSale],
+    moyen: str | None = None,
+    taux_pb: int = TAUX_FRAIS_CARTE_PB_DEFAUT,
 ) -> list[dict[str, Any]]:
     """Lignes de vente regroupees par vente (cf. `_cle_vente`), plus recentes d'abord.
 
     Seule definition d'une « vente » et de son moyen de paiement : l'onglet
-    Paiements, l'inventaire (especes) et les exports Excel la partagent.
+    Paiements, l'inventaire (especes) et les exports Excel la partagent. Chaque
+    vente porte ses frais SumUp (`appliquer_frais`, carte seulement).
     """
     ventes: list[dict[str, Any]] = []
     for cle, lignes in _grouper(lignes_vente).items():
@@ -1003,6 +1063,7 @@ def ventes_regroupees(
                 ],
             }
         )
+        appliquer_frais(ventes[-1], taux_pb)
     ventes.sort(key=lambda v: (v["sold_at"], v["cle"]), reverse=True)
     return ventes
 
@@ -1012,13 +1073,18 @@ def paiements(
 ) -> dict[str, Any]:
     """Ventes regroupees de la periode, plus recentes d'abord, avec totaux."""
     _verifier_periode(debut, fin)
-    ventes = ventes_regroupees(lignes_de_la_periode(db, debut, fin), moyen)
+    taux = taux_frais_carte(db)
+    ventes = ventes_regroupees(lignes_de_la_periode(db, debut, fin), moyen, taux)
 
     totaux: dict[str, int] = {f"{m}_cents": 0 for m in MOYENS}
     for vente in ventes:
         totaux[f"{vente['moyen']}_cents"] += vente["total_cents"]
     totaux["total_cents"] = sum(v["total_cents"] for v in ventes)
+    totaux["frais_carte_cents"] = sum(v["frais_cents"] or 0 for v in ventes)
+    totaux["carte_net_cents"] = totaux["carte_cents"] - totaux["frais_carte_cents"]
+    totaux["net_total_cents"] = totaux["total_cents"] - totaux["frais_carte_cents"]
     totaux["nb_ventes"] = len(ventes)
+    totaux["taux_frais_carte_pb"] = taux
     return {"paiements": ventes, "totaux": totaux}
 
 
@@ -1029,38 +1095,54 @@ def statistiques(db: Session, debut: date, fin: date) -> dict[str, Any]:
     """
     _verifier_periode(debut, fin)
     lignes = lignes_de_la_periode(db, debut, fin)
+    taux = taux_frais_carte(db)
 
     nb_jours = (fin - debut).days + 1
-    par_jour = {debut + timedelta(days=i): [0, 0] for i in range(nb_jours)}
-    par_heure = {h: [0, 0] for h in range(24)}
-    par_moyen = {m: [0, 0] for m in MOYENS}
+    # [ca brut, ventes, ca net des frais SumUp]
+    par_jour = {debut + timedelta(days=i): [0, 0, 0] for i in range(nb_jours)}
+    par_heure = {h: [0, 0, 0] for h in range(24)}
+    par_moyen = {m: [0, 0, 0] for m in MOYENS}
     par_produit: dict[str, list[int]] = defaultdict(lambda: [0, 0])
 
     for lignes_vente in _grouper(lignes).values():
         instant = min(_instant(l) for l in lignes_vente)
         total = sum(l.amount_cents for l in lignes_vente)
         moyen = moyen_de_paiement(lignes_vente[0])
+        net = total - (frais_carte_cents(total, taux) if moyen == "carte" else 0)
         for cumul in (par_jour.get(instant.date()), par_heure[instant.hour], par_moyen[moyen]):
             if cumul is not None:
                 cumul[0] += total
                 cumul[1] += 1
+                cumul[2] += net
         for l in lignes_vente:
             par_produit[l.product_name_snapshot][0] += l.quantity_sold
             par_produit[l.product_name_snapshot][1] += l.amount_cents
 
     produits = sorted(par_produit.items(), key=lambda kv: (-kv[1][1], kv[0]))[:15]
+    ca = sum(v[0] for v in par_moyen.values())
+    net = sum(v[2] for v in par_moyen.values())
     return {
+        "totaux": {
+            "ca_cents": ca,
+            "frais_carte_cents": ca - net,
+            "net_cents": net,
+            "ventes": sum(v[1] for v in par_moyen.values()),
+            "taux_frais_carte_pb": taux,
+        },
         "par_jour": [
-            {"jour": j, "ca_cents": v[0], "ventes": v[1]} for j, v in sorted(par_jour.items())
+            {"jour": j, "ca_cents": v[0], "ventes": v[1], "net_cents": v[2]}
+            for j, v in sorted(par_jour.items())
         ],
         "par_heure": [
-            {"heure": h, "ca_cents": v[0], "ventes": v[1]} for h, v in par_heure.items()
+            {"heure": h, "ca_cents": v[0], "ventes": v[1], "net_cents": v[2]}
+            for h, v in par_heure.items()
         ],
         "par_produit": [
             {"nom": nom, "quantite": v[0], "ca_cents": v[1]} for nom, v in produits
         ],
         "par_moyen": [
-            {"moyen": m, "ca_cents": v[0], "ventes": v[1]} for m, v in par_moyen.items()
+            {"moyen": m, "ca_cents": v[0], "ventes": v[1], "net_cents": v[2]}
+            for m, v in par_moyen.items()
         ],
     }
 

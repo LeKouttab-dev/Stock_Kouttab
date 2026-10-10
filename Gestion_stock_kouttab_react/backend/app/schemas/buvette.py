@@ -366,6 +366,10 @@ class PaiementOut(BaseModel):
     moyen: MoyenDePaiement
     sold_at: datetime
     total_cents: int
+    # Frais SumUp de la transaction (`crud.buvette.frais_carte_cents`) : carte
+    # seulement, None pour les especes et HelloAsso. net = total - frais.
+    frais_cents: int | None = None
+    net_cents: int
     sumup_tx_code: str | None = None
     helloasso_order_id: int | None = None
     client: str | None = None
@@ -373,11 +377,17 @@ class PaiementOut(BaseModel):
 
 
 class PaiementsTotauxOut(BaseModel):
+    # Montants bruts par moyen (ce que le client a paye).
     carte_cents: int = 0
     especes_cents: int = 0
     helloasso_cents: int = 0
     total_cents: int = 0
+    # Frais SumUp des ventes carte, carte nette, total net encaisse.
+    frais_carte_cents: int = 0
+    carte_net_cents: int = 0
+    net_total_cents: int = 0
     nb_ventes: int = 0
+    taux_frais_carte_pb: int = 170
 
 
 class PaiementsOut(BaseModel):
@@ -394,12 +404,14 @@ class StatJourOut(BaseModel):
     jour: date
     ca_cents: int
     ventes: int
+    net_cents: int = 0
 
 
 class StatHeureOut(BaseModel):
     heure: int
     ca_cents: int
     ventes: int
+    net_cents: int = 0
 
 
 class StatProduitOut(BaseModel):
@@ -412,9 +424,19 @@ class StatMoyenOut(BaseModel):
     moyen: MoyenDePaiement
     ca_cents: int
     ventes: int
+    net_cents: int = 0
+
+
+class StatsTotauxOut(BaseModel):
+    ca_cents: int = 0
+    frais_carte_cents: int = 0
+    net_cents: int = 0
+    ventes: int = 0
+    taux_frais_carte_pb: int = 170
 
 
 class StatsOut(BaseModel):
+    totaux: StatsTotauxOut
     par_jour: list[StatJourOut]
     par_heure: list[StatHeureOut]
     par_produit: list[StatProduitOut]
@@ -482,13 +504,18 @@ class ReglagesOut(BaseModel):
     # Lecture seule : les comptes actifs du role « AdminStock », qui recoivent
     # aussi les courriels de la buvette.
     comptes_admin_stock: list[CompteAdminStockOut]
+    # Frais SumUp des paiements par carte, en points de base (170 = 1,70 %).
+    taux_frais_carte_pb: int
 
 
 class ReglagesIn(BaseModel):
+    # Chaque champ est facultatif : absent = inchange.
     # Adresses validees dans `crud.buvette.enregistrer_destinataires` et non par
     # un validateur pydantic : le gestionnaire des erreurs de validation ne sait
     # pas serialiser l'exception qu'un validateur porterait (500).
-    recap_destinataires: list[str] = Field(max_length=50)
+    recap_destinataires: list[str] | None = Field(default=None, max_length=50)
+    # Bornes controlees dans `crud.buvette.enregistrer_taux_frais_carte` (0..1000).
+    taux_frais_carte_pb: int | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -572,6 +599,13 @@ class InventaireLigneOut(BaseModel):
     valeur_ecart_cents: int | None = None
 
 
+class VentesCarteOut(BaseModel):
+    nb: int = 0
+    brut_cents: int = 0
+    frais_cents: int = 0
+    net_cents: int = 0
+
+
 class InventaireResumeChiffresOut(BaseModel):
     nb_produits: int
     nb_ecarts: int
@@ -582,6 +616,9 @@ class InventaireResumeChiffresOut(BaseModel):
     # Total des reappros (avec prix) de la periode des mouvements : de la
     # validation du stock de l'inventaire precedent a celle de celui-ci.
     achats_cents: int = 0
+    # Ventes carte de la meme periode (frais SumUp par transaction) ; seulement
+    # sur la lecture d'un inventaire, absent des listes.
+    ventes_carte: VentesCarteOut | None = None
 
 
 class InventaireResumeOut(BaseModel):

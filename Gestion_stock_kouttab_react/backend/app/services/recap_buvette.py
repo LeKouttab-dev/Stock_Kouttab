@@ -125,9 +125,13 @@ def composer(donnees: dict[str, Any]) -> tuple[str, str]:
         "",
         "Chiffre d'affaires",
         f"- Total : {_euros(totaux['total_cents'])} ({totaux['nb_ventes']} vente(s))",
-        f"- Carte : {_euros(totaux['carte_cents'])}",
+        f"- Carte (brut) : {_euros(totaux['carte_cents'])}",
+        f"- Frais SumUp : {_euros(totaux.get('frais_carte_cents', 0))}",
+        f"- Carte (net) : {_euros(totaux.get('carte_net_cents', totaux['carte_cents']))}",
         f"- Espèces : {_euros(totaux['especes_cents'])}",
         f"- HelloAsso : {_euros(totaux['helloasso_cents'])}",
+        f"- Total net encaissé : "
+        f"{_euros(totaux.get('net_total_cents', totaux['total_cents']))}",
         "",
         "Produits les plus vendus",
     ]

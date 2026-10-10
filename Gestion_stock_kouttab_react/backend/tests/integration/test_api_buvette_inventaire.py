@@ -168,6 +168,7 @@ def test_demarrer_cree_les_lignes_a_zero_hors_cafes(catalogue, admin, admin_bene
     assert inv["resume"] == {
         "nb_produits": 3, "nb_ecarts": 0, "ecart_unites": 0, "valeur_ecart_cents": 0, "perte_cents": 0,
         "achats_cents": 0,
+        "ventes_carte": {"nb": 0, "brut_cents": 0, "frais_cents": 0, "net_cents": 0},
     }
 
 
@@ -258,6 +259,8 @@ def test_valider_le_stock_fige_les_ecarts_et_met_le_stock_a_jour(
     assert valide["resume"] == {
         "nb_produits": 3, "nb_ecarts": 2, "ecart_unites": 0, "valeur_ecart_cents": -260, "perte_cents": 500,
         "achats_cents": 0,
+        # La vente carte du comptage (2,00 €) : frais SumUp 1,70 % = 3,4 cts, arrondi a 3.
+        "ventes_carte": {"nb": 1, "brut_cents": 200, "frais_cents": 3, "net_cents": 197},
     }
 
     # Le stock est remplace par les quantites comptees.
@@ -491,6 +494,7 @@ def test_historique_plus_recent_d_abord(historique, admin) -> None:
     assert "lignes" not in liste[0]
     assert set(liste[0]["resume"]) == {
         "nb_produits", "nb_ecarts", "ecart_unites", "valeur_ecart_cents", "perte_cents", "achats_cents",
+        "ventes_carte",
     }
     assert [i["statut"] for i in liste] == ["en_cours", "termine", "termine"]
 
@@ -575,6 +579,32 @@ def test_export_d_un_inventaire(catalogue, admin, client) -> None:
     assert ventes[-1][0] == "Total (2 ventes)" and ventes[-1][4] == 4.5
 
 
+def test_l_inventaire_detaille_les_frais_sumup_des_ventes_carte(catalogue, admin, client) -> None:
+    # Panier carte The + Gateau = 3,50 € : frais 5,95 cts -> 6 ; The seul 1,00 € : 1,7 -> 2.
+    _vente(client, [(catalogue["the"], 1), (catalogue["gateau"], 1)], carte=True, quand=_il_y_a(minutes=30))
+    _vente(client, [(catalogue["the"], 1)], carte=True, quand=_il_y_a(minutes=20))
+    _vente(client, [(catalogue["gateau"], 1)], quand=_il_y_a(minutes=10))  # especes : aucun frais
+    inv = _demarrer(admin)
+    _compter(admin, inv, {"The": 8, "Gateau": 3, "Chips": 4})
+    valide = admin.post(f"{API}/inventaires/{inv['id']}/valider-stock").json()
+    assert valide["resume"]["ventes_carte"] == {"nb": 2, "brut_cents": 450, "frais_cents": 8, "net_cents": 442}
+
+    classeur = _classeur(admin.get(f"{API}/inventaires/{inv['id']}/export.xlsx"))
+    synthese = {l[0]: l[1] for l in _valeurs(classeur["Synthèse"]) if l[0]}
+    assert synthese["Ventes carte de la période"] == 2
+    assert synthese["Ventes carte (brut)"] == 4.5
+    assert synthese["Frais SumUp"] == 0.08
+    assert synthese["Ventes carte (net)"] == 4.42
+
+    mouvements = _valeurs(classeur["Mouvements"])
+    assert mouvements[0][7:9] == ("Montant", "Frais SumUp")
+    ventes = [l for l in mouvements[1:-1] if l[2] == "Vente"]
+    # Les frais d'une transaction sur sa premiere ligne d'article seulement.
+    assert sorted(l[8] for l in ventes if l[8] is not None) == [0.02, 0.06]
+    assert [l[8] for l in ventes if l[5] == "Espèces"] == [None]
+    assert mouvements[-1][8] == 0.08
+
+
 def test_export_d_un_inventaire_en_cours(catalogue, admin) -> None:
     inv = _demarrer(admin)
     classeur = _classeur(admin.get(f"{API}/inventaires/{inv['id']}/export.xlsx"))
@@ -626,10 +656,12 @@ def test_export_des_paiements(catalogue, client, client_authenticated_as, compta
     lignes = _valeurs(feuille)
     assert lignes[0] == (
         "Date", "Heure", "Moyen", "Référence", "Client", "Produit", "Quantité", "Montant ligne", "Total vente",
+        "Frais SumUp", "Net vente",
     )
     assert feuille["A1"].font.bold
-    # 2 articles carte + 1 especes + 1 HelloAsso, puis les totaux.
-    assert len(lignes) == 1 + 4 + 1
+    # 2 articles carte + 1 especes + 1 HelloAsso, la ligne de totaux, puis
+    # (apres une ligne vide) le detail brut / frais / net.
+    assert len(lignes) == 1 + 4 + 1 + 1 + 7
     # Plus recentes d'abord, comme l'ecran.
     assert lignes[1][2] == "Espèces" and lignes[1][0] == datetime(2026, 10, 5, 16, 40)
     helloasso = next(l for l in lignes if l[2] == "HelloAsso")
@@ -637,16 +669,25 @@ def test_export_des_paiements(catalogue, client, client_authenticated_as, compta
     carte = [l for l in lignes if l[2] == "Carte"]
     assert len(carte) == 2 and carte[0][3].startswith("SumUp TX")
     assert carte[0][8] == 4.5
-    total = lignes[-1]
+    # Frais SumUp de la vente carte (1,70 % de 4,50 € = 0,08 €) et net.
+    assert all((l[9], l[10]) == (0.08, 4.42) for l in carte)
+    assert lignes[1][9] is None and lignes[1][10] == 5.0
+    total = lignes[5]
     assert total[0] == "Total (3 ventes)"
     assert total[6] == 2 + 1 + 2 + 1
     assert total[7] == 4.5 + 5.0 + 2.0 and total[8] == 11.5
+    assert total[9] == 0.08 and total[10] == 11.42
+    detail = {l[0]: l[1] for l in lignes[7:]}
+    assert detail == {
+        "Carte (brut)": 4.5, "Frais SumUp": 0.08, "Carte (net)": 4.42, "Espèces": 5.0,
+        "HelloAsso": 2.0, "Total brut": 11.5, "Total net encaissé": 11.42,
+    }
     assert feuille.cell(row=2, column=8).number_format == "#,##0.00 €"
 
     # Meme filtre de moyen que l'onglet.
     especes = _classeur(api.get(f"{API}/paiements/export.xlsx",
                                 params={"debut": jour.isoformat(), "fin": jour.isoformat(), "moyen": "especes"}))
-    assert len(_valeurs(especes["Paiements"])) == 1 + 1 + 1
+    assert len(_valeurs(especes["Paiements"])) == 1 + 1 + 1 + 1 + 7
 
     # Defaut : la journee en cours.
     defaut = api.get(f"{API}/paiements/export.xlsx")

@@ -162,6 +162,7 @@ def _feuille_synthese(
         ("Perte estimée", euros(resume["perte_cents"]), FORMAT_EUROS),
         ("", None, None),
         *_lignes_achats(mouvements),
+        *_lignes_carte(mouvements),
         *_lignes_clotures(mouvements),
         ("Période des espèces : du", heure_paris(inv["periode_especes_debut"]), FORMAT_DATE_HEURE),
         ("Période des espèces : au", heure_paris(inv["periode_especes_fin"]), FORMAT_DATE_HEURE),
@@ -198,6 +199,20 @@ def _lignes_achats(mouvements: dict[str, Any] | None) -> list[tuple[str, Any, st
         ("Réapprovisionnements", len(reappros), None),
         ("Unités réapprovisionnées", sum(r["quantite"] for r in reappros), None),
         ("Total des achats", euros(mouvements["achats_cents"]), FORMAT_EUROS),
+        ("", None, None),
+    ]
+
+
+def _lignes_carte(mouvements: dict[str, Any] | None) -> list[tuple[str, Any, str | None]]:
+    """Ventes carte de la periode des mouvements : brut, frais SumUp, net."""
+    if mouvements is None or mouvements.get("ventes_carte") is None:
+        return []
+    carte = mouvements["ventes_carte"]
+    return [
+        ("Ventes carte de la période", carte["nb"], None),
+        ("Ventes carte (brut)", euros(carte["brut_cents"]), FORMAT_EUROS),
+        ("Frais SumUp", euros(carte["frais_cents"]), FORMAT_EUROS),
+        ("Ventes carte (net)", euros(carte["net_cents"]), FORMAT_EUROS),
         ("", None, None),
     ]
 
@@ -287,6 +302,7 @@ ENTETES_MOUVEMENTS = (
     "Moyen ou origine",
     "Prix unitaire",
     "Montant",
+    "Frais SumUp",
     "Détail",
 )
 ENTETES_RECAP = (
@@ -307,7 +323,7 @@ def _feuille_mouvements(feuille: Worksheet, mouvements: list[dict[str, Any]]) ->
     """Chronologie unique : reappros, ventes par article, clotures de caisse
     (montant compte), ecarts d'inventaire."""
     _entetes(feuille, 1, ENTETES_MOUVEMENTS)
-    formats = {1: FORMAT_DATE, 2: FORMAT_HEURE, 7: FORMAT_EUROS, 8: FORMAT_EUROS}
+    formats = {1: FORMAT_DATE, 2: FORMAT_HEURE, 7: FORMAT_EUROS, 8: FORMAT_EUROS, 9: FORMAT_EUROS}
     rang = 2
     for m in mouvements:
         if m["type"] == "vente":
@@ -330,6 +346,7 @@ def _feuille_mouvements(feuille: Worksheet, mouvements: list[dict[str, Any]]) ->
                 moyen,
                 euros(m["prix_unitaire_cents"]),
                 euros(m["montant_cents"]),
+                euros(m.get("frais_cents")),
                 m["detail"] or "",
             ),
             formats,
@@ -347,12 +364,13 @@ def _feuille_mouvements(feuille: Worksheet, mouvements: list[dict[str, Any]]) ->
             "",
             None,
             None,
+            euros(sum(m.get("frais_cents") or 0 for m in mouvements)),
             "",
         ),
         formats,
         total=True,
     )
-    _largeurs(feuille, (12, 8, 22, 30, 10, 16, 13, 13, 40))
+    _largeurs(feuille, (12, 8, 22, 30, 10, 16, 13, 13, 13, 40))
 
 
 def _feuille_recap(feuille: Worksheet, recap: list[dict[str, Any]]) -> None:
@@ -594,6 +612,8 @@ ENTETES_PAIEMENTS = (
     "Quantité",
     "Montant ligne",
     "Total vente",
+    "Frais SumUp",
+    "Net vente",
 )
 
 
@@ -605,17 +625,29 @@ def _reference(vente: dict[str, Any]) -> str:
     return vente["cle"]
 
 
-def classeur_paiements(ventes: list[dict[str, Any]]) -> bytes:
-    """Feuille « Paiements » : une ligne par article, puis une ligne de totaux.
+def classeur_paiements(
+    ventes: list[dict[str, Any]], totaux: dict[str, Any] | None = None
+) -> bytes:
+    """Feuille « Paiements » : une ligne par article, puis une ligne de totaux
+    et, avec `totaux`, le detail brut / frais SumUp / net.
 
-    `ventes` : la liste `paiements` de `crud.buvette.paiements` (heure murale
-    de Paris, sans fuseau), dans l'ordre de l'ecran.
+    `ventes` et `totaux` : ceux de `crud.buvette.paiements` (heure murale de
+    Paris, sans fuseau), dans l'ordre de l'ecran. Frais et net sont ceux de la
+    vente (calcules par transaction), repetes comme le total de la vente ;
+    vides hors carte pour les frais.
     """
     classeur = Workbook()
     feuille = classeur.active
     feuille.title = "Paiements"
     _entetes(feuille, 1, ENTETES_PAIEMENTS)
-    formats = {1: FORMAT_DATE, 2: FORMAT_HEURE, 8: FORMAT_EUROS, 9: FORMAT_EUROS}
+    formats = {
+        1: FORMAT_DATE,
+        2: FORMAT_HEURE,
+        8: FORMAT_EUROS,
+        9: FORMAT_EUROS,
+        10: FORMAT_EUROS,
+        11: FORMAT_EUROS,
+    }
     rang = 2
     for v in ventes:
         instant = v["sold_at"]
@@ -635,6 +667,8 @@ def classeur_paiements(ventes: list[dict[str, Any]]) -> bytes:
                     a["quantite"],
                     euros(a["montant_cents"]),
                     euros(v["total_cents"]),
+                    euros(v.get("frais_cents")),
+                    euros(v.get("net_cents", v["total_cents"])),
                 ),
                 formats,
             )
@@ -652,11 +686,28 @@ def classeur_paiements(ventes: list[dict[str, Any]]) -> bytes:
             sum(a["quantite"] for v in ventes for a in v["articles"]),
             euros(sum(a["montant_cents"] for v in ventes for a in v["articles"])),
             euros(sum(v["total_cents"] for v in ventes)),
+            euros(sum(v.get("frais_cents") or 0 for v in ventes)),
+            euros(sum(v.get("net_cents", v["total_cents"]) for v in ventes)),
         ),
         formats,
         total=True,
     )
-    _largeurs(feuille, (12, 8, 11, 30, 22, 30, 10, 14, 13))
+    if totaux is not None:
+        rang += 2
+        for libelle, cle in (
+            ("Carte (brut)", "carte_cents"),
+            ("Frais SumUp", "frais_carte_cents"),
+            ("Carte (net)", "carte_net_cents"),
+            ("Espèces", "especes_cents"),
+            ("HelloAsso", "helloasso_cents"),
+            ("Total brut", "total_cents"),
+            ("Total net encaissé", "net_total_cents"),
+        ):
+            feuille.cell(row=rang, column=1, value=libelle).font = _GRAS
+            cellule = feuille.cell(row=rang, column=2, value=euros(totaux.get(cle, 0)))
+            cellule.number_format = FORMAT_EUROS
+            rang += 1
+    _largeurs(feuille, (12, 8, 11, 30, 22, 30, 10, 14, 13, 13, 13))
     return _octets(classeur)
 
 

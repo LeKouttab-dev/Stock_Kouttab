@@ -24,7 +24,16 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.crud.buvette import _instant, _verifier_periode, aujourd_hui, moyen_de_paiement
+from app.crud.buvette import (
+    _cle_vente,
+    _instant,
+    _verifier_periode,
+    aujourd_hui,
+    moyen_de_paiement,
+    resume_carte,
+    taux_frais_carte,
+    ventes_regroupees,
+)
 from app.crud.buvette_cloture import cloture_out
 from app.crud.buvette_cloture import entre as clotures_entre
 from app.crud.buvette_inventaire import (
@@ -232,6 +241,17 @@ def _ventes(db: Session, debut: datetime | None, fin: datetime) -> list[BuvetteS
     return list(db.execute(stmt.order_by(BuvetteSale.id.asc())).scalars())
 
 
+def _ventes_carte(db: Session, ventes: list[BuvetteSale]) -> list[dict[str, Any]]:
+    """Ventes carte regroupees par transaction, avec leurs frais SumUp."""
+    return ventes_regroupees(ventes, "carte", taux_frais_carte(db))
+
+
+def ventes_carte(db: Session, inventaire: Inventaire) -> dict[str, int]:
+    """Ventes carte de la periode des mouvements : nb, brut, frais SumUp, net."""
+    _, debut, fin = periode_mouvements(db, inventaire)
+    return resume_carte(_ventes_carte(db, _ventes(db, debut, fin)))
+
+
 def mouvements_inventaire(db: Session, inventaire: Inventaire) -> dict[str, Any]:
     """Ce que l'export d'inventaire ajoute : reappros, mouvements, recap par produit.
 
@@ -253,6 +273,13 @@ def mouvements_inventaire(db: Session, inventaire: Inventaire) -> dict[str, Any]
     ]
     reappros.reverse()
     ventes = _ventes(db, debut, fin)
+    carte = _ventes_carte(db, ventes)
+    # Frais SumUp d'une transaction portes par sa PREMIERE ligne d'article : la
+    # colonne se somme au total exact (frais calcules par transaction).
+    frais_par_cle = {v["cle"]: v["frais_cents"] for v in carte}
+    premieres: dict[str, int] = {}
+    for v in sorted(ventes, key=lambda x: (x.caisse_line or 0, x.id)):
+        premieres.setdefault(_cle_vente(v), v.id)
 
     mouvements: list[dict[str, Any]] = []
     for r in reappros:
@@ -265,6 +292,7 @@ def mouvements_inventaire(db: Session, inventaire: Inventaire) -> dict[str, Any]
                 "moyen": r["origine"],
                 "prix_unitaire_cents": r["prix_achat_unitaire_cents"],
                 "montant_cents": r["total_cents"],
+                "frais_cents": None,
                 "detail": " ; ".join(
                     t for t in (r["fait_par"] and f"par {r['fait_par']}", r["commentaire"]) if t
                 ),
@@ -282,6 +310,11 @@ def mouvements_inventaire(db: Session, inventaire: Inventaire) -> dict[str, Any]
                     v.amount_cents // v.quantity_sold if v.quantity_sold else None
                 ),
                 "montant_cents": v.amount_cents,
+                "frais_cents": (
+                    frais_par_cle.get(_cle_vente(v))
+                    if premieres.get(_cle_vente(v)) == v.id
+                    else None
+                ),
                 "detail": (
                     f"SumUp {v.sumup_tx_code}"
                     if v.sumup_tx_code
@@ -305,6 +338,7 @@ def mouvements_inventaire(db: Session, inventaire: Inventaire) -> dict[str, Any]
                 "moyen": "especes",
                 "prix_unitaire_cents": None,
                 "montant_cents": c["compte_cents"],
+                "frais_cents": None,
                 "detail": " ; ".join(
                     t
                     for t in (
@@ -330,6 +364,7 @@ def mouvements_inventaire(db: Session, inventaire: Inventaire) -> dict[str, Any]
                         "moyen": None,
                         "prix_unitaire_cents": l.prix_cents_snapshot,
                         "montant_cents": l.valeur_ecart_cents,
+                        "frais_cents": None,
                         "detail": f"Inventaire n° {inventaire.id}",
                     }
                 )
@@ -398,5 +433,6 @@ def mouvements_inventaire(db: Session, inventaire: Inventaire) -> dict[str, Any]
         "mouvements": mouvements,
         "recap": recap,
         "clotures": clotures,
+        "ventes_carte": resume_carte(carte),
     }
 

@@ -3,6 +3,7 @@ import {
   Banknote,
   Check,
   ClipboardList,
+  CreditCard,
   FileSpreadsheet,
   Minus,
   Package,
@@ -651,6 +652,9 @@ function Rapport({ inv }: { inv: Inventaire }) {
   const r = inv.resume;
   // Total des réappros de la période ; absent des rapports antérieurs au suivi des achats.
   const achats = r.achats_cents ?? null;
+  // Ventes carte de la période (frais SumUp calculés par le serveur).
+  const carte = r.ventes_carte ?? null;
+  const nbCartes = 3 + (achats === null ? 0 : 1) + (carte === null ? 0 : 1);
   const ecarts = inv.lignes.filter((l) => l.ecart !== null && l.ecart !== 0);
   const date = formatDate(inv.termine_le ?? inv.debut_le);
 
@@ -683,7 +687,10 @@ function Rapport({ inv }: { inv: Inventaire }) {
       {inv.statut !== 'termine' && <p className="text-sm text-muted-foreground">{t.nonTermine}</p>}
 
       <div
-        className={`grid gap-4 sm:grid-cols-2 ${achats === null ? 'lg:grid-cols-3' : 'lg:grid-cols-4'}`}
+        className={cn(
+          'grid gap-4 sm:grid-cols-2',
+          nbCartes === 3 ? 'lg:grid-cols-3' : nbCartes === 4 ? 'lg:grid-cols-4' : 'lg:grid-cols-5',
+        )}
       >
         <KpiCard
           label={t.ecartsProduits}
@@ -721,6 +728,14 @@ function Rapport({ inv }: { inv: Inventaire }) {
             value={<span data-testid="rapport-achats">{formatCents(achats)}</span>}
             icon={<PackagePlus className="h-6 w-6" />}
             variant="info"
+          />
+        )}
+        {carte !== null && (
+          <KpiCard
+            label={t.ventesCarte}
+            value={<span data-testid="rapport-carte-net">{formatCents(carte.net_cents)}</span>}
+            hint={t.ventesCarteAide(formatCents(carte.brut_cents), formatCents(carte.frais_cents))}
+            icon={<CreditCard className="h-6 w-6" />}
           />
         )}
       </div>
