@@ -203,7 +203,7 @@ describe('pages/buvette/BuvettePage : onglets', () => {
     renderWithProviders(<BuvettePage />, { routerEntries: ['/buvette?onglet=paiements'] });
     connecter('Super Admin');
 
-    expect(await screen.findByText('Total encaissé')).toBeInTheDocument();
+    expect(await screen.findByText('Total encaissé (brut)')).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Paiements/ })).toHaveAttribute('aria-selected', 'true');
   });
 

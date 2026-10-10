@@ -447,6 +447,27 @@ export function useUpdateBuvetteReglages() {
   });
 }
 
+/** Taux des frais SumUp sur la carte, en points de base (170 = 1,70 %). */
+export function useUpdateTauxFraisCarte() {
+  const qc = useQueryClient();
+  return useApiMutation({
+    mutationFn: async (taux_frais_carte_pb: number) => {
+      const { data } = await api.put<BuvetteReglages>('/buvette/reglages', {
+        taux_frais_carte_pb,
+      });
+      return data;
+    },
+    onSuccess: (data) => {
+      qc.setQueryData(buvetteQueryKeys.reglages(), data);
+      // Paiements, statistiques et inventaires affichent des montants nets.
+      void qc.invalidateQueries({
+        queryKey: buvetteQueryKeys.all,
+        predicate: (q) => q.queryKey[1] !== 'reglages',
+      });
+    },
+  });
+}
+
 /* ---- Inventaire (stock + espèces) ----------------------------------------- */
 
 /** L'inventaire non terminé (en cours ou stock validé), ou `null`. */

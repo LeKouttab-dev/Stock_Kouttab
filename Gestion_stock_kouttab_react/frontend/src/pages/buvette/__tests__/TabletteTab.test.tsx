@@ -119,11 +119,16 @@ describe('pages/buvette/tabs/TabletteTab : destinataires', () => {
         HttpResponse.json({
           recap_destinataires: ['tresorier@lekouttab.fr'],
           comptes_admin_stock: comptes,
+          taux_frais_carte_pb: 170,
         }),
       ),
       http.put(`${BASE_URL}/buvette/reglages`, async ({ request }) => {
         corps = (await request.json()) as { recap_destinataires: string[] };
-        return HttpResponse.json({ ...corps, comptes_admin_stock: comptes });
+        return HttpResponse.json({
+          ...corps,
+          comptes_admin_stock: comptes,
+          taux_frais_carte_pb: 170,
+        });
       }),
     );
     const user = userEvent.setup();
@@ -142,12 +147,52 @@ describe('pages/buvette/tabs/TabletteTab : destinataires', () => {
     await user.type(champ, 'omar@lekouttab.fr{Enter}');
     expect(screen.getByText('omar@lekouttab.fr')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Enregistrer' }));
+    // Premier « Enregistrer » : la carte des destinataires (le second : le taux).
+    await user.click(screen.getAllByRole('button', { name: 'Enregistrer' })[0]);
     await waitFor(() =>
       expect(corps).toEqual({
         recap_destinataires: ['tresorier@lekouttab.fr', 'omar@lekouttab.fr'],
       }),
     );
+  });
+
+  it('règle le taux des frais SumUp en %, envoyé en points de base', async () => {
+    let corps: Record<string, unknown> | null = null;
+    server.use(
+      http.get(`${BASE_URL}/buvette/reglages`, () =>
+        HttpResponse.json({
+          recap_destinataires: [],
+          comptes_admin_stock: [],
+          taux_frais_carte_pb: 170,
+        }),
+      ),
+      http.put(`${BASE_URL}/buvette/reglages`, async ({ request }) => {
+        corps = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({
+          recap_destinataires: [],
+          comptes_admin_stock: [],
+          taux_frais_carte_pb: corps.taux_frais_carte_pb,
+        });
+      }),
+    );
+    const user = userEvent.setup();
+    renderWithProviders(<TabletteTab />);
+    connecter('AdminBenevoles');
+
+    const champ = await screen.findByLabelText('Taux (%)');
+    await waitFor(() => expect(champ).toHaveValue('1,70'));
+
+    await user.clear(champ);
+    await user.type(champ, '12');
+    await user.click(screen.getAllByRole('button', { name: 'Enregistrer' })[1]);
+    expect(screen.getByText(/entre 0 et 10 %/)).toBeInTheDocument();
+    expect(corps).toBeNull();
+
+    await user.clear(champ);
+    await user.type(champ, '1,75');
+    await user.click(screen.getAllByRole('button', { name: 'Enregistrer' })[1]);
+    // Seul le taux part : les destinataires ne sont pas touchés.
+    await waitFor(() => expect(corps).toEqual({ taux_frais_carte_pb: 175 }));
   });
 
   it('cache les réglages à la comptabilité', async () => {

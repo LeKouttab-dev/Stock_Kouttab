@@ -92,7 +92,11 @@ def test_le_recap_dit_l_essentiel_de_la_journee(db_session: Session, journee) ->
     assert sujet == "Buvette : récapitulatif du 05/10/2026"
     assert "lundi 5 octobre 2026" in corps
     assert "Total : 6,50 € (2 vente(s))" in corps
-    assert "Carte : 4,50 €" in corps
+    assert "Carte (brut) : 4,50 €" in corps
+    # 1,70 % de 4,50 € = 7,65 cts, arrondi au centime : 0,08 €.
+    assert "Frais SumUp : 0,08 €" in corps
+    assert "Carte (net) : 4,42 €" in corps
+    assert "Total net encaissé : 6,42 €" in corps
     assert "Espèces : 2,00 €" in corps
     assert "HelloAsso : 0,00 €" in corps
     assert "Thé à la menthe : 3 vendu(s), 4,50 €" in corps

@@ -164,8 +164,16 @@ def test_les_paiements_regroupent_les_lignes_par_vente(
         "especes_cents": 500,
         "helloasso_cents": 300,
         "total_cents": 1250,
+        # Frais SumUp par transaction : 1,70 % de 4,50 € = 7,65 cts, arrondi a 8.
+        "frais_carte_cents": 8,
+        "carte_net_cents": 442,
+        "net_total_cents": 1242,
         "nb_ventes": 3,
+        "taux_frais_carte_pb": 170,
     }
+    assert (carte["frais_cents"], carte["net_cents"]) == (8, 442)
+    assert (especes["frais_cents"], especes["net_cents"]) == (None, 500)
+    assert (helloasso["frais_cents"], helloasso["net_cents"]) == (None, 300)
 
 
 def test_les_paiements_se_filtrent_par_moyen(journee, client_authenticated_as, admin_stock_user) -> None:
@@ -215,13 +223,17 @@ def test_les_statistiques_comptent_des_ventes_et_non_des_lignes(
     ).json()
 
     assert corps["par_jour"] == [
-        {"jour": debut.isoformat(), "ca_cents": 0, "ventes": 0},  # jour sans vente inclus
-        {"jour": (JOUR - timedelta(days=1)).isoformat(), "ca_cents": 100, "ventes": 1},
-        {"jour": JOUR.isoformat(), "ca_cents": 1250, "ventes": 3},
+        {"jour": debut.isoformat(), "ca_cents": 0, "ventes": 0, "net_cents": 0},  # jour sans vente
+        {"jour": (JOUR - timedelta(days=1)).isoformat(), "ca_cents": 100, "ventes": 1, "net_cents": 98},
+        {"jour": JOUR.isoformat(), "ca_cents": 1250, "ventes": 3, "net_cents": 1242},
     ]
+    assert corps["totaux"] == {
+        "ca_cents": 1350, "frais_carte_cents": 10, "net_cents": 1340, "ventes": 4,
+        "taux_frais_carte_pb": 170,
+    }
     assert len(corps["par_heure"]) == 24
     heures = {h["heure"]: h for h in corps["par_heure"]}
-    assert heures[10] == {"heure": 10, "ca_cents": 450, "ventes": 1}
+    assert heures[10] == {"heure": 10, "ca_cents": 450, "ventes": 1, "net_cents": 442}
     assert heures[3]["ventes"] == 0
 
     assert corps["par_produit"][0] == {"nom": "Gateau", "quantite": 3, "ca_cents": 750}
@@ -229,7 +241,7 @@ def test_les_statistiques_comptent_des_ventes_et_non_des_lignes(
     assert the == {"nom": "The", "quantite": 4, "ca_cents": 400}
 
     moyens = {m["moyen"]: m for m in corps["par_moyen"]}
-    assert moyens["carte"] == {"moyen": "carte", "ca_cents": 550, "ventes": 2}
+    assert moyens["carte"] == {"moyen": "carte", "ca_cents": 550, "ventes": 2, "net_cents": 540}
     assert moyens["especes"]["ventes"] == 1
     assert moyens["helloasso"]["ca_cents"] == 300
 
@@ -470,6 +482,42 @@ def test_modifier_les_destinataires(client_authenticated_as, super_admin_user) -
     refus = admin.put(f"{API}/reglages", json={"recap_destinataires": ["pas-une-adresse"]})
     assert refus.status_code == 422
     assert admin.get(f"{API}/reglages").json()["recap_destinataires"] == ["a@exemple.fr", "b@exemple.fr"]
+
+
+def test_le_taux_des_frais_carte_se_regle_et_s_applique_partout(
+    journee, client_authenticated_as, super_admin_user
+) -> None:
+    admin = client_authenticated_as(super_admin_user)
+    assert admin.get(f"{API}/reglages").json()["taux_frais_carte_pb"] == 170  # defaut 1,70 %
+
+    # Changer le taux seul ne touche pas aux destinataires.
+    reponse = admin.put(f"{API}/reglages", json={"taux_frais_carte_pb": 250})
+    assert reponse.status_code == 200, reponse.text
+    assert reponse.json()["taux_frais_carte_pb"] == 250
+    assert reponse.json()["recap_destinataires"] == buvette_crud.DESTINATAIRES_PAR_DEFAUT
+
+    params = {"debut": JOUR.isoformat(), "fin": JOUR.isoformat()}
+    totaux = admin.get(f"{API}/paiements", params=params).json()["totaux"]
+    # 2,50 % de 4,50 € = 11,25 cts, arrondi a 11.
+    assert (totaux["frais_carte_cents"], totaux["net_total_cents"]) == (11, 1239)
+    assert totaux["taux_frais_carte_pb"] == 250
+    stats = admin.get(f"{API}/stats", params=params).json()
+    assert stats["totaux"]["frais_carte_cents"] == 11 and stats["totaux"]["net_cents"] == 1239
+
+    for invalide in (-1, 1001):
+        assert admin.put(f"{API}/reglages", json={"taux_frais_carte_pb": invalide}).status_code == 422
+    assert admin.get(f"{API}/reglages").json()["taux_frais_carte_pb"] == 250
+
+
+def test_les_frais_se_calculent_par_transaction_et_non_par_article(journee, client_authenticated_as, compta_user) -> None:
+    """Panier carte : 2,00 € + 2,50 €. Par article : 3 + 4 = 7 cts ; par transaction
+    (ce que preleve SumUp) : 1,70 % de 4,50 € = 7,65, soit 8 cts."""
+    corps = client_authenticated_as(compta_user).get(
+        f"{API}/paiements", params={"debut": JOUR.isoformat(), "fin": JOUR.isoformat(), "moyen": "carte"}
+    ).json()
+    (carte,) = corps["paiements"]
+    assert [a["montant_cents"] for a in carte["articles"]] == [200, 250]
+    assert carte["frais_cents"] == 8 == buvette_crud.frais_carte_cents(450, 170)
 
 
 @pytest.mark.parametrize("role_fixture", ["admin_stock_user", "compta_user"])

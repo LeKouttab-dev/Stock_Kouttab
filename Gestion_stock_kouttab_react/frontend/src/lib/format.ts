@@ -46,6 +46,20 @@ export function formatCents(cents: number | null | undefined): string {
   return `${(cents / 100).toFixed(2)} €`;
 }
 
+/** Taux en points de base (170) affiché en pourcentage : « 1,70 % ». */
+export function formatTauxPb(pb: number): string {
+  const entier = Math.trunc(pb / 100);
+  const decimales = String(Math.abs(pb % 100)).padStart(2, '0');
+  return `${entier},${decimales} %`;
+}
+
+/** « 1,70 » ou « 1.7 » -> 170 points de base, sans float ; null si illisible. */
+export function parseTauxPb(saisie: string): number | null {
+  const m = /^\s*(\d{1,2})(?:[.,](\d{1,2}))?\s*%?\s*$/.exec(saisie);
+  if (!m) return null;
+  return Number(m[1]) * 100 + Number((m[2] ?? '').padEnd(2, '0'));
+}
+
 export function formatFileSize(bytes: number): string {
   if (bytes === 0) return '0 B';
   const k = 1024;

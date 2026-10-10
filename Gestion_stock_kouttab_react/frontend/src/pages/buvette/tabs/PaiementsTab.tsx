@@ -7,6 +7,8 @@ import {
   CreditCard,
   FileSpreadsheet,
   Link2,
+  Percent,
+  Wallet,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -39,7 +41,7 @@ import {
   useTelechargerExcel,
 } from '@/api/endpoints/buvette';
 import { useToast } from '@/hooks/useToast';
-import { formatCents, formatDateTime } from '@/lib/format';
+import { formatCents, formatDateTime, formatTauxPb } from '@/lib/format';
 import { fr } from '@/lib/i18n/fr';
 import { cn } from '@/lib/utils';
 import type { MoyenPaiement, Paiement } from '@/types/api';
@@ -131,7 +133,7 @@ export function PaiementsTab() {
         <ErrorAlert title={t.erreur} error={error} />
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <KpiCard
               label={t.total}
               value={totaux ? formatCents(totaux.total_cents) : '…'}
@@ -140,9 +142,24 @@ export function PaiementsTab() {
             />
             <KpiCard
               label={t.carte}
-              value={totaux ? formatCents(totaux.carte_cents) : '…'}
+              value={
+                <span data-testid="kpi-carte-brut">
+                  {totaux ? formatCents(totaux.carte_cents) : '…'}
+                </span>
+              }
               icon={<CreditCard className="h-6 w-6" />}
               variant="info"
+            />
+            <KpiCard
+              label={t.fraisSumup}
+              value={
+                <span data-testid="kpi-frais-sumup">
+                  {totaux ? formatCents(totaux.frais_carte_cents) : '…'}
+                </span>
+              }
+              hint={totaux ? t.tauxFrais(formatTauxPb(totaux.taux_frais_carte_pb)) : undefined}
+              icon={<Percent className="h-6 w-6" />}
+              variant="default"
             />
             <KpiCard
               label={t.especes}
@@ -155,6 +172,17 @@ export function PaiementsTab() {
               value={totaux ? formatCents(totaux.helloasso_cents) : '…'}
               icon={<Link2 className="h-6 w-6" />}
               variant="warning"
+            />
+            <KpiCard
+              label={t.totalNet}
+              value={
+                <span data-testid="kpi-total-net">
+                  {totaux ? formatCents(totaux.net_total_cents) : '…'}
+                </span>
+              }
+              hint={t.totalNetAide}
+              icon={<Wallet className="h-6 w-6" />}
+              variant="success"
             />
           </div>
 
@@ -172,6 +200,8 @@ export function PaiementsTab() {
                       <TableHead>{t.date}</TableHead>
                       <TableHead>{t.moyenCol}</TableHead>
                       <TableHead className="text-right">{t.montant}</TableHead>
+                      <TableHead className="text-right">{t.fraisCol}</TableHead>
+                      <TableHead className="text-right">{t.netCol}</TableHead>
                       <TableHead>{t.reference}</TableHead>
                       <TableHead>{t.client}</TableHead>
                     </TableRow>
@@ -209,6 +239,16 @@ export function PaiementsTab() {
                             <TableCell className="text-right font-semibold">
                               {formatCents(p.total_cents)}
                             </TableCell>
+                            {/* Vides hors carte : ni frais, ni net à distinguer du montant. */}
+                            <TableCell
+                              className="text-right text-sm text-muted-foreground"
+                              data-testid={`frais-${p.cle}`}
+                            >
+                              {p.frais_cents === null ? '' : formatCents(p.frais_cents)}
+                            </TableCell>
+                            <TableCell className="text-right text-sm" data-testid={`net-${p.cle}`}>
+                              {p.frais_cents === null ? '' : formatCents(p.net_cents)}
+                            </TableCell>
                             <TableCell className="text-xs text-muted-foreground">
                               {reference(p)}
                             </TableCell>
@@ -219,7 +259,7 @@ export function PaiementsTab() {
                           {ouvert && (
                             <TableRow className="bg-muted/30 hover:bg-muted/30">
                               <TableCell />
-                              <TableCell colSpan={5} className="py-3">
+                              <TableCell colSpan={7} className="py-3">
                                 <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                                   {t.detail}
                                 </p>

@@ -390,6 +390,7 @@ describe('pages/buvette/tabs/InventaireTab', () => {
         valeur_ecart_cents: -150,
         perte_cents: 150,
         achats_cents: 4200,
+        ventes_carte: { nb: 3, brut_cents: 1250, frais_cents: 22, net_cents: 1228 },
       },
     });
 
@@ -445,6 +446,9 @@ describe('pages/buvette/tabs/InventaireTab', () => {
       // Achats de la période : total des réappros entre les deux inventaires.
       expect(screen.getByText('Achats de la période')).toBeInTheDocument();
       expect(screen.getByTestId('rapport-achats')).toHaveTextContent('42.00 €');
+      // Ventes carte de la période : net, avec brut et frais SumUp (servis par l'API).
+      expect(screen.getByTestId('rapport-carte-net')).toHaveTextContent('12.28 €');
+      expect(screen.getByText('Brut 12.50 €, frais SumUp 0.22 €')).toBeInTheDocument();
 
       await user.click(screen.getByRole('button', { name: 'Exporter (Excel)' }));
       await waitFor(() => expect(clic).toHaveBeenCalledTimes(2));

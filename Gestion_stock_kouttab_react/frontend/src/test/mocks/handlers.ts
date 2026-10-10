@@ -160,7 +160,11 @@ export const handlers = [
         especes_cents: 0,
         helloasso_cents: 0,
         total_cents: 0,
+        frais_carte_cents: 0,
+        carte_net_cents: 0,
+        net_total_cents: 0,
         nb_ventes: 0,
+        taux_frais_carte_pb: 170,
       },
     }),
   ),
@@ -168,7 +172,19 @@ export const handlers = [
     HttpResponse.json({ reappros: [], totaux: { nb: 0, quantite: 0, montant_cents: 0 } }),
   ),
   http.get(`${BASE_URL}/buvette/stats`, () =>
-    HttpResponse.json({ par_jour: [], par_heure: [], par_produit: [], par_moyen: [] }),
+    HttpResponse.json({
+      totaux: {
+        ca_cents: 0,
+        frais_carte_cents: 0,
+        net_cents: 0,
+        ventes: 0,
+        taux_frais_carte_pb: 170,
+      },
+      par_jour: [],
+      par_heure: [],
+      par_produit: [],
+      par_moyen: [],
+    }),
   ),
   http.get(`${BASE_URL}/buvette/clotures/attendu`, () =>
     HttpResponse.json({
@@ -188,6 +204,10 @@ export const handlers = [
   http.get(`${BASE_URL}/buvette/inventaires`, () => HttpResponse.json([])),
   http.get(`${BASE_URL}/buvette/caisse/etat`, () => HttpResponse.json({ etat: null })),
   http.get(`${BASE_URL}/buvette/reglages`, () =>
-    HttpResponse.json({ recap_destinataires: [], comptes_admin_stock: [] }),
+    HttpResponse.json({
+      recap_destinataires: [],
+      comptes_admin_stock: [],
+      taux_frais_carte_pb: 170,
+    }),
   ),
 ];

@@ -741,11 +741,13 @@ def cloturer_caisse(
 
 
 def _inventaire_out(inventaire: Any, db: Session) -> dict[str, Any]:
-    return inventaire_crud.inventaire_out(
+    sortie = inventaire_crud.inventaire_out(
         inventaire,
         url_photo=_url_photo,
         achats_cents=reappro_crud.achats_cents(db, inventaire),
     )
+    sortie["resume"]["ventes_carte"] = reappro_crud.ventes_carte(db, inventaire)
+    return sortie
 
 
 def _xlsx(contenu: bytes, nom: str) -> Response:
@@ -937,7 +939,7 @@ def exporter_paiements(
     debut, fin = debut or jour, fin or jour
     donnees = buvette_crud.paiements(db, debut, fin, moyen)
     return _xlsx(
-        buvette_export.classeur_paiements(donnees["paiements"]),
+        buvette_export.classeur_paiements(donnees["paiements"], donnees["totaux"]),
         f"paiements-{debut.isoformat()}_{fin.isoformat()}.xlsx",
     )
 
@@ -954,6 +956,7 @@ def _reglages_out(db: Session) -> ReglagesOut:
             CompteAdminStockOut(id=c.id, email=c.email or "", nom=c.full_name)
             for c in buvette_crud.comptes_admin_stock(db)
         ],
+        taux_frais_carte_pb=buvette_crud.taux_frais_carte(db),
     )
 
 
@@ -972,8 +975,12 @@ def lire_reglages(db: Session = Depends(get_db)) -> Any:
     dependencies=[Depends(require_roles(*_ADMIN_ROLES))],
 )
 def modifier_reglages(payload: ReglagesIn, db: Session = Depends(get_db)) -> Any:
-    """Remplace la liste des destinataires du recap et des alertes (adresses validees)."""
-    buvette_crud.enregistrer_destinataires(db, payload.recap_destinataires)
+    """Destinataires du recap et des alertes (adresses validees) et taux des
+    frais SumUp sur la carte ; un champ absent reste inchange."""
+    if payload.taux_frais_carte_pb is not None:
+        buvette_crud.enregistrer_taux_frais_carte(db, payload.taux_frais_carte_pb)
+    if payload.recap_destinataires is not None:
+        buvette_crud.enregistrer_destinataires(db, payload.recap_destinataires)
     return _reglages_out(db)
 
 

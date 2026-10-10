@@ -10,12 +10,13 @@ import {
   useBuvetteReglages,
   useCaisseEtat,
   useUpdateBuvetteReglages,
+  useUpdateTauxFraisCarte,
 } from '@/api/endpoints/buvette';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/useToast';
 import { ACTIONS } from '@/lib/auth';
 import { emailValide, formatDepuis, tabletteSilencieuse } from '@/lib/buvette';
-import { formatDateTime } from '@/lib/format';
+import { formatDateTime, formatTauxPb, parseTauxPb } from '@/lib/format';
 import { fr } from '@/lib/i18n/fr';
 import { cn } from '@/lib/utils';
 import type { CaisseEtat } from '@/types/api';
@@ -317,6 +318,69 @@ function ReglagesDestinataires() {
   );
 }
 
+/** Taux des frais SumUp sur la carte : saisi en %, stocké en points de base. */
+function ReglageFraisCarte() {
+  const t = fr.buvette.tablette;
+  const toast = useToast();
+  const reglages = useBuvetteReglages();
+  const enregistrer = useUpdateTauxFraisCarte();
+  const [saisie, setSaisie] = useState('');
+  const [erreur, setErreur] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (reglages.data) setSaisie(formatTauxPb(reglages.data.taux_frais_carte_pb).replace(' %', ''));
+  }, [reglages.data]);
+
+  const taux = parseTauxPb(saisie);
+  // Saisie illisible : bouton actif, pour afficher l'erreur au clic.
+  const modifie = reglages.data !== undefined && taux !== reglages.data.taux_frais_carte_pb;
+
+  const valider = () => {
+    if (taux === null || taux > 1000) {
+      setErreur(t.fraisInvalide);
+      return;
+    }
+    enregistrer.mutate(taux, { onSuccess: () => toast.success(t.fraisEnregistre) });
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">{t.fraisTitre}</CardTitle>
+        <CardDescription>{t.fraisAide}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {reglages.isError ? (
+          <ErrorAlert error={reglages.error} />
+        ) : reglages.isLoading ? (
+          <Skeleton className="h-10" />
+        ) : (
+          <>
+            <div className="flex items-center gap-2">
+              <Input
+                aria-label={t.fraisLabel}
+                inputMode="decimal"
+                className="w-28"
+                value={saisie}
+                hasError={erreur !== null}
+                onChange={(e) => {
+                  setSaisie(e.target.value);
+                  setErreur(null);
+                }}
+              />
+              <span className="text-sm text-muted-foreground">%</span>
+              <Button onClick={valider} disabled={!modifie} loading={enregistrer.isPending}>
+                {t.enregistrer}
+              </Button>
+            </div>
+            {erreur && <p className="text-xs text-destructive">{erreur}</p>}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export function TabletteTab() {
   const { can } = useAuth();
   // Les réglages sont réservés aux gestionnaires (le serveur refuse la lecture aux autres).
@@ -325,6 +389,7 @@ export function TabletteTab() {
     <div className="grid gap-6 lg:grid-cols-2">
       <EtatTablette />
       {canReglages && <ReglagesDestinataires />}
+      {canReglages && <ReglageFraisCarte />}
     </div>
   );
 }
