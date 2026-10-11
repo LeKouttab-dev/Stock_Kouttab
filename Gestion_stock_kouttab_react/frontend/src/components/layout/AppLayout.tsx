@@ -63,15 +63,18 @@ function CoquilleTablette() {
   }
 
   return (
-    <div className="mode-tablette flex h-dvh flex-col overflow-hidden bg-background text-foreground">
+    // Hauteur portee par le contenu, defilement par la page : jamais `h-dvh`
+    // + `overflow-hidden`. Dans la WebView de la tablette (0.8.4, WebView en
+    // WRAP_CONTENT), la hauteur du viewport valait 0 et rognait toute la page.
+    <div className="mode-tablette flex min-h-dvh flex-col bg-background text-foreground">
       <div
         role="status"
-        className="shrink-0 border-b border-border bg-card/90 px-4 py-1.5 text-sm text-muted-foreground"
+        className="sticky top-0 z-10 shrink-0 border-b border-border bg-card/90 px-4 py-1.5 text-sm text-muted-foreground"
       >
         Connecté : <span className="font-medium text-forest">{operateur ?? 'Tablette'}</span>{' '}
         (tablette)
       </div>
-      <main className="flex-1 overflow-y-auto overscroll-contain px-4 py-4">
+      <main className="flex-1 px-4 py-4">
         <div className="mx-auto w-full max-w-7xl">
           <Outlet />
         </div>
