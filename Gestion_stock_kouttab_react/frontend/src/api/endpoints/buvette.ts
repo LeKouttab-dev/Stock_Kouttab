@@ -165,6 +165,20 @@ export function useUploadBuvettePhoto() {
   });
 }
 
+/** Reprend la photo d'un autre produit (« 2x Expresso » ← « Expresso »), sans rien importer. */
+export function useReprendreBuvettePhoto() {
+  const qc = useQueryClient();
+  return useApiMutation({
+    mutationFn: async ({ id, sourceId }: { id: number; sourceId: number }) => {
+      const { data } = await api.post<BuvetteProduct>(`/buvette/products/${id}/photo/reprendre`, {
+        source_id: sourceId,
+      });
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: buvetteQueryKeys.products() }),
+  });
+}
+
 /** Retire la photo : la tablette reprend l'emoji, jamais une case vide. */
 export function useDeleteBuvettePhoto() {
   const qc = useQueryClient();

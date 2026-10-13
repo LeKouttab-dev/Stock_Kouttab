@@ -68,6 +68,34 @@ def get_product_by_tier_id(db: Session, tier_id: int) -> BuvetteProduct | None:
     ).scalar_one_or_none()
 
 
+def _nom_comparable(nom: str | None) -> str:
+    """Nom sans accents, sans casse, espaces reduits : « Pêche » == « PECHE »."""
+    sans_accents = unicodedata.normalize("NFD", nom or "")
+    sans_accents = "".join(c for c in sans_accents if not unicodedata.combining(c))
+    return " ".join(sans_accents.lower().split())
+
+
+def _produit_a_rattacher(
+    db: Session, label: str, tiers_recus: set[int]
+) -> BuvetteProduct | None:
+    """Produit existant a rattacher a un tier HelloAsso inconnu, ou None.
+
+    Candidats : meme nom (cf. `_nom_comparable`) et soit aucun tier (produit cree
+    a la main), soit un tier absent de la boutique (article recree la-bas, donc
+    nouveau tier). Un seul candidat, sinon None : deviner entre deux produits
+    serait pire qu'un doublon visible. Sans ce rapprochement, la synchro du
+    13/10/2026 avait cree deux doublons a 0 (Nutella, Vico) a cote des vrais.
+    """
+    cible = _nom_comparable(label)
+    candidats = [
+        p
+        for p in db.execute(select(BuvetteProduct)).scalars().all()
+        if _nom_comparable(p.name) == cible
+        and (p.helloasso_tier_id is None or p.helloasso_tier_id not in tiers_recus)
+    ]
+    return candidats[0] if len(candidats) == 1 else None
+
+
 def get_product_by_barcode(db: Session, barcode: str) -> BuvetteProduct | None:
     """Return the buvette product whose barcode matches, or ``None``."""
     if not barcode:
@@ -344,6 +372,44 @@ def enregistrer_photo(db: Session, product_id: int, contenu: bytes) -> BuvettePr
     return product
 
 
+def reprendre_photo(db: Session, product_id: int, source_id: int) -> BuvetteProduct:
+    """Donne au produit la photo d'un autre produit (« 2x Expresso » <- « Expresso »).
+
+    Photo deposee : octets copies, sous un jeton NEUF (cf. `enregistrer_photo`).
+    Sinon photo de la boutique HelloAsso : son adresse est reprise, et une photo
+    deposee sur la cible est retiree (elle passerait devant). Comme un depot, le
+    choix vaut decision : la synchronisation ne l'ecrasera plus.
+    """
+    product = get_product(db, product_id)
+    if not product:
+        raise AppException(ErrorCode.BUVETTE_PRODUCT_NOT_FOUND)
+    source = db.execute(
+        select(BuvetteProduct)
+        .where(BuvetteProduct.id == source_id)
+        .options(undefer(BuvetteProduct.photo))
+    ).scalars().first()
+    if source is None:
+        raise AppException(ErrorCode.BUVETTE_PRODUCT_NOT_FOUND)
+    if source.id == product.id:
+        raise AppException(ErrorCode.VALIDATION_ERROR, detail="Choisir un autre produit.")
+    if source.photo_jeton and source.photo:
+        product.photo = source.photo
+        product.photo_type = source.photo_type
+        product.photo_jeton = secrets.token_urlsafe(24)
+    elif source.image_url:
+        product.image_url = source.image_url
+        product.photo = None
+        product.photo_type = None
+        product.photo_jeton = None
+    else:
+        raise AppException(ErrorCode.VALIDATION_ERROR, detail="Ce produit n'a pas de photo.")
+    product.edite_manuellement = True
+    db.commit()
+    db.refresh(product)
+    logger.info("Photo du produit buvette %s reprise du produit %s.", product_id, source_id)
+    return product
+
+
 def supprimer_photo(db: Session, product_id: int) -> BuvetteProduct:
     """Retire la photo. La tablette reprend alors l'emoji, jamais une case vide."""
     product = get_product(db, product_id)
@@ -456,6 +522,12 @@ def sync_from_helloasso(db: Session, tiers: list[dict[str, Any]]) -> SyncResult:
     """
     result = SyncResult()
     now = datetime.utcnow()
+    tiers_recus: set[int] = set()
+    for t in tiers:
+        try:
+            tiers_recus.add(int(t.get("id")))
+        except (TypeError, ValueError):
+            continue
 
     for tier in tiers:
         try:
@@ -500,6 +572,17 @@ def sync_from_helloasso(db: Session, tiers: list[dict[str, Any]]) -> SyncResult:
             )
 
             existing = get_product_by_tier_id(db, tier_id_int)
+            if existing is None:
+                existing = _produit_a_rattacher(db, label, tiers_recus)
+                if existing is not None:
+                    logger.info(
+                        "Tier HelloAsso %s rattache au produit existant #%s (%s), au lieu d'un doublon.",
+                        tier_id_int,
+                        existing.id,
+                        existing.name,
+                    )
+                    existing.helloasso_tier_id = tier_id_int
+                    db.flush()
             if existing is None:
                 product = BuvetteProduct(
                     helloasso_tier_id=tier_id_int,

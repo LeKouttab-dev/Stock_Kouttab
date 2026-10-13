@@ -238,3 +238,146 @@ class TestSynchroHelloAsso:
         buvette_crud.sync_from_helloasso(db_session, [self.TIER])
         db_session.refresh(produit)
         assert produit.last_synced_at is not None
+
+
+# ---- Reprendre la photo d'un autre produit --------------------------------
+
+
+def _autre(db_session, **champs) -> BuvetteProduct:
+    p = BuvetteProduct(
+        name=champs.pop("name", "2x Expresso"),
+        price_cents=200,
+        quantity=0,
+        caisse_category="cafe",
+        is_active=True,
+        **champs,
+    )
+    db_session.add(p)
+    db_session.commit()
+    db_session.refresh(p)
+    return p
+
+
+def test_reprendre_une_photo_deposee_la_copie_sous_un_jeton_neuf(
+    client: TestClient, admin_benevoles_user, auth_headers, produit, db_session
+):
+    entetes = auth_headers(admin_benevoles_user)
+    source = client.post(
+        f"/api/v1/buvette/products/{produit.id}/photo",
+        files={"file": ("a.jpg", _photo(), "image/jpeg")},
+        headers=entetes,
+    ).json()["image_url"]
+    cible = _autre(db_session)
+
+    reponse = client.post(
+        f"/api/v1/buvette/products/{cible.id}/photo/reprendre",
+        json={"source_id": produit.id},
+        headers=entetes,
+    )
+    assert reponse.status_code == 200, reponse.text
+    corps = reponse.json()
+    assert corps["a_une_photo"] is True
+    assert corps["edite_manuellement"] is True
+    # Meme image, autre adresse : retirer l'une ne doit pas casser l'autre.
+    assert corps["image_url"] != source
+    chemin = corps["image_url"].split("/api", 1)[1].replace("/v1", "/api/v1", 1)
+    assert client.get(chemin).status_code == 200
+
+
+def test_reprendre_une_photo_helloasso_reprend_son_adresse(
+    client: TestClient, admin_benevoles_user, auth_headers, db_session
+):
+    source = _autre(db_session, name="Expresso", image_url="https://cdn.helloasso.com/expresso.jpg")
+    cible = _autre(db_session)
+    reponse = client.post(
+        f"/api/v1/buvette/products/{cible.id}/photo/reprendre",
+        json={"source_id": source.id},
+        headers=auth_headers(admin_benevoles_user),
+    )
+    assert reponse.status_code == 200, reponse.text
+    assert reponse.json()["image_url"] == "https://cdn.helloasso.com/expresso.jpg"
+    assert reponse.json()["a_une_photo"] is False
+
+
+def test_reprendre_refuse_un_produit_sans_photo_ou_soi_meme(
+    client: TestClient, admin_benevoles_user, auth_headers, produit, db_session
+):
+    entetes = auth_headers(admin_benevoles_user)
+    cible = _autre(db_session)
+    sans = client.post(
+        f"/api/v1/buvette/products/{cible.id}/photo/reprendre",
+        json={"source_id": produit.id},
+        headers=entetes,
+    )
+    assert sans.status_code == 422
+    soi = client.post(
+        f"/api/v1/buvette/products/{cible.id}/photo/reprendre",
+        json={"source_id": cible.id},
+        headers=entetes,
+    )
+    assert soi.status_code == 422
+
+
+def test_un_benevole_ne_reprend_pas_de_photo(
+    client: TestClient, benevole_user, auth_headers, produit, db_session
+):
+    cible = _autre(db_session)
+    reponse = client.post(
+        f"/api/v1/buvette/products/{cible.id}/photo/reprendre",
+        json={"source_id": produit.id},
+        headers=auth_headers(benevole_user),
+    )
+    assert reponse.status_code == 403
+
+
+# ---- La synchro rattache au lieu de creer un doublon ----------------------
+
+
+def _tier(tier_id: int, label: str) -> dict:
+    return {"id": tier_id, "label": label, "price": 150}
+
+
+def test_synchro_rattache_un_produit_cree_a_la_main(db_session):
+    """13/10/2026 : « NUTELLA - B READY » cree a la main, puis ajoute a la boutique."""
+    manuel = _autre(db_session, name="NUTELLA - B READY")
+    manuel.quantity = 58
+    db_session.commit()
+
+    resultat = buvette_crud.sync_from_helloasso(db_session, [_tier(24184738, "Nutella - B Ready")])
+
+    assert resultat.created == 0
+    db_session.refresh(manuel)
+    assert manuel.helloasso_tier_id == 24184738
+    assert manuel.quantity == 58
+
+
+def test_synchro_rattache_un_produit_dont_le_tier_a_disparu(db_session):
+    """Article recree dans la boutique HelloAsso : nouveau tier, meme produit."""
+    vico = _autre(db_session, name="VICO - CHIPS", helloasso_tier_id=23053043)
+
+    resultat = buvette_crud.sync_from_helloasso(db_session, [_tier(23118849, "VICO - CHIPS")])
+
+    assert resultat.created == 0
+    db_session.refresh(vico)
+    assert vico.helloasso_tier_id == 23118849
+
+
+def test_synchro_ne_devine_pas_entre_deux_candidats(db_session):
+    _autre(db_session, name="Miel")
+    _autre(db_session, name="MIEL")
+    resultat = buvette_crud.sync_from_helloasso(db_session, [_tier(999001, "Miel")])
+    assert resultat.created == 1
+
+
+def test_synchro_ne_prend_pas_le_produit_d_un_tier_encore_en_boutique(db_session):
+    _autre(db_session, name="Orangina", helloasso_tier_id=999010)
+    resultat = buvette_crud.sync_from_helloasso(
+        db_session, [_tier(999010, "Orangina"), _tier(999011, "Orangina")]
+    )
+    assert resultat.created == 1
+
+
+def test_synchro_cree_un_produit_de_nom_inconnu(db_session):
+    _autre(db_session, name="Expresso")
+    resultat = buvette_crud.sync_from_helloasso(db_session, [_tier(999020, "Capri-Sun")])
+    assert resultat.created == 1

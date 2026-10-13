@@ -18,6 +18,8 @@ import {
   useDeleteBuvettePhoto,
   useUpdateBuvetteProduct,
   useUploadBuvettePhoto,
+  useBuvetteProducts,
+  useReprendreBuvettePhoto,
 } from '@/api/endpoints/buvette';
 import { OngletCaisseSelect } from '@/components/buvette/OngletCaisseSelect';
 import { PhotoProduitField } from '@/components/buvette/PhotoProduitField';
@@ -73,7 +75,10 @@ export function ModifierProduitModal({ open, onOpenChange, product }: ModifierPr
   const update = useUpdateBuvetteProduct();
   const deposerPhoto = useUploadBuvettePhoto();
   const retirerPhoto = useDeleteBuvettePhoto();
+  const reprendrePhoto = useReprendreBuvettePhoto();
+  const produits = useBuvetteProducts();
   const [photo, setPhoto] = useState<File | null>(null);
+  const [source, setSource] = useState<BuvetteProduct | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
   const toast = useToast();
 
@@ -92,6 +97,7 @@ export function ModifierProduitModal({ open, onOpenChange, product }: ModifierPr
   useEffect(() => {
     if (product) {
       setPhoto(null);
+      setSource(null);
       form.reset({
         name: product.name,
         price_euros: centsToEuros(product.price_cents),
@@ -113,6 +119,18 @@ export function ModifierProduitModal({ open, onOpenChange, product }: ModifierPr
       if (photo) {
         deposerPhoto.mutate(
           { id: product.id, file: photo },
+          {
+            onSuccess: () => {
+              toast.success(fr.buvette.productUpdated);
+              onOpenChange(false);
+            },
+          },
+        );
+        return;
+      }
+      if (source) {
+        reprendrePhoto.mutate(
+          { id: product.id, sourceId: source.id },
           {
             onSuccess: () => {
               toast.success(fr.buvette.productUpdated);
@@ -236,7 +254,9 @@ export function ModifierProduitModal({ open, onOpenChange, product }: ModifierPr
               emoji={form.watch('emoji')}
               onFichier={setPhoto}
               onRetirer={() => retirerPhoto.mutate(product.id)}
-              occupe={deposerPhoto.isPending || retirerPhoto.isPending}
+              occupe={deposerPhoto.isPending || retirerPhoto.isPending || reprendrePhoto.isPending}
+              sources={(produits.data ?? []).filter((p) => p.id !== product.id)}
+              onSource={setSource}
             />
 
             <div className="space-y-1.5">

@@ -12,7 +12,13 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useCreateBuvetteProduct, useUploadBuvettePhoto } from '@/api/endpoints/buvette';
+import {
+  useBuvetteProducts,
+  useCreateBuvetteProduct,
+  useReprendreBuvettePhoto,
+  useUploadBuvettePhoto,
+} from '@/api/endpoints/buvette';
+import type { BuvetteProduct } from '@/types/api';
 import { OngletCaisseSelect } from '@/components/buvette/OngletCaisseSelect';
 import {
   createBuvetteProductSchema,
@@ -33,7 +39,10 @@ interface CreateProductModalProps {
 export function CreateProductModal({ open, onOpenChange }: CreateProductModalProps) {
   const create = useCreateBuvetteProduct();
   const deposerPhoto = useUploadBuvettePhoto();
+  const reprendrePhoto = useReprendreBuvettePhoto();
+  const produits = useBuvetteProducts();
   const [photo, setPhoto] = useState<File | null>(null);
+  const [source, setSource] = useState<BuvetteProduct | null>(null);
   const toast = useToast();
 
   const form = useForm<CreateBuvetteProductFormValues>({
@@ -53,6 +62,7 @@ export function CreateProductModal({ open, onOpenChange }: CreateProductModalPro
     if (!open) {
       form.reset();
       setPhoto(null);
+      setSource(null);
     }
   }, [open, form]);
 
@@ -74,6 +84,18 @@ export function CreateProductModal({ open, onOpenChange }: CreateProductModalPro
           if (photo) {
             deposerPhoto.mutate(
               { id: produit.id, file: photo },
+              {
+                onSuccess: () => {
+                  toast.success(fr.buvette.productCreated);
+                  onOpenChange(false);
+                },
+              },
+            );
+            return;
+          }
+          if (source) {
+            reprendrePhoto.mutate(
+              { id: produit.id, sourceId: source.id },
               {
                 onSuccess: () => {
                   toast.success(fr.buvette.productCreated);
@@ -204,7 +226,9 @@ export function CreateProductModal({ open, onOpenChange }: CreateProductModalPro
           <PhotoProduitField
             emoji={form.watch('emoji')}
             onFichier={setPhoto}
-            occupe={deposerPhoto.isPending}
+            occupe={deposerPhoto.isPending || reprendrePhoto.isPending}
+            sources={produits.data ?? []}
+            onSource={setSource}
           />
 
           <OngletCaisseSelect
@@ -216,7 +240,7 @@ export function CreateProductModal({ open, onOpenChange }: CreateProductModalPro
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               {fr.common.cancel}
             </Button>
-            <Button type="submit" loading={create.isPending || deposerPhoto.isPending}>
+            <Button type="submit" loading={create.isPending || deposerPhoto.isPending || reprendrePhoto.isPending}>
               {fr.common.submit}
             </Button>
           </DialogFooter>

@@ -592,6 +592,8 @@ export const fr = {
     seuilAlerte: "Seuil d'alerte",
     emoji: 'Emoji',
     helloassoTierId: 'ID Tier HelloAsso (optionnel)',
+    syncConfirm:
+      'Importer les produits de la boutique HelloAsso ? Les stocks ne sont pas modifiés : seuls les nouveaux produits de la boutique sont ajoutés.',
     deleteConfirm: 'Supprimer ce produit ? Cette action est irréversible.',
     productCreated: 'Produit créé.',
     productUpdated: 'Produit mis à jour.',
