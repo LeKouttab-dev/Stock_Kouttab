@@ -205,6 +205,53 @@ d'index, au-delà des 767 qu'autorise InnoDB en format `COMPACT`. C'est la seule
 chose que l'application stocke du calendrier, et elle ne duplique rien de
 Google : elle porte ce que Google n'a pas.
 
+### La grille est écrite à la main, et FullCalendar reste pour Mois et Liste
+
+Les vues **Semaine**, **3 jours** et **Jour** sont rendues par
+`components/calendrier/GrilleSalles.tsx` ; **Mois** et **Liste** restent à
+FullCalendar.
+
+**Pourquoi ne pas tout laisser à FullCalendar** : les colonnes par ressource
+(`resourceTimeGrid`) appartiennent à FullCalendar **Premium**, sous licence
+payante. Les alternatives gratuites ont été écartées — juxtaposer une instance
+par salle donne autant de zones de défilement indépendantes, et l'astuce des
+« faux jours » casse le trait « maintenant », le surlignage d'aujourd'hui et la
+fenêtre envoyée au serveur.
+
+Ce qui rend la grille maison bon marché ici, et qui ne serait pas vrai d'un
+calendrier générique : **lecture seule** (rien à faire glisser), **aucun
+événement « journée entière »**, **un seul fuseau**, et une amplitude fixe
+08:00–22:30 (relevé réel : 08:30 → 22:15).
+
+Points à connaître avant d'y toucher :
+
+- **Un seul conteneur défile.** En-têtes et gouttière des heures sont `sticky`
+  à l'intérieur, et non des blocs séparés dont il faudrait recopier le
+  défilement en JavaScript : c'est ce qui garde les deux axes alignés par
+  construction. L'invariant d'`AppLayout` (« un seul élément défile ») n'est
+  pas levé, il **descend d'un niveau**.
+- **`minutesParis` ne passe jamais par `new Date(iso).getHours()`** — ce serait
+  le fuseau du navigateur, et l'intégration tourne en UTC. La lecture se fait
+  par `Intl.DateTimeFormat.formatToParts`, et non en découpant la chaîne :
+  `fr-CA` rend « 2026-10-14 17 h 30 », ponctuation comprise.
+- **Les micro-créneaux fusionnent.** Les permanences administratives sont une
+  vingtaine de rendez-vous de cinq minutes : rendus un par un, ce sont des
+  filets d'un pixel. Ils deviennent un bloc « Perm. admin. ×12 », qui s'ouvre
+  sur la liste.
+- **Le nom part en dernier.** Quand la carte rétrécit, on sacrifie l'horaire,
+  puis l'enseignant, puis le numéro — jamais le nom. Une carte réduite à
+  « №19 18:30 » ne dit rien de ce qui se passe dans la salle.
+- **L'ordre du DOM d'une colonne est chronologique.** Les cartes sont posées en
+  absolu : sans cela, la tabulation parcourrait la journée dans le désordre, et
+  aucun test visuel ne le verrait.
+- **Jusqu'à huit événements simultanés** ont été observés dans la colonne
+  « Autre ». Les blocs qui se recouvrent forment une grappe et se partagent sa
+  largeur — la même pour tous ses membres, sinon l'œil lit un bug.
+
+Les vues par défaut : **3 jours** sur un écran large (sept jours fois quatre
+salles font vingt-huit colonnes, soit une cinquantaine de pixels chacune),
+**Jour** en dessous de `lg`, sans écraser la préférence enregistrée.
+
 ### Le pont SSO transporte aussi les réglages
 
 `POST /auth/sso/calendrier` charge la même correspondance. L'oublier aurait

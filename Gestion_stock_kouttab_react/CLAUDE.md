@@ -829,6 +829,22 @@ réels ; le dernier se corrige dans l'écran de réglage.
 `CalendrierAgendaReglages.agenda_id` est **unique mais pas clé primaire** : un
 `String(255)` utf8mb4 pèse 1020 octets d'index, au-delà des 767 qu'autorise
 InnoDB en format `COMPACT`. Même parti que `CategoriesDepense.nom`.
+
+**La grille est écrite à la main** (`components/calendrier/GrilleSalles.tsx`,
+calcul dans `lib/calendrier-grille.ts`) pour les vues Semaine / 3 jours / Jour ;
+FullCalendar ne garde que Mois et Liste. Les colonnes par ressource relèvent de
+FullCalendar **Premium**, payant. Quatre pièges à ne pas réintroduire :
+**un seul conteneur défile** (en-têtes et gouttière en `sticky`, jamais un
+défilement recopié en JS) ; **`minutesParis` lit `formatToParts`**, jamais
+`new Date().getHours()` (fuseau du navigateur, CI en UTC) ni un découpage de
+chaîne (`fr-CA` rend « 17 h 30 ») ; **les micro-créneaux fusionnent** (les
+permanences sont vingt rendez-vous de 5 min, soit vingt filets d'un pixel) ;
+**l'ordre du DOM d'une colonne est chronologique**, sans quoi la tabulation
+part dans le désordre et aucun test visuel ne le voit. Vue par défaut :
+3 jours sur grand écran, Jour sous `lg`. Le cap `max-w-7xl` d'`AppLayout` est
+levé par route (`lib/layout.ts`), et la barre latérale se replie en rail
+d'icônes (`hooks/useSidebarRepliee.ts`, état **dérivé** — aucun effet, sinon il
+se bat contre le clic de l'utilisateur).
 - `POST /auth/sso/calendrier` — **le même calendrier, pour l'outil de gestion**
   (jeton `typ: 'sso-calendrier'`, 60 s, secret partagé). `gestion.lekouttab.fr`
   affiche son propre onglet sans second compte de service Google : une seule

@@ -133,6 +133,33 @@
 }
 
 /**
+ * Emploi du temps : les lignes d'heures de la grille des salles.
+ *
+ * Un dégradé répété plutôt que des centaines de `<div>` : une colonne compte
+ * quatorze heures, et il y a jusqu'à vingt-huit colonnes à l'écran.
+ *
+ * `--px-par-minute` est **posé en ligne par le composant**, depuis la même
+ * constante TypeScript qui place les cartes. Sans cela, le fond et les
+ * événements dériveraient l'un de l'autre à la première retouche d'échelle,
+ * et les cours ne tomberaient plus sur leurs traits.
+ */
+.lignes-horaires {
+  --pas-heure: calc(60 * var(--px-par-minute, 1) * 1px);
+  --pas-demie: calc(30 * var(--px-par-minute, 1) * 1px);
+  background-image:
+    repeating-linear-gradient(
+      to bottom,
+      theme('colors.sand.200') 0 1px,
+      transparent 1px var(--pas-heure)
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      theme('colors.sand.100') 0 1px,
+      transparent 1px var(--pas-demie)
+    );
+}
+
+/**
  * Calendrier (FullCalendar) aux couleurs du Kouttâb.
  *
  * FullCalendar v6 injecte sa feuille de style lui-même et s'habille par

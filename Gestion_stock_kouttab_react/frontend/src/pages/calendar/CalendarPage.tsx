@@ -1,29 +1,25 @@
 import { useEffect, useMemo, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
-import timeGridPlugin from '@fullcalendar/timegrid';
 import listPlugin from '@fullcalendar/list';
 import frLocale from '@fullcalendar/core/locales/fr';
 import type { DatesSetArg, EventClickArg, EventInput } from '@fullcalendar/core';
-import { AlertTriangle, CalendarDays, History, MapPin, RefreshCw, Repeat, User } from 'lucide-react';
-
-import { Alert } from '@/components/ui/alert';
+import { History } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ErrorAlert } from '@/components/shared/ErrorAlert';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
-import { Skeleton } from '@/components/ui/skeleton';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { BarreCalendrier } from '@/components/calendrier/BarreCalendrier';
+import { FicheEvenement } from '@/components/calendrier/FicheEvenement';
+import { GrilleSalles } from '@/components/calendrier/GrilleSalles';
+import { PanneauFiltres } from '@/components/calendrier/PanneauFiltres';
 import { useAgendas, useEvenements, useRafraichirCalendrier } from '@/api/endpoints/calendar';
-import { contrasteSur, formatPlage } from '@/lib/calendrier';
+import {
+  JOURS_PAR_VUE,
+  useCalendrierVue,
+  useMaintenant,
+  useSallesMasquees,
+} from '@/hooks/useCalendrierVue';
+import { contrasteSur } from '@/lib/calendrier';
+import { joursDeLaVue, type BlocGrille } from '@/lib/calendrier-grille';
 import { fr as i18n } from '@/lib/i18n/fr';
 import type { EvenementCalendrier } from '@/types/api';
 
@@ -35,6 +31,7 @@ import type { EvenementCalendrier } from '@/types/api';
  * l'aurait laissé invisible jusqu'à ce que quelqu'un pense à le rétablir.
  */
 const CLE_MASQUES = 'calendrier.agendas-masques';
+const CLE_PAR_SALLE = 'calendrier.par-salle';
 
 function lireMasques(): string[] {
   try {
@@ -45,17 +42,64 @@ function lireMasques(): string[] {
   }
 }
 
+const PERIODE = new Intl.DateTimeFormat('fr-FR', {
+  timeZone: 'Europe/Paris',
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+});
+
+/**
+ * L'emploi du temps de l'institut.
+ *
+ * Cinq vues : **Mois** et **Liste** sont rendues par FullCalendar, **Semaine**,
+ * **3 jours** et **Jour** par la grille maison — les colonnes par salle
+ * appartiennent à FullCalendar Premium, sous licence payante, et le rendu des
+ * cartes demandait de toute façon du sur-mesure.
+ *
+ * La page ne porte que l'état et l'assemblage : le calcul est dans
+ * `lib/calendrier-grille.ts`, l'affichage dans `components/calendrier/`.
+ */
 export function CalendarPage() {
   const [fenetre, setFenetre] = useState<{ debut: string; fin: string } | null>(null);
   const [masques, setMasques] = useState<string[]>(lireMasques);
   const [recherche, setRecherche] = useState('');
-  const [ouvert, setOuvert] = useState<EvenementCalendrier | null>(null);
+  const [ouvert, setOuvert] = useState<BlocGrille | null>(null);
+  const [panneauOuvert, setPanneauOuvert] = useState(true);
+  const [parSalle, setParSalle] = useState(() => {
+    try {
+      return localStorage.getItem(CLE_PAR_SALLE) !== 'non';
+    } catch {
+      return true;
+    }
+  });
+
+  const { vue, choisir, ancre, decaler, aujourdhui } = useCalendrierVue();
+  const { masquees: sallesMasquees, basculer: basculerSalle } = useSallesMasquees();
+  const maintenant = useMaintenant();
 
   const { data: agendas = [], isLoading: agendasEnCours, error: erreurAgendas } = useAgendas();
   const rafraichir = useRafraichirCalendrier();
 
-  // La fenêtre envoyée au serveur est celle que FullCalendar affiche : il
-  // déborde déjà sur les semaines voisines, inutile de l'élargir.
+  const grille = vue !== 'mois' && vue !== 'liste';
+  const jours = useMemo(
+    () => (grille ? joursDeLaVue(ancre, JOURS_PAR_VUE[vue] ?? 7) : []),
+    [grille, ancre, vue],
+  );
+
+  // Pour les vues de grille, la fenêtre est calculée ici ; pour Mois et Liste,
+  // c'est FullCalendar qui l'annonce par `datesSet`.
+  useEffect(() => {
+    if (!grille || !jours.length) return;
+    const debut = new Date(`${jours[0]}T00:00:00`).toISOString();
+    const finJour = new Date(`${jours[jours.length - 1]}T00:00:00`);
+    finJour.setDate(finJour.getDate() + 1);
+    const fin = finJour.toISOString();
+    setFenetre((precedente) =>
+      precedente?.debut === debut && precedente?.fin === fin ? precedente : { debut, fin },
+    );
+  }, [grille, jours]);
+
   const {
     data,
     isFetching,
@@ -75,36 +119,44 @@ export function CalendarPage() {
     [agendas, masques],
   );
 
-  const evenements: EventInput[] = useMemo(
-    () =>
-      (data?.evenements ?? [])
-        .filter((e) => visibles.has(e.agenda_id))
-        .map((e) => ({
-          id: `${e.agenda_id}::${e.id}`,
-          title: e.titre,
-          start: e.debut,
-          end: e.fin,
-          allDay: e.journee_entiere,
-          backgroundColor: e.couleur ?? '#3d4f3d',
-          borderColor: e.couleur ?? '#3d4f3d',
-          textColor: contrasteSur(e.couleur),
-          extendedProps: { source: e },
-        })),
+  const evenements = useMemo(
+    () => (data?.evenements ?? []).filter((e) => visibles.has(e.agenda_id)),
     [data, visibles],
   );
 
-  const listeAgendas = useMemo(() => {
-    const terme = recherche.trim().toLowerCase();
-    return terme ? agendas.filter((a) => a.nom.toLowerCase().includes(terme)) : agendas;
-  }, [agendas, recherche]);
+  const salles = data?.salles ?? {};
+  const sallesVisibles = useMemo(
+    () => Object.keys(salles).filter((cle) => !sallesMasquees.includes(cle)),
+    [salles, sallesMasquees],
+  );
 
-  const basculer = (id: string) =>
-    setMasques((actuels) =>
-      actuels.includes(id) ? actuels.filter((m) => m !== id) : [...actuels, id],
-    );
+  const pourFullCalendar: EventInput[] = useMemo(
+    () =>
+      evenements.map((e) => ({
+        id: `${e.agenda_id}::${e.id}`,
+        // Le titre Google est « cours 19 » : c'est le nom d'agenda raccourci
+        // qui porte le sens, dans le mois comme dans la grille.
+        title: e.numero ? `${e.nom_court} №${e.numero}` : e.nom_court || e.titre,
+        start: e.debut,
+        end: e.fin,
+        allDay: e.journee_entiere,
+        backgroundColor: e.couleur ?? '#3d4f3d',
+        borderColor: e.couleur ?? '#3d4f3d',
+        textColor: contrasteSur(e.couleur),
+        extendedProps: { source: e },
+      })),
+    [evenements],
+  );
 
-  const toutAfficher = () => setMasques([]);
-  const toutMasquer = () => setMasques(agendas.map((a) => a.id));
+  const basculerParSalle = () => {
+    const suivant = !parSalle;
+    setParSalle(suivant);
+    try {
+      localStorage.setItem(CLE_PAR_SALLE, suivant ? 'oui' : 'non');
+    } catch {
+      /* sans effet */
+    }
+  };
 
   const onDatesSet = (arg: DatesSetArg) => {
     const debut = arg.start.toISOString();
@@ -118,233 +170,121 @@ export function CalendarPage() {
     // Un événement « liste » est rendu comme un lien : sans cela, le clic
     // ouvrirait Google Agenda dans un onglet au lieu de la fiche.
     arg.jsEvent.preventDefault();
-    setOuvert(arg.event.extendedProps.source as EvenementCalendrier);
+    const source = arg.event.extendedProps.source as EvenementCalendrier;
+    setOuvert({
+      cle: source.id,
+      evenements: [source],
+      debutMinutes: 0,
+      finMinutes: 0,
+      jour: '',
+    });
   };
 
+  const titre = grille
+    ? jours.length === 1
+      ? PERIODE.format(new Date(`${jours[0]}T12:00:00`))
+      : `${PERIODE.format(new Date(`${jours[0]}T12:00:00`))} — ${PERIODE.format(
+          new Date(`${jours[jours.length - 1]}T12:00:00`),
+        )}`
+    : PERIODE.format(ancre);
+
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="font-serif text-2xl font-bold text-forest">
-            {i18n.calendrier.titre}
-          </h1>
-          <p className="text-sm text-forest/70">{i18n.calendrier.sousTitre}</p>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          // Vider un cache qui ne sert pas encore Google n'apporte rien :
-          // le bouton disparaît plutôt que de promettre une mise à jour.
-          hidden={data?.instantane}
-          disabled={rafraichir.isPending}
-          onClick={() => rafraichir.mutate(undefined)}
-        >
-          <RefreshCw className={`h-4 w-4 ${rafraichir.isPending ? 'animate-spin' : ''}`} />
-          {i18n.calendrier.rafraichir}
-        </Button>
-      </div>
+    <div className="flex h-full min-h-0 flex-col">
+      <BarreCalendrier
+        vue={vue}
+        titre={titre}
+        parSalle={parSalle}
+        panneauOuvert={panneauOuvert}
+        rafraichissement={rafraichir.isPending || isFetching}
+        onVue={choisir}
+        onDecaler={decaler}
+        onAujourdhui={aujourdhui}
+        onParSalle={basculerParSalle}
+        onPanneau={() => setPanneauOuvert((o) => !o)}
+        onRafraichir={data?.instantane ? undefined : () => rafraichir.mutate(undefined)}
+      />
 
-      {/* Le message du serveur, pas un libellé générique : « compte de service
-          non renseigné » et « Google injoignable » n'appellent pas le même
-          geste, et seul le premier demande un Super Admin. */}
       {(erreurAgendas || erreurEvenements) && (
-        <ErrorAlert
-          error={erreurAgendas ?? erreurEvenements}
-          title={i18n.calendrier.indisponible}
-        />
+        <div className="px-3 pt-2">
+          <ErrorAlert error={erreurAgendas ?? erreurEvenements} />
+        </div>
       )}
 
-      {/* Un planning daté qui se présenterait comme le direct ferait manquer
-          un cours déplacé : tant que la source est figée, l'écran le dit, et
-          il donne la date du relevé. */}
       {data?.instantane && (
-        <Alert variant="info">
-          <History className="h-4 w-4" />
-          <div>
-            <p className="font-semibold">{i18n.calendrier.instantaneTitre}</p>
-            <p className="text-sm">
-              {i18n.calendrier.instantaneTexte.replace(
-                '{date}',
-                data.genere_le
-                  ? new Intl.DateTimeFormat('fr-FR', {
-                      day: 'numeric',
-                      month: 'long',
-                      year: 'numeric',
-                      timeZone: 'Europe/Paris',
-                    }).format(new Date(`${data.genere_le}T12:00:00+02:00`))
-                  : 'ce jour',
-              )}
-            </p>
-          </div>
-        </Alert>
+        <div className="px-3 pt-2">
+          <Alert variant="info">
+            <History className="h-4 w-4" />
+            <AlertDescription>
+              <span className="font-semibold">{i18n.calendrier.instantaneTitre}</span>{' '}
+              {i18n.calendrier.instantaneTexte.replace('{date}', data.genere_le ?? 'ce jour')}
+            </AlertDescription>
+          </Alert>
+        </div>
       )}
 
-      {/* Un agenda illisible n'efface pas les autres : on le dit, et on sert
-          ce qu'on a. */}
       {(data?.agendas_en_erreur?.length ?? 0) > 0 && (
-        <Alert variant="warning">
-          <AlertTriangle className="h-4 w-4" />
-          <span>
-            {i18n.calendrier.agendasEnErreur} {data?.agendas_en_erreur.join(', ')}
-          </span>
-        </Alert>
+        <div className="px-3 pt-2">
+          <Alert variant="warning">
+            <AlertDescription>
+              Agendas injoignables : {data?.agendas_en_erreur.join(', ')}
+            </AlertDescription>
+          </Alert>
+        </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-[17rem_1fr]">
-        <Card className="order-2 lg:order-1">
-          <CardContent className="space-y-3 p-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-forest">{i18n.calendrier.mesAgendas}</p>
-              <span className="text-xs text-forest/60">
-                {visibles.size}/{agendas.length}
-              </span>
-            </div>
+      <div className="flex min-h-0 flex-1">
+        {panneauOuvert && (
+          <PanneauFiltres
+            agendas={agendas}
+            chargement={agendasEnCours}
+            recherche={recherche}
+            masques={masques}
+            salles={salles}
+            sallesMasquees={sallesMasquees}
+            parSalle={parSalle && grille}
+            onRecherche={setRecherche}
+            onBasculerAgenda={(id) =>
+              setMasques((actuels) =>
+                actuels.includes(id) ? actuels.filter((m) => m !== id) : [...actuels, id],
+              )
+            }
+            onBasculerSalle={basculerSalle}
+            onTousAgendas={(tous) => setMasques(tous ? [] : agendas.map((a) => a.id))}
+          />
+        )}
 
-            <Input
-              value={recherche}
-              onChange={(e) => setRecherche(e.target.value)}
-              placeholder={i18n.calendrier.chercherAgenda}
-              className="h-8 text-sm"
+        {grille ? (
+          <GrilleSalles
+            jours={jours}
+            evenements={evenements}
+            salles={salles}
+            sallesVisibles={sallesVisibles}
+            parSalle={parSalle}
+            maintenant={maintenant}
+            onOuvrir={setOuvert}
+          />
+        ) : (
+          <div className="calendrier-kouttab min-h-0 flex-1 overflow-y-auto p-3">
+            <FullCalendar
+              plugins={[dayGridPlugin, listPlugin]}
+              initialView={vue === 'mois' ? 'dayGridMonth' : 'listWeek'}
+              key={vue}
+              locale={frLocale}
+              timeZone="Europe/Paris"
+              headerToolbar={false}
+              initialDate={ancre}
+              firstDay={1}
+              height="auto"
+              dayMaxEvents={4}
+              events={pourFullCalendar}
+              datesSet={onDatesSet}
+              eventClick={onEventClick}
             />
-
-            <div className="flex gap-2">
-              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={toutAfficher}>
-                {i18n.calendrier.toutAfficher}
-              </Button>
-              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={toutMasquer}>
-                {i18n.calendrier.toutMasquer}
-              </Button>
-            </div>
-
-            {agendasEnCours ? (
-              <Skeleton className="h-64" />
-            ) : (
-              <ul className="max-h-[28rem] space-y-1 overflow-y-auto scrollbar-thin pr-1">
-                {listeAgendas.map((agenda) => (
-                  <li key={agenda.id}>
-                    <label className="flex cursor-pointer items-start gap-2 rounded px-1 py-1 hover:bg-cream-100">
-                      <Checkbox
-                        checked={!masques.includes(agenda.id)}
-                        onCheckedChange={() => basculer(agenda.id)}
-                        className="mt-0.5"
-                        style={{
-                          backgroundColor: !masques.includes(agenda.id)
-                            ? (agenda.couleur ?? undefined)
-                            : undefined,
-                          borderColor: agenda.couleur ?? undefined,
-                        }}
-                      />
-                      <span className="flex-1 text-xs leading-snug text-forest">
-                        {agenda.nom}
-                        {agenda.restreint && (
-                          <Badge variant="outline" className="ml-1 px-1 py-0 text-[10px]">
-                            {i18n.calendrier.restreint}
-                          </Badge>
-                        )}
-                      </span>
-                    </label>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="order-1 lg:order-2">
-          <CardContent className="p-2 sm:p-4">
-            {isFetching && (
-              <p className="pb-2 text-xs text-forest/60">{i18n.calendrier.chargement}</p>
-            )}
-            <div className="calendrier-kouttab">
-              <FullCalendar
-                plugins={[dayGridPlugin, timeGridPlugin, listPlugin]}
-                initialView="dayGridMonth"
-                locale={frLocale}
-                timeZone="Europe/Paris"
-                headerToolbar={{
-                  left: 'prev,next today',
-                  center: 'title',
-                  right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek',
-                }}
-                buttonText={{
-                  today: "Aujourd'hui",
-                  month: 'Mois',
-                  week: 'Semaine',
-                  day: 'Jour',
-                  list: 'Liste',
-                }}
-                // Les cours commencent tôt et les soirées finissent tard :
-                // une grille 00 h–24 h obligerait à faire défiler pour rien.
-                slotMinTime="07:00:00"
-                slotMaxTime="23:00:00"
-                scrollTime="08:00:00"
-                nowIndicator
-                weekNumbers={false}
-                firstDay={1}
-                height="auto"
-                dayMaxEvents={4}
-                events={evenements}
-                datesSet={onDatesSet}
-                eventClick={onEventClick}
-              />
-            </div>
-          </CardContent>
-        </Card>
+          </div>
+        )}
       </div>
 
-      <Dialog open={Boolean(ouvert)} onOpenChange={(o) => !o && setOuvert(null)}>
-        <DialogContent>
-          {ouvert && (
-            <>
-              <DialogHeader>
-                <DialogTitle className="pr-6 font-serif text-lg text-forest">
-                  {ouvert.titre}
-                </DialogTitle>
-                <DialogDescription className="flex items-center gap-2">
-                  <span
-                    aria-hidden
-                    className="inline-block h-2.5 w-2.5 rounded-full"
-                    style={{ backgroundColor: ouvert.couleur ?? '#3d4f3d' }}
-                  />
-                  {ouvert.agenda_nom}
-                </DialogDescription>
-              </DialogHeader>
-
-              <div className="space-y-3 text-sm text-forest">
-                <p className="flex items-start gap-2">
-                  <CalendarDays className="mt-0.5 h-4 w-4 flex-shrink-0 text-terracotta" />
-                  <span>{formatPlage(ouvert)}</span>
-                </p>
-                {ouvert.lieu && (
-                  <p className="flex items-start gap-2">
-                    <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-terracotta" />
-                    <span>{ouvert.lieu}</span>
-                  </p>
-                )}
-                {ouvert.organisateur && (
-                  <p className="flex items-start gap-2">
-                    <User className="mt-0.5 h-4 w-4 flex-shrink-0 text-terracotta" />
-                    <span>{ouvert.organisateur}</span>
-                  </p>
-                )}
-                {ouvert.recurrent && (
-                  <p className="flex items-center gap-2 text-xs text-forest/70">
-                    <Repeat className="h-3.5 w-3.5" />
-                    {i18n.calendrier.recurrent}
-                  </p>
-                )}
-                {ouvert.description && (
-                  // Le texte de Google peut contenir du HTML ; on l'affiche
-                  // en brut plutôt que de l'injecter dans la page.
-                  <p className="whitespace-pre-wrap rounded bg-cream-100 p-3 text-xs leading-relaxed">
-                    {ouvert.description}
-                  </p>
-                )}
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+      <FicheEvenement bloc={ouvert} onFermer={() => setOuvert(null)} />
     </div>
   );
 }
