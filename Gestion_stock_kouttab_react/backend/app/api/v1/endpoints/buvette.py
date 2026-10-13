@@ -47,6 +47,7 @@ from app.schemas.buvette import (
     CaisseEtatEnveloppeOut,
     CaisseEtatIn,
     CaisseEtatOut,
+    CaisseJournalIn,
     CaisseOrdreIn,
     CaisseOrdreOut,
     CaisseOrdreVentesOut,
@@ -83,6 +84,7 @@ from app.services import buvette_export
 from app.services import caisse_app
 from app.services import email as email_service
 from app.services import files as files_service
+from app.services import journal_tablette
 from app.services.helloasso import get_helloasso_client
 
 
@@ -542,6 +544,24 @@ def caisse_etat(
     de l'application, et le recap du soir (« dernier contact »).
     """
     buvette_crud.enregistrer_etat(db, etat)
+    return Response(status_code=204)
+
+
+@router.post(
+    "/caisse/journal",
+    status_code=204,
+    dependencies=[Depends(_verifier_cle_caisse)],
+)
+# Lots d'au plus 500 entrees, envoyes toutes les minutes au plus (rattrapage
+# compris) : la limite ne gene que la boucle folle.
+@limiter.limit("30/minute")
+def caisse_journal(request: Request, journal: CaisseJournalIn) -> Response:
+    """Journal de la tablette, ajoute au fichier du jour (cf. `journal_tablette`).
+
+    Pas d'idempotence : une entree renvoyee apres une reponse perdue apparait
+    deux fois, sans consequence pour un journal de diagnostic.
+    """
+    journal_tablette.ecrire(journal.entrees)
     return Response(status_code=204)
 
 

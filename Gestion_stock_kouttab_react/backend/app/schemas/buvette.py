@@ -321,6 +321,35 @@ class CaisseEtatIn(BaseModel):
         return _etat_connu(valeur, LECTEUR_ETATS)
 
 
+class CaisseJournalEntree(BaseModel):
+    """Un evenement de la tablette (demarrage, plantage, retour force, veille...)."""
+
+    # Heure de la tablette, avec son decalage : c'est elle qui range l'entree
+    # dans le fichier du jour.
+    ts: datetime
+    niveau: str = Field(default="INFO", max_length=200)
+    message: str = Field(max_length=20_000)
+
+    @field_validator("niveau", mode="after")
+    @classmethod
+    def _niveau(cls, valeur: str) -> str:
+        return (valeur.strip().upper() or "INFO")[:8]
+
+    @field_validator("message", mode="after")
+    @classmethod
+    def _message(cls, valeur: str) -> str:
+        # Une ligne par entree dans le fichier : pas de retour a la ligne ni de
+        # caractere de controle, et une longueur bornee (tronquee, pas refusee).
+        propre = "".join(c if c.isprintable() else " " for c in valeur)
+        return propre.strip()[:1000]
+
+
+class CaisseJournalIn(BaseModel):
+    """Lot d'evenements envoye par la tablette (`POST /buvette/caisse/journal`)."""
+
+    entrees: list[CaisseJournalEntree] = Field(max_length=500)
+
+
 class CaisseEtatOut(BaseModel):
     batterie_pct: int | None = None
     en_charge: bool | None = None
