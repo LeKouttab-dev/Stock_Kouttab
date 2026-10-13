@@ -101,6 +101,11 @@ class BuvetteProductOut(BaseModel):
     etiquette_texte: str | None = None
     # Dernier prix d'achat unitaire saisi a un reappro ; pre-remplit le suivant.
     dernier_prix_achat_cents: int | None = None
+    # Stock a 0 depuis cet instant (UTC naif) ; null des qu'il y a du stock.
+    epuise_depuis: datetime | None = None
+    # Vrai quand la tablette ne l'affiche plus : epuise depuis plus de 7 jours
+    # (hors cafes). Distinct de `is_active` (masquage manuel).
+    masque_epuise: bool = False
     # Vrai des qu'un champ ecrit aussi par HelloAsso a ete modifie a la main
     # (nom, description, prix, photo). L'ecran l'affiche : sans cela, personne
     # ne peut savoir pourquoi « Synchroniser » ne change plus ce produit.

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import (
@@ -896,6 +896,27 @@ class StockModification(Base):
 # ---- Buvette (HelloAsso) ----------------------------------------------------
 
 
+# Un produit a 0 depuis plus de JOURS_AVANT_MASQUAGE_EPUISE jours sans reappro
+# disparait de la tablette. Les cafes en sont exclus : leur stock reste souvent
+# a 0 sans qu'ils soient epuises (capsules non comptees).
+JOURS_AVANT_MASQUAGE_EPUISE = 7
+CATEGORIES_JAMAIS_MASQUEES = ("cafe",)
+
+
+def est_masque_epuise(
+    quantite: int | None,
+    categorie: str | None,
+    epuise_depuis: datetime | None,
+    maintenant: datetime,
+) -> bool:
+    return (
+        (quantite or 0) <= 0
+        and categorie not in CATEGORIES_JAMAIS_MASQUEES
+        and epuise_depuis is not None
+        and epuise_depuis <= maintenant - timedelta(days=JOURS_AVANT_MASQUAGE_EPUISE)
+    )
+
+
 class BuvetteProduct(Base):
     __tablename__ = "BuvetteProducts"
     __table_args__ = (
@@ -956,6 +977,13 @@ class BuvetteProduct(Base):
     # la fenetre du reappro suivant. NULL tant qu'aucun prix n'a ete saisi.
     dernier_prix_achat_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
     alert_sent: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Instant (UTC naif) ou le stock est tombe a 0 ; NULL des qu'il repasse
+    # au-dessus. Pose et efface par `crud.buvette.recaler_epuisement` apres
+    # chaque mouvement. Au-dela de `JOURS_AVANT_MASQUAGE_EPUISE` jours, le
+    # produit sort du catalogue de la tablette (hors cafes), SANS toucher a
+    # `is_active` : le masquage manuel reste independant, et un reappro le
+    # fait revenir tout seul.
+    epuise_depuis: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, nullable=False, server_default=func.now()
@@ -975,6 +1003,13 @@ class BuvetteProduct(Base):
     @property
     def low_stock(self) -> bool:
         return self.quantity < self.seuil_alerte
+
+    @property
+    def masque_epuise(self) -> bool:
+        """Vrai si la tablette ne l'affiche plus : epuise depuis trop longtemps."""
+        return est_masque_epuise(
+            self.quantity, self.caisse_category, self.epuise_depuis, datetime.utcnow()
+        )
 
 
 class BuvetteSale(Base):

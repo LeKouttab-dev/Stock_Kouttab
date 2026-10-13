@@ -33,7 +33,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.core.errors import ErrorCode
 from app.core.exceptions import AppException
 from app.core.logger import get_logger
-from app.crud.buvette import PARIS, aujourd_hui, ventes_regroupees
+from app.crud.buvette import PARIS, aujourd_hui, recaler_epuisement, ventes_regroupees
 from app.db.models import (
     BuvetteProduct,
     BuvetteSale,
@@ -289,6 +289,10 @@ def valider_stock(db: Session, inventaire_id: int) -> Inventaire:
 
     inventaire.statut = STOCK_VALIDE
     inventaire.stock_valide_le = maintenant()
+    db.flush()
+    # Un produit compte a 0 commence (ou poursuit) son delai avant masquage ;
+    # un produit compte au-dessus revient sur la tablette.
+    recaler_epuisement(db, set(produits))
     db.commit()
     logger.info("Inventaire %s : stock valide et mis a jour.", inventaire_id)
     return get_ou_404(db, inventaire_id)

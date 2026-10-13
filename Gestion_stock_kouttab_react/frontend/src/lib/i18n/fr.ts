@@ -632,6 +632,8 @@ export const fr = {
     masquerTablette: 'Masquer de la tablette',
     afficherTablette: 'Afficher sur la tablette',
     masqueTablette: 'Masqué de la tablette',
+    masqueEpuise: 'Masqué : épuisé depuis 7 j',
+    masqueEpuiseAide: 'Épuisé depuis plus de 7 jours : la tablette ne l’affiche plus. Il revient au prochain réappro.',
     produitMasque: 'Produit masqué de la tablette.',
     produitAffiche: 'Produit de nouveau affiché sur la tablette.',
     // Liaison d'un code-barres à un produit existant (importé de HelloAsso,
