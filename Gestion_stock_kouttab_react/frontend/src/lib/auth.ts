@@ -36,6 +36,7 @@ export const ACTIONS = {
   PROFILE_VIEW: 'profile:view',
   CONTACT_VIEW: 'contact:view',
   CALENDAR_VIEW: 'calendar:view',
+  CALENDAR_ROOMS_MANAGE: 'calendar:rooms_manage',
 } as const;
 
 export type Action = (typeof ACTIONS)[keyof typeof ACTIONS];
@@ -91,6 +92,10 @@ const PERMISSIONS: Record<Action, Role[]> = {
   // Même cercle que la buvette. Doit refléter `_ROLES_LECTURE` dans
   // `endpoints/calendar.py` : le menu ne protège rien, c'est le serveur qui tient.
   [ACTIONS.CALENDAR_VIEW]: ['Super Admin', 'AdminBenevoles', 'Compta'],
+  // Ranger les agendas dans les salles décide de ce que TOUT le monde lit
+  // comme emploi du temps. Même cercle que les agendas réservés. Doit refléter
+  // `_REGLAGES` dans `endpoints/calendar.py`.
+  [ACTIONS.CALENDAR_ROOMS_MANAGE]: ['Super Admin'],
 };
 
 export function canAccess(role: Role | null | undefined, action: Action): boolean {

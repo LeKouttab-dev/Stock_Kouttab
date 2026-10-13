@@ -14,6 +14,7 @@ l'une des deux invisible.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -21,13 +22,13 @@ from app.core.config import settings
 from app.core.errors import ErrorCode
 from app.core.exceptions import AppException
 from app.schemas.calendar import AgendaOut, EvenementOut
-from app.services import calendrier_instantane
+from app.services import calendrier_instantane, calendrier_salles
+from app.services.calendrier_salles import ReglageAgenda
 from app.services.google_calendar import (
     agendas_en_cache,
     evenements_en_cache,
     get_google_calendar_client,
 )
-
 
 # Fenêtre maximale servie en un appel. Un affichage mensuel en demande cinq
 # semaines ; au-delà de l'année, ce sont 42 agendas multipliés par autant de
@@ -74,20 +75,34 @@ def borner_fenetre(debut: datetime, fin: datetime) -> tuple[datetime, datetime]:
     return debut, fin
 
 
-def en_agenda(brut: dict[str, Any], restreints: set[str]) -> AgendaOut:
+def en_agenda(
+    brut: dict[str, Any],
+    restreints: set[str],
+    reglages: Mapping[str, ReglageAgenda] | None = None,
+) -> AgendaOut:
     identifiant = brut.get("id", "")
+    nom = brut.get("summaryOverride") or brut.get("summary") or identifiant
+    reglage = (reglages or {}).get(identifiant) or ReglageAgenda()
     return AgendaOut(
         id=identifiant,
-        nom=brut.get("summaryOverride") or brut.get("summary") or identifiant,
+        nom=nom,
         description=brut.get("description"),
         couleur=brut.get("backgroundColor"),
         couleur_texte=brut.get("foregroundColor"),
         fuseau=brut.get("timeZone"),
         restreint=identifiant in restreints,
+        # Le libelle saisi l'emporte sur la regle : c'est tout son objet.
+        nom_court=reglage.nom_court or calendrier_salles.nom_court(nom),
+        enseignant=calendrier_salles.enseignant_de(nom),
+        salle_par_defaut=reglage.salle,
     )
 
 
-def en_evenement(brut: dict[str, Any], agenda: dict[str, Any]) -> EvenementOut | None:
+def en_evenement(
+    brut: dict[str, Any],
+    agenda: dict[str, Any],
+    reglages: Mapping[str, ReglageAgenda] | None = None,
+) -> EvenementOut | None:
     debut_brut = brut.get("start") or {}
     fin_brut = brut.get("end") or {}
     # Une occurrence sans date n'est pas affichable ; elle ne devrait pas
@@ -101,10 +116,22 @@ def en_evenement(brut: dict[str, Any], agenda: dict[str, Any]) -> EvenementOut |
         brut.get("organizer") or {}
     ).get("email")
 
+    agenda_id = agenda.get("id", "")
+    agenda_nom = agenda.get("summaryOverride") or agenda.get("summary") or ""
+    reglage = (reglages or {}).get(agenda_id) or ReglageAgenda()
+
+    # L'ordre decide de ce que l'ecran affiche comme certain. Une salle
+    # reservee dans Google est un fait ; la salle habituelle de l'agenda est
+    # une habitude. On sert les deux, en disant toujours laquelle c'est.
+    salle = calendrier_salles.salle_reservee(brut)
+    salle_source = "google" if salle else None
+    if salle is None and reglage.salle:
+        salle, salle_source = reglage.salle, "correspondance"
+
     return EvenementOut(
         id=brut.get("id", ""),
-        agenda_id=agenda.get("id", ""),
-        agenda_nom=agenda.get("summaryOverride") or agenda.get("summary") or "",
+        agenda_id=agenda_id,
+        agenda_nom=agenda_nom,
         # Un événement sans titre existe dans Google ; l'afficher vide donnerait
         # une pastille muette dans la grille.
         titre=brut.get("summary") or "(Sans titre)",
@@ -118,6 +145,12 @@ def en_evenement(brut: dict[str, Any], agenda: dict[str, Any]) -> EvenementOut |
         lien=brut.get("htmlLink"),
         statut=brut.get("status"),
         recurrent=bool(brut.get("recurringEventId")),
+        salle=salle,
+        salle_source=salle_source,
+        salle_libelle=calendrier_salles.SALLES.get(salle) if salle else None,
+        numero=calendrier_salles.numero_de(brut),
+        enseignant=calendrier_salles.enseignant_de(agenda_nom),
+        nom_court=reglage.nom_court or calendrier_salles.nom_court(agenda_nom),
     )
 
 
@@ -126,6 +159,7 @@ async def evenements_de(
     debut: datetime,
     fin: datetime,
     demandes: list[str] | None = None,
+    reglages: Mapping[str, ReglageAgenda] | None = None,
 ) -> tuple[list[EvenementOut], list[str]]:
     """Les événements des agendas autorisés, triés, et les agendas en échec.
 
@@ -152,7 +186,7 @@ async def evenements_de(
     for calendar_id, items in brut.items():
         agenda = par_id[calendar_id]
         for item in items:
-            evenement = en_evenement(item, agenda)
+            evenement = en_evenement(item, agenda, reglages)
             if evenement is not None:
                 evenements.append(evenement)
 

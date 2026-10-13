@@ -28,7 +28,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 from app.db.types import ChampChiffre
 
-
 # ---- Stock ------------------------------------------------------------------
 
 
@@ -54,9 +53,7 @@ class Stock(Base):
     # une base distante par vignette affichee, sur un ecran qui en montre
     # plusieurs dizaines a la fois. Meme choix que `BuvetteProducts.image_url`.
     image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    barcode: Mapped[str | None] = mapped_column(
-        String(32), nullable=True, unique=True, index=True
-    )
+    barcode: Mapped[str | None] = mapped_column(String(32), nullable=True, unique=True, index=True)
     alert_sent: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
@@ -311,9 +308,7 @@ class Pole(Base):
     # a inventer un libelle pour satisfaire le formulaire. Le drapeau vit sur le
     # pole plutot que dans le code : un pole cree demain declare lui-meme ce
     # qu'il attend, sans redeploiement.
-    requiert_evenement: Mapped[bool] = mapped_column(
-        Boolean, default=False, nullable=False
-    )
+    requiert_evenement: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     # Famille d'evenements proposee sous ce pole : « T », « G », « J »...
     #
     # Les poles evenementiels sont declines par famille (EV(T), EV(G), EV(J)) et
@@ -369,9 +364,7 @@ class Event(Base):
 
     __tablename__ = "Events"
     __table_args__ = (
-        UniqueConstraint(
-            "helloasso_form_type", "helloasso_form_slug", name="uq_event_helloasso"
-        ),
+        UniqueConstraint("helloasso_form_type", "helloasso_form_slug", name="uq_event_helloasso"),
         Index("idx_event_nom", "nom"),
         Index("idx_event_date", "date_evenement"),
         Index("idx_event_active", "is_active"),
@@ -676,9 +669,7 @@ class Expense(Base):
         DateTime, server_default=func.now(), onupdate=func.now()
     )
 
-    user: Mapped["Admin"] = relationship(
-        "Admin", back_populates="expenses", foreign_keys=[id_user]
-    )
+    user: Mapped["Admin"] = relationship("Admin", back_populates="expenses", foreign_keys=[id_user])
     archiviste: Mapped["Admin | None"] = relationship("Admin", foreign_keys=[archived_by])
     reimbursement: Mapped["Reimbursement | None"] = relationship(
         "Reimbursement", back_populates="expenses", foreign_keys=[id_remboursement]
@@ -812,9 +803,7 @@ class Invoice(Base):
         DateTime, server_default=func.now(), onupdate=func.now()
     )
 
-    user: Mapped["Admin"] = relationship(
-        "Admin", back_populates="invoices", foreign_keys=[id_user]
-    )
+    user: Mapped["Admin"] = relationship("Admin", back_populates="invoices", foreign_keys=[id_user])
     archiviste: Mapped["Admin | None"] = relationship("Admin", foreign_keys=[archived_by])
     files: Mapped[list["InvoiceFile"]] = relationship(
         "InvoiceFile", back_populates="invoice", cascade="all, delete-orphan"
@@ -935,9 +924,7 @@ class BuvetteProduct(Base):
     seuil_alerte: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
     emoji: Mapped[str | None] = mapped_column(String(10), default="🥤")
     image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    barcode: Mapped[str | None] = mapped_column(
-        String(32), nullable=True, unique=True, index=True
-    )
+    barcode: Mapped[str | None] = mapped_column(String(32), nullable=True, unique=True, index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     # Photo du produit, EN BASE comme les justificatifs : le disque du VPS
     # n'est pas sauvegarde, la base l'est. `deferred` par principe — lister le
@@ -996,9 +983,7 @@ class BuvetteProduct(Base):
         server_default=func.now(),
     )
 
-    sales: Mapped[list["BuvetteSale"]] = relationship(
-        "BuvetteSale", back_populates="product"
-    )
+    sales: Mapped[list["BuvetteSale"]] = relationship("BuvetteSale", back_populates="product")
 
     @property
     def low_stock(self) -> bool:
@@ -1015,9 +1000,7 @@ class BuvetteProduct(Base):
 class BuvetteSale(Base):
     __tablename__ = "BuvetteSales"
     __table_args__ = (
-        UniqueConstraint(
-            "helloasso_payment_id", "helloasso_item_id", name="uq_sale_payment_item"
-        ),
+        UniqueConstraint("helloasso_payment_id", "helloasso_item_id", name="uq_sale_payment_item"),
         # Idempotence des ventes de la tablette : elle renvoie une vente tant
         # qu'elle n'a pas recu de reponse. Les lignes HelloAsso laissent ces
         # colonnes a NULL, qui ne se heurtent jamais dans un index unique.
@@ -1041,15 +1024,9 @@ class BuvetteSale(Base):
     caisse_tx_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     caisse_line: Mapped[int | None] = mapped_column(Integer, nullable=True)
     sumup_tx_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    helloasso_order_id: Mapped[int | None] = mapped_column(
-        Integer, nullable=True, index=True
-    )
-    helloasso_payment_id: Mapped[int | None] = mapped_column(
-        Integer, nullable=True, index=True
-    )
-    helloasso_item_id: Mapped[int | None] = mapped_column(
-        Integer, nullable=True, index=True
-    )
+    helloasso_order_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    helloasso_payment_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    helloasso_item_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     buvette_product_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey("BuvetteProducts.id", ondelete="SET NULL"),
@@ -1173,9 +1150,7 @@ class ClotureCaisse(Base):
     jour: Mapped[date] = mapped_column(Date, nullable=False)
     periode_debut: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     periode_fin: Mapped[datetime] = mapped_column(DateTime, nullable=False)
-    nb_ventes: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default="0"
-    )
+    nb_ventes: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     attendu_cents: Mapped[int] = mapped_column(Integer, nullable=False)
     compte_cents: Mapped[int] = mapped_column(Integer, nullable=False)
     ecart_cents: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -1201,6 +1176,54 @@ class BuvetteReglage(Base):
     cle: Mapped[str] = mapped_column(String(64), primary_key=True)
     valeur: Mapped[str | None] = mapped_column(Text, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
+class CalendrierAgendaReglage(Base):
+    """Ce que l'application sait d'un agenda Google que Google ne dit pas.
+
+    Deux colonnes, deux manques constates sur les donnees reelles :
+
+    - **`salle`** : trois quarts des cours ne reservent aucune salle dans
+      Google. La grille a pourtant besoin d'une colonne pour chacun. On note
+      ici la salle *habituelle* de l'agenda ; une salle reellement reservee
+      dans l'evenement l'emporte toujours (cf. `services/calendrier.py`).
+      Valeurs : les cles de `calendrier_salles.SALLES`.
+    - **`nom_court`** : le libelle affiche sur la carte quand la regle de
+      raccourcissement tombe mal. Facultatif : vide = calcule.
+
+    `agenda_id` est unique mais **n'est pas la cle primaire** : un identifiant
+    d'agenda Google est une adresse de 60 a 70 caracteres, et un `String(255)`
+    en utf8mb4 pese 1020 octets en index — au-dela des 767 octets qu'autorise
+    InnoDB en format de ligne COMPACT, celui que peut servir la base legacy.
+    Meme parti que `CategorieDepense.nom` : unique, pas primaire.
+
+    Aucune contrainte d'integrite vers Google, evidemment : la source de verite
+    est ailleurs, et un agenda supprime la-bas laisse ici une ligne muette que
+    personne ne lira. Cette table ne stocke **aucun evenement**, conformement
+    au parti du calendrier (rien n'est duplique en base).
+    """
+
+    __tablename__ = "CalendrierAgendaReglages"
+    __table_args__ = (UniqueConstraint("agenda_id", name="uq_calendrier_agenda"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    agenda_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Dernier nom vu chez Google, fige a l'ecriture : sans lui, un agenda
+    # renomme ou supprime laisserait une ligne illisible dans l'ecran de
+    # reglage — une adresse `c_classroom…@group.calendar.google.com` et rien.
+    agenda_nom: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    salle: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    nom_court: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # Nom fige, comme ailleurs : un compte supprime ne doit pas rendre le
+    # reglage anonyme.
+    modifie_par: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    modifie_le: Mapped[datetime] = mapped_column(
         DateTime,
         default=datetime.utcnow,
         onupdate=datetime.utcnow,
@@ -1382,9 +1405,7 @@ class ConversationMessage(Base):
     corps: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
-    conversation: Mapped["Conversation"] = relationship(
-        "Conversation", back_populates="messages"
-    )
+    conversation: Mapped["Conversation"] = relationship("Conversation", back_populates="messages")
 
 
 __all__ = [
