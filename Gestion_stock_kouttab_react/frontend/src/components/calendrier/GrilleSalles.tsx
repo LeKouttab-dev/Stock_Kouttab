@@ -24,6 +24,19 @@ const JOUR_COURT = new Intl.DateTimeFormat('fr-FR', {
   month: 'short',
 });
 
+/**
+ * La séparation entre deux jours : un trait sombre et épais, comme dans Google
+ * Agenda. Entre les salles d'une même journée, le trait reste clair.
+ *
+ * Sans cette hiérarchie, douze colonnes de la même couleur se lisent comme
+ * douze jours : on ne sait plus où finit le mercredi.
+ */
+function finDeJour(indexJour: number, nombreJours: number): string {
+  return indexJour === nombreJours - 1
+    ? 'border-r border-r-sand-200'
+    : 'border-r-2 border-r-forest-600';
+}
+
 interface GrilleSallesProps {
   jours: string[];
   evenements: EvenementCalendrier[];
@@ -124,15 +137,20 @@ export function GrilleSalles({
           } as React.CSSProperties
         }
       >
-        {/* Coin : au croisement des deux axes collants. */}
-        <div className="sticky left-0 top-0 z-30 border-b border-r border-sand-200 bg-cream-50" />
+        {/* Les deux rangées d'en-tête sont collées l'une à l'autre AU PIXEL :
+            la rangée des jours mesure exactement `h-7`, et celle des salles se
+            colle à `top-7`. La première version laissait une fente de deux ou
+            trois pixels entre elles, et les cours défilaient visiblement
+            dedans — c'est ce qui donnait l'impression d'un en-tête sans fond. */}
+        <div className="sticky left-0 top-0 z-30 h-7 border-b border-r border-sand-200 bg-cream-50" />
 
-        {jours.map((jour) => (
+        {jours.map((jour, i) => (
           <div
             key={`jour-${jour}`}
             style={{ gridColumn: `span ${colonnes.length}` }}
             className={cn(
-              'sticky top-0 z-20 border-b border-r border-sand-200 bg-cream-50 px-2 py-1 text-center text-xs font-semibold text-forest',
+              'sticky top-0 z-20 flex h-7 items-center justify-center border-b bg-cream-50 px-2 text-xs font-semibold text-forest',
+              finDeJour(i, jours.length),
               jour === maintenant?.jour && 'bg-terracotta-50',
             )}
           >
@@ -146,12 +164,15 @@ export function GrilleSalles({
         ))}
 
         {/* Deuxième rangée d'en-tête : les salles, sous chaque jour. */}
-        <div className="sticky left-0 top-[1.75rem] z-30 border-b border-r border-sand-200 bg-cream-50" />
-        {jours.map((jour) =>
-          colonnes.map((colonne) => (
+        <div className="sticky left-0 top-7 z-30 border-b border-r border-sand-300 bg-cream-50 shadow-sm" />
+        {jours.map((jour, i) =>
+          colonnes.map((colonne, j) => (
             <div
               key={`salle-${jour}-${colonne}`}
-              className="sticky top-[1.75rem] z-20 truncate border-b border-r border-sand-200 bg-cream-50 px-1 py-0.5 text-center text-[11px] text-forest/70"
+              className={cn(
+                'sticky top-7 z-20 truncate border-b border-sand-300 bg-cream-50 px-1 py-0.5 text-center text-[11px] text-forest/70 shadow-sm',
+                j === colonnes.length - 1 ? finDeJour(i, jours.length) : 'border-r border-r-sand-200',
+              )}
             >
               {parSalle ? (salles[colonne] ?? colonne) : 'Tous les agendas'}
             </div>
@@ -174,8 +195,8 @@ export function GrilleSalles({
           ))}
         </div>
 
-        {jours.map((jour) =>
-          colonnes.map((colonne) => {
+        {jours.map((jour, i) =>
+          colonnes.map((colonne, j) => {
             const places = parColonne.get(`${jour}::${colonne}`) ?? [];
             return (
               <section
@@ -183,7 +204,12 @@ export function GrilleSalles({
                 aria-label={`${JOUR_COURT.format(new Date(`${jour}T12:00:00`))} — ${
                   parSalle ? (salles[colonne] ?? colonne) : 'tous les agendas'
                 }`}
-                className="lignes-horaires relative border-r border-sand-200"
+                // `z-0` isole la colonne : ses cartes, posées en absolu, ne
+                // peuvent plus passer par-dessus les en-têtes collants.
+                className={cn(
+                  'lignes-horaires relative z-0',
+                  j === colonnes.length - 1 ? finDeJour(i, jours.length) : 'border-r border-r-sand-200',
+                )}
                 style={{ height: HAUTEUR_TOTALE }}
               >
                 {/* Les cartes sont posées en absolu : l'ordre du DOM ne suit
@@ -217,7 +243,7 @@ export function GrilleSalles({
                   maintenant.minutes <= MINUTE_FIN && (
                     <div
                       aria-hidden
-                      className="pointer-events-none absolute inset-x-0 z-10 border-t border-terracotta-500"
+                      className="pointer-events-none absolute inset-x-0 z-10 border-t-2 border-terracotta-500"
                       style={{ top: (maintenant.minutes - MINUTE_DEBUT) * PX_PAR_MINUTE }}
                     />
                   )}

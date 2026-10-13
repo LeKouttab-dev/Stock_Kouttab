@@ -26,7 +26,12 @@ function Ligne({ icone: Icone, children }: { icone: typeof MapPin; children: Rea
 }
 
 function Detail({ evenement }: { evenement: EvenementCalendrier }) {
-  const devinee = evenement.salle_source === 'correspondance';
+  const precision =
+    evenement.salle_source === 'correspondance'
+      ? 'Salle habituelle — non réservée dans Google.'
+      : evenement.salle_source === 'defaut'
+        ? 'Aucune salle renseignée — rangé ici par défaut.'
+        : null;
   return (
     <div className="space-y-3 text-sm text-forest">
       <Ligne icone={CalendarDays}>{formatPlage(evenement)}</Ligne>
@@ -34,12 +39,11 @@ function Detail({ evenement }: { evenement: EvenementCalendrier }) {
       {evenement.salle_libelle && (
         <Ligne icone={DoorOpen}>
           {evenement.salle_libelle}
-          {devinee && (
-            // La distinction porte : une habitude n'est pas une réservation,
-            // et quelqu'un qui s'y fie doit savoir que la salle peut être prise.
-            <span className="block text-xs text-forest/60">
-              Salle habituelle — non réservée dans Google.
-            </span>
+          {precision && (
+            // La distinction porte : ni une habitude ni un défaut ne sont une
+            // réservation, et quelqu'un qui s'y fie doit savoir que la salle
+            // peut être prise.
+            <span className="block text-xs text-forest/60">{precision}</span>
           )}
         </Ligne>
       )}

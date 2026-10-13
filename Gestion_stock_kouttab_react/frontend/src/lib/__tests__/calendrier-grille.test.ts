@@ -182,19 +182,20 @@ describe('fusionnerMicroCreneaux', () => {
 });
 
 describe('colonneDe', () => {
-  const salles = { maziri: 'Imam Maziri', nafi: "Imam Nafi'", autre: 'Autre' };
+  const salles = { maziri: 'Imam Maziri', nafi: "Imam Nafi'", zarrouq: 'Imam Zarrouq' };
 
   it('range un événement dans sa salle', () => {
     expect(colonneDe(evenement({ salle: 'maziri' }), salles)).toBe('maziri');
   });
 
-  it('range dans « Autre » ce qui n’a pas de salle', () => {
-    expect(colonneDe(evenement({ salle: null }), salles)).toBe('autre');
+  it('range en Maziri ce qui n’a pas de salle', () => {
+    // Plus de colonne « Autre » : la première salle du référentiel recueille.
+    expect(colonneDe(evenement({ salle: null }), salles)).toBe('maziri');
   });
 
-  it('range dans « Autre » une salle que la grille ne connaît pas', () => {
-    // Une colonne fantôme serait pire qu'un regroupement.
-    expect(colonneDe(evenement({ salle: 'cafeteria' }), salles)).toBe('autre');
+  it('range en Maziri une salle que la grille ne connaît pas', () => {
+    // Une colonne fantôme serait pire qu'une carte mal rangée.
+    expect(colonneDe(evenement({ salle: 'autre' }), salles)).toBe('maziri');
   });
 });
 

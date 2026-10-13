@@ -120,7 +120,8 @@ quand un suivi se termine.
 
 L'onglet n'est pas un miroir de Google Agenda : c'est un **emploi du temps
 d'école**. Trois colonnes de salle par journée — *Imam Maziri*, *Imam Nafi'*,
-*Imam Zarrouq* — plus une colonne *Autre*.
+*Imam Zarrouq*. Il n'y a **pas** de colonne *Autre* : elle a existé un jour, elle
+mangeait une colonne pour des cours que l'équipe sait se tenir en Maziri.
 
 ### D'où vient la salle d'un cours
 
@@ -131,11 +132,11 @@ Trois sources, dans cet ordre, et **l'ordre n'est pas négociable** :
 | 1 | Participant-ressource de l'événement (`attendees[].resource`) — la pièce est **réservée** dans Google Workspace | `google` |
 | 2 | Le champ `location`, **seulement** s'il nomme une des trois salles | `google` |
 | 3 | La salle **habituelle** de l'agenda, saisie dans l'application | `correspondance` |
-| — | Rien de tout cela | `null` → colonne *Autre* |
+| 4 | Rien de tout cela : **Imam Maziri, par défaut** | `defaut` |
 
 **Pourquoi le rang 3 existe** : au relevé du 14 octobre 2026, seuls **22
 événements sur 91 (24 %)** réservaient une salle. Sans correspondance, les
-trois quarts de l'emploi du temps s'entasseraient dans *Autre*.
+trois quarts de l'emploi du temps s'entasseraient en Maziri, par défaut.
 
 **Pourquoi `salle_source` est servi** : une salle de rang 3 est une *habitude*,
 pas une réservation. La carte la signale par une bordure en pointillés. Les
@@ -148,8 +149,9 @@ Deux pièges de lecture, tous deux couverts par des tests :
   l'agenda du même nom écrit l'autre. La reconnaissance est faite sans accents,
   par sous-chaîne (`zarr`), jamais par égalité.
 - **`location` est du texte libre.** « Salle 2 », « le kouttab » ou une adresse
-  postale n'y donnent rien. Seule une **ressource** Google inconnue tombe dans
-  *Autre* — là, quelqu'un a bel et bien bloqué une pièce.
+  postale n'y donnent rien. Une **ressource** Google hors des trois salles (la
+  salle de conférence) ne vaut pas davantage : elle n'a pas de colonne, retombe
+  sur le défaut, et son lieu reste lisible dans la fiche.
 
 ### Les trois agendas « Salle - … » ne servent à rien
 
@@ -197,7 +199,7 @@ Ranger les agendas décide de ce que tout le monde lit.
   agenda d'après les réservations réellement trouvées. Rien n'est enregistré :
   la proposition remplit le formulaire, une personne valide.
 - `GET /calendar/etat` compte les `agendas_sans_salle` — sans ce signal, une
-  grille qui entasse tout dans *Autre* paraît cassée sans raison visible.
+  grille qui entasse tout en Maziri paraît cassée sans raison visible.
 
 Table `CalendrierAgendaReglages` (migration `d1e7f2a4b6c8`) : `agenda_id`
 unique mais **pas clé primaire** — un `String(255)` en utf8mb4 pèse 1020 octets
@@ -245,7 +247,7 @@ Points à connaître avant d'y toucher :
   absolu : sans cela, la tabulation parcourrait la journée dans le désordre, et
   aucun test visuel ne le verrait.
 - **Jusqu'à huit événements simultanés** ont été observés dans la colonne
-  « Autre ». Les blocs qui se recouvrent forment une grappe et se partagent sa
+  par défaut. Les blocs qui se recouvrent forment une grappe et se partagent sa
   largeur — la même pour tous ses membres, sinon l'œil lit un bug.
 
 Les vues par défaut : **3 jours** sur un écran large (sept jours fois quatre

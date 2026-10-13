@@ -256,10 +256,17 @@ export function repartirEnVoies(blocs: BlocGrille[]): EnVoie[] {
   return resultat;
 }
 
-/** La clé de colonne d'un événement : sa salle, ou « autre » par défaut. */
+/**
+ * La clé de colonne d'un événement : sa salle, ou la première du référentiel.
+ *
+ * Le serveur range déjà en Maziri ce qui n'a pas de salle (`salle_source =
+ * "defaut"`). Ce repli ne couvre que l'improbable — une clé que la grille ne
+ * connaît pas — et il vaut mieux une carte mal rangée qu'une colonne fantôme.
+ */
 export function colonneDe(evenement: EvenementCalendrier, salles: Record<string, string>): string {
   const salle = evenement.salle;
-  return salle && salle in salles ? salle : 'autre';
+  if (salle && salle in salles) return salle;
+  return Object.keys(salles)[0] ?? 'maziri';
 }
 
 /** Les jours d'une vue, en `AAAA-MM-JJ` (heure de Paris). */

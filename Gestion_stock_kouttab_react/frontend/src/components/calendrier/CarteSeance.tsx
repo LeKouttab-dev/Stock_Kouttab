@@ -41,7 +41,15 @@ export function CarteSeance({ bloc, hauteur, voies, onOuvrir }: CarteSeanceProps
   const encre = contrasteSur(premier.couleur);
 
   const horaire = `${enHeure(bloc.debutMinutes)}–${enHeure(bloc.finMinutes)}`;
-  const devinee = premier.salle_source === 'correspondance';
+  // Tout ce qui n'est pas réservé dans Google est une supposition, et se voit
+  // comme telle : la salle habituelle de l'agenda, ou Maziri par défaut.
+  const devinee = premier.salle_source !== 'google';
+  const precision =
+    premier.salle_source === 'correspondance'
+      ? ' (salle habituelle, non réservée dans Google)'
+      : premier.salle_source === 'defaut'
+        ? ' (par défaut, aucune salle renseignée)'
+        : '';
 
   const titre = plage
     ? premier.nom_court || premier.agenda_nom
@@ -62,7 +70,7 @@ export function CarteSeance({ bloc, hauteur, voies, onOuvrir }: CarteSeanceProps
       : `${premier.agenda_nom}${premier.numero ? `, séance ${premier.numero}` : ''}`,
     premier.enseignant,
     premier.salle_libelle &&
-      `${premier.salle_libelle}${devinee ? ' (salle habituelle, non réservée dans Google)' : ''}`,
+      `${premier.salle_libelle}${precision}`,
     `de ${enHeure(bloc.debutMinutes)} à ${enHeure(bloc.finMinutes)}`,
   ]
     .filter(Boolean)

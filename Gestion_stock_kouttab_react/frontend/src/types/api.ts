@@ -1014,11 +1014,17 @@ export interface Agenda {
   salle_par_defaut?: string | null;
 }
 
-/** Clé de salle : `maziri` · `nafi` · `zarrouq` · `autre`. */
+/** Clé de salle : `maziri` · `nafi` · `zarrouq`. */
 export type CleSalle = string;
 
-/** D'où vient la salle affichée sur une carte. */
-export type SourceSalle = 'google' | 'correspondance';
+/**
+ * D'où vient la salle affichée sur une carte.
+ *
+ * `google` : réservée. `correspondance` : l'habitude de l'agenda, saisie dans
+ * l'application. `defaut` : personne ne sait, le cours est rangé en Maziri.
+ * Seule la première est un fait.
+ */
+export type SourceSalle = 'google' | 'correspondance' | 'defaut';
 
 /** Une occurrence d'événement : les récurrences sont déjà développées. */
 export interface EvenementCalendrier {
@@ -1037,13 +1043,14 @@ export interface EvenementCalendrier {
   lien?: string | null;
   statut?: string | null;
   recurrent: boolean;
-  /** Colonne de la grille. `null` = la colonne « Autre ». */
+  /** Colonne de la grille. Le serveur range en Maziri ce qui n'a pas de salle. */
   salle?: CleSalle | null;
   /**
    * **Ce qui distingue une salle réservée d'une salle devinée.**
    * `google` : la pièce est bloquée dans Google Agenda.
    * `correspondance` : c'est l'habitude de l'agenda, saisie dans l'application
    * — personne n'a réservé, et l'écran doit le dire.
+   * `defaut` : aucune salle connue, rangé en Maziri faute de mieux.
    */
   salle_source?: SourceSalle | null;
   salle_libelle?: string | null;

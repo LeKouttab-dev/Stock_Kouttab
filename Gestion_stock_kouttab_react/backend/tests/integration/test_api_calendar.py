@@ -244,5 +244,6 @@ def test_un_lieu_en_texte_libre_ne_devient_pas_une_salle(
     )
     evenement = next(e for e in reponse.json()["evenements"] if e["id"] == "evt-1")
     assert evenement["lieu"] == "Salle 2"
-    assert evenement["salle"] is None
-    assert evenement["salle_source"] is None
+    # Rangé en Maziri faute de mieux, mais jamais annoncé comme réservé.
+    assert evenement["salle"] == "maziri"
+    assert evenement["salle_source"] == "defaut"

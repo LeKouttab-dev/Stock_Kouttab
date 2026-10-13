@@ -24,7 +24,7 @@ interface Brouillon {
  *
  * **Pourquoi cet écran existe.** Trois quarts des cours ne réservent aucune
  * salle dans Google : sans correspondance, l'emploi du temps entasserait tout
- * dans la colonne « Autre » et ne servirait à rien. On note donc ici la salle
+ * en Imam Maziri, la salle par défaut, et ne servirait à rien. On note donc ici la salle
  * *habituelle* de chaque agenda.
  *
  * **Ce n'est pas une réservation, et la grille le dit.** Un cours placé par
@@ -128,7 +128,7 @@ export function CalendrierSallesSection() {
           <Alert variant="warning">
             <AlertDescription>
               {sansSalle} agenda(s) sur {agendas.length} n&apos;ont pas de salle : leurs cours
-              s&apos;affichent dans la colonne « Autre ».
+              sont rangés par défaut en Imam Maziri.
             </AlertDescription>
           </Alert>
         )}
