@@ -220,3 +220,28 @@ describe('pages/buvette/BuvettePage : onglets', () => {
     ).toBeInTheDocument();
   });
 });
+
+describe('pages/buvette/BuvettePage : synchronisation HelloAsso désactivée', () => {
+  it('le bouton est grisé, n’appelle pas le serveur et explique pourquoi', async () => {
+    servirProduits();
+    let synchro = false;
+    server.use(
+      http.post(`${BASE_URL}/buvette/sync`, () => {
+        synchro = true;
+        return HttpResponse.json({ created: 0, updated: 0, skipped: 0, errors: [] });
+      }),
+    );
+    const user = userEvent.setup();
+    rendre();
+    connecter('AdminStock');
+
+    const bouton = await screen.findByRole('button', { name: /Synchroniser/ });
+    expect(bouton).toHaveAttribute('aria-disabled', 'true');
+    await user.click(bouton);
+
+    const fenetre = await screen.findByRole('dialog');
+    expect(within(fenetre).getByText('Bouton désactivé')).toBeInTheDocument();
+    expect(within(fenetre).getByText(/Rapprochez-vous d’Omar/)).toBeInTheDocument();
+    expect(synchro).toBe(false);
+  });
+});

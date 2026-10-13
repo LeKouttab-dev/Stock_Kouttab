@@ -17,6 +17,14 @@ import {
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { KpiCard } from '@/components/shared/KpiCard';
 import { EmptyState } from '@/components/shared/EmptyState';
@@ -30,7 +38,6 @@ import {
   useBuvetteProducts,
   useBuvetteSales,
   useDeleteBuvetteProduct,
-  useSyncBuvette,
   useUpdateBuvetteProduct,
 } from '@/api/endpoints/buvette';
 import { useBarcodeLookup } from '@/api/endpoints/stock';
@@ -96,7 +103,6 @@ export function BuvettePage() {
 
   const products = useBuvetteProducts();
   const sales = useBuvetteSales(200, 0);
-  const sync = useSyncBuvette();
   const remove = useDeleteBuvetteProduct();
   const update = useUpdateBuvetteProduct();
 
@@ -171,22 +177,11 @@ export function BuvettePage() {
     };
   }, [list, sales.data]);
 
-  // Pas de `catch` ici : `useSyncBuvette` signale déjà l'échec par un toast,
-  // en ajouter un second en affichait deux à l'écran.
-  const handleSync = () => {
-    // Un appui par erreur (13/10, depuis la tablette) avait importé deux produits.
-    if (!window.confirm(fr.buvette.syncConfirm)) return;
-    sync.mutate(undefined, {
-      onSuccess: (r) => {
-        const msg = fr.buvette.syncSuccess(r);
-        if (r.errors.length > 0) {
-          toast.warning(msg, `${r.errors.length} erreur(s) : voir les logs.`);
-        } else {
-          toast.success('Synchronisation terminée', msg);
-        }
-      },
-    });
-  };
+  // Synchronisation HelloAsso désactivée (Omar, 13/10/2026) : les produits se
+  // gèrent dans l'application, et un appui par erreur avait créé des doublons.
+  // Le bouton reste visible, grisé, et explique pourquoi.
+  const [syncInfoOpen, setSyncInfoOpen] = useState(false);
+  const handleSync = () => setSyncInfoOpen(true);
 
   // Masqué = absent du catalogue de la tablette (le serveur filtre is_active), onglet conservé.
   const handleToggleActive = (p: BuvetteProduct) => {
@@ -257,8 +252,13 @@ export function BuvettePage() {
         <TabsContent value="produits" className="space-y-6">
           <div className="flex flex-wrap gap-2">
             {canSync && (
-              <Button onClick={handleSync} loading={sync.isPending}>
-                {sync.isPending ? fr.buvette.syncing : fr.buvette.sync}
+              <Button
+                variant="outline"
+                aria-disabled="true"
+                className="cursor-not-allowed opacity-50"
+                onClick={handleSync}
+              >
+                {fr.buvette.sync}
               </Button>
             )}
             {canCrud && (
@@ -337,7 +337,12 @@ export function BuvettePage() {
               title={fr.buvette.noProducts}
               action={
                 canSync ? (
-                  <Button onClick={handleSync} loading={sync.isPending}>
+                  <Button
+                    variant="outline"
+                    aria-disabled="true"
+                    className="cursor-not-allowed opacity-50"
+                    onClick={handleSync}
+                  >
                     {fr.buvette.sync}
                   </Button>
                 ) : null
@@ -427,6 +432,17 @@ export function BuvettePage() {
         }}
         lookup={scannedNew}
       />
+      <Dialog open={syncInfoOpen} onOpenChange={setSyncInfoOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{fr.buvette.syncDesactiveTitre}</DialogTitle>
+            <DialogDescription>{fr.buvette.syncDesactiveTexte}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setSyncInfoOpen(false)}>Compris</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
