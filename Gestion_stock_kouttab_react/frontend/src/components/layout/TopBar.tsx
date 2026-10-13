@@ -1,4 +1,4 @@
-import { LogOut, Menu, ChevronDown } from 'lucide-react';
+import { LogOut, Menu, ChevronDown, PanelLeftClose } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
@@ -12,14 +12,16 @@ import {
 import { RoleBadge } from '@/components/shared/RoleBadge';
 import { useAuth } from '@/hooks/useAuth';
 import { useLogout } from '@/api/endpoints/auth';
-import { getInitials } from '@/lib/utils';
+import { cn, getInitials } from '@/lib/utils';
 import { fr } from '@/lib/i18n/fr';
 
 interface TopBarProps {
   onMenuClick: () => void;
+  sidebarRepliee?: boolean;
+  onBasculerSidebar?: () => void;
 }
 
-export function TopBar({ onMenuClick }: TopBarProps) {
+export function TopBar({ onMenuClick, sidebarRepliee, onBasculerSidebar }: TopBarProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const logoutMutation = useLogout();
@@ -42,6 +44,23 @@ export function TopBar({ onMenuClick }: TopBarProps) {
       >
         <Menu className="h-5 w-5" />
       </Button>
+
+      {/* Replier la navigation : sur l'emploi du temps, les 192 px gagnés
+          valent presque deux colonnes de salle. */}
+      {onBasculerSidebar && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onBasculerSidebar}
+          className="hidden lg:inline-flex"
+          aria-expanded={!sidebarRepliee}
+          aria-label={sidebarRepliee ? 'Déplier le menu' : 'Replier le menu'}
+        >
+          <PanelLeftClose
+            className={cn('h-5 w-5 transition-transform', sidebarRepliee && 'rotate-180')}
+          />
+        </Button>
+      )}
 
       <h1 className="font-serif text-base font-semibold text-forest lg:text-lg">{fr.app.title}</h1>
 

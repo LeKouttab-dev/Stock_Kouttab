@@ -1,0 +1,281 @@
+/**
+ * Le calcul de la grille d'emploi du temps : placer, empiler, fusionner.
+ *
+ * Tout est pur et sans React — c'est ce qui permet de vérifier le placement
+ * d'un cours à cheval sur la fin de grille, huit chevauchements simultanés ou
+ * la fusion de douze rendez-vous de cinq minutes sans monter un composant.
+ *
+ * **Pourquoi une grille maison plutôt que FullCalendar** : les colonnes par
+ * ressource (une par salle) appartiennent à FullCalendar Premium, sous licence
+ * payante. Le cas est ici très contraint — lecture seule, 8 h–22 h 30, un seul
+ * fuseau, aucun événement « journée entière » — ce qui rend le composant bon
+ * marché. FullCalendar reste en place pour les vues Mois et Liste.
+ */
+import type { EvenementCalendrier } from '@/types/api';
+
+/** Amplitude de la grille. Relevé réel : premier début 08:30, dernière fin 22:15. */
+export const MINUTE_DEBUT = 8 * 60;
+export const MINUTE_FIN = 22 * 60 + 30;
+export const PX_PAR_MINUTE = 1;
+
+/** En dessous, aucun texte ne tient et la carte n'est plus cliquable. */
+export const HAUTEUR_MIN = 22;
+
+/**
+ * Un créneau de moins de ça n'est pas un cours : les permanences
+ * administratives sont des rendez-vous de paiement de cinq minutes. Sur une
+ * grille de quatorze heures, un tel créneau fait un demi-pourcent de la
+ * hauteur — un filet invisible, et il y en a vingt dans la journée.
+ */
+export const MINUTES_MICRO_CRENEAU = 15;
+
+/** Écart maximal entre deux micro-créneaux d'une même plage. */
+const ECART_MAX_FUSION = 30;
+
+/**
+ * Le fuseau de l'institut, imposé comme dans `lib/calendrier.ts`.
+ *
+ * **Ne jamais passer par `new Date(iso).getHours()`** : ce serait le fuseau du
+ * navigateur. L'intégration continue tourne en UTC, et un cours de 17:30
+ * s'afficherait à 15:30 sans que rien ne le signale — c'est exactement le bug
+ * déjà corrigé sur `formatPlage`.
+ */
+const FUSEAU = 'Europe/Paris';
+
+// Lu par `formatToParts`, et non en découpant la chaîne : `fr-CA` rend
+// « 2026-10-14 17 h 30 », et la ponctuation d'une locale change d'une version
+// d'ICU à l'autre. Les parts, elles, sont nommées.
+const HORLOGE = new Intl.DateTimeFormat('fr-CA', {
+  timeZone: FUSEAU,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+});
+
+export interface InstantParis {
+  /** `AAAA-MM-JJ`, le jour tel qu'il est à Paris. */
+  jour: string;
+  /** Minutes depuis minuit, heure de Paris. */
+  minutes: number;
+}
+
+export function minutesParis(iso: string): InstantParis {
+  const parts: Record<string, string> = {};
+  for (const part of HORLOGE.formatToParts(new Date(iso))) {
+    if (part.type !== 'literal') parts[part.type] = part.value;
+  }
+  // Certains moteurs rendent « 24 » pour minuit plutôt que « 00 ».
+  const heures = Number(parts.hour) % 24;
+  return {
+    jour: `${parts.year}-${parts.month}-${parts.day}`,
+    minutes: heures * 60 + Number(parts.minute),
+  };
+}
+
+export interface Position {
+  top: number;
+  hauteur: number;
+}
+
+/**
+ * Où poser une carte, en pixels depuis le haut de la grille.
+ *
+ * Rend `null` pour ce qui tombe **entièrement** hors de 08:00–22:30. Ces
+ * événements ne sont pas perdus pour autant : l'écran les rassemble dans une
+ * bande « hors plage » sous l'en-tête du jour. Un cours de 7 h ajouté à la
+ * rentrée prochaine ne doit pas disparaître sans bruit.
+ */
+export function placer(debutMinutes: number, finMinutes: number): Position | null {
+  const haut = Math.max(debutMinutes, MINUTE_DEBUT);
+  const bas = Math.min(finMinutes, MINUTE_FIN);
+  if (bas <= haut) return null;
+  return {
+    top: (haut - MINUTE_DEBUT) * PX_PAR_MINUTE,
+    hauteur: Math.max(HAUTEUR_MIN, (bas - haut) * PX_PAR_MINUTE),
+  };
+}
+
+/**
+ * Un bloc de la grille : un cours, ou une plage de micro-créneaux fusionnés.
+ */
+export interface BlocGrille {
+  cle: string;
+  /** Un seul élément dans le cas courant ; N pour une plage fusionnée. */
+  evenements: EvenementCalendrier[];
+  debutMinutes: number;
+  finMinutes: number;
+  jour: string;
+}
+
+function bornesDe(evenement: EvenementCalendrier): { jour: string; debut: number; fin: number } {
+  const debut = minutesParis(evenement.debut);
+  const fin = minutesParis(evenement.fin);
+  return {
+    jour: debut.jour,
+    debut: debut.minutes,
+    // Un événement qui franchit minuit est coupé en bas de grille plutôt que
+    // de produire une hauteur négative.
+    fin: fin.jour === debut.jour ? fin.minutes : MINUTE_FIN,
+  };
+}
+
+/**
+ * Regroupe les micro-créneaux consécutifs d'un même agenda en une seule carte.
+ *
+ * Les permanences administratives sont une vingtaine de rendez-vous de cinq
+ * minutes à la suite. Rendus un par un, ce sont des filets d'un pixel qu'on ne
+ * peut ni lire ni cliquer ; fusionnés, c'est « Permanence administrative,
+ * 12:00–13:00, 12 créneaux », et le détail s'ouvre au clic.
+ *
+ * Ne fusionne **que** des créneaux courts du même agenda : deux cours d'une
+ * heure qui se suivent restent deux cartes, parce que ce sont deux cours.
+ */
+export function fusionnerMicroCreneaux(evenements: EvenementCalendrier[]): BlocGrille[] {
+  const blocs: BlocGrille[] = [];
+  const restants: EvenementCalendrier[] = [];
+  const parAgenda = new Map<string, EvenementCalendrier[]>();
+
+  for (const evenement of evenements) {
+    const { debut, fin } = bornesDe(evenement);
+    if (fin - debut > MINUTES_MICRO_CRENEAU) {
+      restants.push(evenement);
+      continue;
+    }
+    const liste = parAgenda.get(evenement.agenda_id) ?? [];
+    liste.push(evenement);
+    parAgenda.set(evenement.agenda_id, liste);
+  }
+
+  for (const evenement of restants) {
+    const { jour, debut, fin } = bornesDe(evenement);
+    blocs.push({
+      cle: `${evenement.agenda_id}::${evenement.id}`,
+      evenements: [evenement],
+      debutMinutes: debut,
+      finMinutes: fin,
+      jour,
+    });
+  }
+
+  for (const liste of parAgenda.values()) {
+    const tries = [...liste].sort((a, b) => bornesDe(a).debut - bornesDe(b).debut);
+    let plage: EvenementCalendrier[] = [];
+    let debutPlage = 0;
+    let finPlage = 0;
+    let jourPlage = '';
+
+    const pousser = () => {
+      if (!plage.length) return;
+      const premier = plage[0];
+      blocs.push({
+        cle: `${premier.agenda_id}::plage::${premier.id}`,
+        evenements: plage,
+        debutMinutes: debutPlage,
+        finMinutes: finPlage,
+        jour: jourPlage,
+      });
+      plage = [];
+    };
+
+    for (const evenement of tries) {
+      const { jour, debut, fin } = bornesDe(evenement);
+      const suite =
+        plage.length > 0 && jour === jourPlage && debut - finPlage <= ECART_MAX_FUSION;
+      if (suite) {
+        finPlage = Math.max(finPlage, fin);
+      } else {
+        pousser();
+        debutPlage = debut;
+        finPlage = fin;
+        jourPlage = jour;
+      }
+      plage.push(evenement);
+    }
+    pousser();
+  }
+
+  return blocs.sort((a, b) => a.debutMinutes - b.debutMinutes);
+}
+
+export interface EnVoie {
+  bloc: BlocGrille;
+  /** Index de la sous-colonne, de 0 à `voies - 1`. */
+  voie: number;
+  /** Nombre de sous-colonnes de la grappe. Le même pour tous ses membres. */
+  voies: number;
+}
+
+/**
+ * Répartit en sous-colonnes les blocs qui se chevauchent dans une colonne.
+ *
+ * Une salle n'accueille qu'un cours à la fois : dans le cas courant, `voies`
+ * vaut 1. C'est un filet — et il sert surtout la colonne « Autre », qui
+ * rassemble tout ce qui n'a pas de salle. Sur les données réelles, on y a vu
+ * jusqu'à **huit événements simultanés**.
+ *
+ * `voies` est le compte de la **grappe** entière, identique pour tous ses
+ * membres : avec un compte par bloc, deux cartes de la même bande auraient des
+ * largeurs différentes et l'œil lirait un bug.
+ */
+export function repartirEnVoies(blocs: BlocGrille[]): EnVoie[] {
+  const tries = [...blocs].sort(
+    (a, b) =>
+      a.debutMinutes - b.debutMinutes || b.finMinutes - b.debutMinutes - (a.finMinutes - a.debutMinutes),
+  );
+
+  const resultat: EnVoie[] = [];
+  let grappe: EnVoie[] = [];
+  let finsDesVoies: number[] = [];
+
+  const clore = () => {
+    const voies = finsDesVoies.length || 1;
+    for (const place of grappe) resultat.push({ ...place, voies });
+    grappe = [];
+    finsDesVoies = [];
+  };
+
+  for (const bloc of tries) {
+    // La grappe se vide quand plus rien ne déborde sur ce bloc : on est alors
+    // devant un ensemble transitivement chevauchant, clos.
+    if (finsDesVoies.length && finsDesVoies.every((fin) => fin <= bloc.debutMinutes)) clore();
+
+    let voie = finsDesVoies.findIndex((fin) => fin <= bloc.debutMinutes);
+    if (voie === -1) {
+      voie = finsDesVoies.length;
+      finsDesVoies.push(bloc.finMinutes);
+    } else {
+      finsDesVoies[voie] = bloc.finMinutes;
+    }
+    grappe.push({ bloc, voie, voies: 1 });
+  }
+  clore();
+
+  return resultat;
+}
+
+/** La clé de colonne d'un événement : sa salle, ou « autre » par défaut. */
+export function colonneDe(evenement: EvenementCalendrier, salles: Record<string, string>): string {
+  const salle = evenement.salle;
+  return salle && salle in salles ? salle : 'autre';
+}
+
+/** Les jours d'une vue, en `AAAA-MM-JJ` (heure de Paris). */
+export function joursDeLaVue(ancre: Date, nombre: number): string[] {
+  const jours: string[] = [];
+  for (let i = 0; i < nombre; i += 1) {
+    const jour = new Date(ancre);
+    jour.setDate(jour.getDate() + i);
+    jours.push(minutesParis(jour.toISOString()).jour);
+  }
+  return jours;
+}
+
+/** `17:30` à partir de minutes depuis minuit. */
+export function enHeure(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}

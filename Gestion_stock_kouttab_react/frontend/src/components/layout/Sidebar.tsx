@@ -23,6 +23,14 @@ import { Logo } from '@/components/shared/Logo';
 interface SidebarProps {
   open: boolean;
   onClose: () => void;
+  /**
+   * Repliée en rail d'icônes (desktop seulement).
+   *
+   * Un rail, et non une disparition : masquer complètement la navigation
+   * obligerait à un bouton flottant, donc un geste de plus pour changer de
+   * page. Le tiroir mobile (`open`) n'est pas concerné.
+   */
+  repliee?: boolean;
 }
 
 interface NavItem {
@@ -34,7 +42,7 @@ interface NavItem {
   badge?: number;
 }
 
-export function Sidebar({ open, onClose }: SidebarProps) {
+export function Sidebar({ open, onClose, repliee = false }: SidebarProps) {
   const { can } = useAuth();
   // Compteurs déjà filtrés par les droits côté serveur : inutile de les
   // recouper ici, un rôle sans droit reçoit des zéros.
@@ -127,14 +135,20 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-forest-700 bg-forest text-cream-100 transition-transform lg:static lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-forest-700 bg-forest text-cream-100 transition-transform lg:static lg:translate-x-0 lg:transition-[width] motion-reduce:transition-none',
           open ? 'translate-x-0' : '-translate-x-full',
+          repliee && 'lg:w-16',
         )}
       >
-        <div className="flex items-center justify-between border-b border-forest-700 px-5 py-4">
+        <div
+          className={cn(
+            'flex items-center justify-between border-b border-forest-700 py-4',
+            repliee ? 'px-3 lg:justify-center' : 'px-5',
+          )}
+        >
           <div className="flex items-center gap-2">
             <Logo className="h-9 w-9 flex-shrink-0 rounded-md shadow-sm" />
-            <div>
+            <div className={cn(repliee && 'lg:hidden')}>
               <p className="font-serif text-base font-bold leading-tight text-cream-50">
                 Le Kouttâb
               </p>
@@ -164,9 +178,14 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                       to={item.to}
                       end={item.to === '/dashboard'}
                       onClick={onClose}
+                      // Le libellé disparaît du rail : `title` donne l'indice
+                      // au survol, `aria-label` garde le nom accessible.
+                      title={item.label}
+                      aria-label={item.label}
                       className={({ isActive }) =>
                         cn(
-                          'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                          'relative flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                          repliee && 'lg:justify-center lg:gap-0 lg:px-2',
                           isActive
                             ? 'bg-terracotta text-cream-50 shadow-sm'
                             : 'text-cream-100/90 hover:bg-forest-700 hover:text-cream-50',
@@ -174,18 +193,31 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                       }
                     >
                       <Icon className="h-4 w-4 flex-shrink-0" />
-                      <span className="flex-1">{item.label}</span>
+                      <span className={cn('flex-1', repliee && 'lg:hidden')}>{item.label}</span>
                       {/* Pastille de comptage : elle dit combien de dossiers
                           attendent, sans avoir à ouvrir la page. Masquée à 0
                           plutôt qu'affichée vide, pour que sa seule présence
                           signifie « il y a quelque chose à faire ». */}
                       {Boolean(item.badge) && (
-                        <span
-                          aria-label={`${item.badge} ${fr.notifications.aTraiter}`}
-                          className="ml-auto min-w-[1.25rem] rounded-full bg-terracotta px-1.5 py-0.5 text-center text-[11px] font-semibold leading-none text-cream-50 shadow-sm"
-                        >
-                          {item.badge}
-                        </span>
+                        <>
+                          <span
+                            aria-label={`${item.badge} ${fr.notifications.aTraiter}`}
+                            className={cn(
+                              'ml-auto min-w-[1.25rem] rounded-full bg-terracotta px-1.5 py-0.5 text-center text-[11px] font-semibold leading-none text-cream-50 shadow-sm',
+                              repliee && 'lg:hidden',
+                            )}
+                          >
+                            {item.badge}
+                          </span>
+                          {/* En rail, un point suffit à l'œil — mais le compte
+                              doit rester lisible par un lecteur d'écran. */}
+                          {repliee && (
+                            <span
+                              aria-hidden
+                              className="absolute right-1.5 top-1.5 hidden h-2 w-2 rounded-full bg-terracotta lg:block"
+                            />
+                          )}
+                        </>
                       )}
                     </NavLink>
                   </li>
@@ -194,8 +226,13 @@ export function Sidebar({ open, onClose }: SidebarProps) {
           </ul>
         </nav>
 
-        <div className="border-t border-forest-700 px-5 py-3 text-xs text-cream-200/70">
-          <p>Version 1.0.0</p>
+        <div
+          className={cn(
+            'border-t border-forest-700 py-3 text-xs text-cream-200/70',
+            repliee ? 'px-2 text-center lg:text-[10px]' : 'px-5',
+          )}
+        >
+          <p>{repliee ? 'v1.0' : 'Version 1.0.0'}</p>
         </div>
       </aside>
     </>

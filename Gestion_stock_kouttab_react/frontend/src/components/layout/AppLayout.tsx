@@ -4,6 +4,8 @@ import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { useRappelConnexion } from '@/hooks/useRappelConnexion';
 import { useModeTablette } from '@/hooks/useModeTablette';
+import { useSidebarRepliee } from '@/hooks/useSidebarRepliee';
+import { estPleineLargeur } from '@/lib/layout';
 
 export function AppLayout() {
   const { actif: tablette } = useModeTablette();
@@ -12,6 +14,9 @@ export function AppLayout() {
 
 function CoquilleStandard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { pathname } = useLocation();
+  const pleine = estPleineLargeur(pathname);
+  const { repliee, basculer } = useSidebarRepliee(pathname);
   // Rappel de ce qui attend l'utilisateur, une fois par connexion. Place ici
   // parce que toute page authentifiee passe par cette coquille.
   useRappelConnexion();
@@ -28,13 +33,31 @@ function CoquilleStandard() {
     // `dvh` et non `vh` : sur mobile, `100vh` ignore la barre d'adresse et vaut
     // plus que la surface réellement visible, ce qui rognait le bas de page.
     <div className="flex h-dvh overflow-hidden bg-background text-foreground">
-      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} repliee={repliee} />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <TopBar onMenuClick={() => setSidebarOpen(true)} />
-        <main className="flex-1 overflow-y-auto overscroll-contain px-4 py-6 lg:px-8">
-          <div className="mx-auto w-full max-w-7xl">
+        <TopBar
+          onMenuClick={() => setSidebarOpen(true)}
+          sidebarRepliee={repliee}
+          onBasculerSidebar={basculer}
+        />
+        {/* L'invariant « un seul élément défile » tient toujours en pleine
+            largeur — il DESCEND simplement d'un niveau. Ici `<main>` ne
+            défile plus ; c'est la page qui porte sa propre zone de
+            défilement, et il n'y en a toujours qu'une. */}
+        <main
+          className={
+            pleine
+              ? 'flex min-h-0 flex-1 flex-col overflow-hidden'
+              : 'flex-1 overflow-y-auto overscroll-contain px-4 py-6 lg:px-8'
+          }
+        >
+          {pleine ? (
             <Outlet />
-          </div>
+          ) : (
+            <div className="mx-auto w-full max-w-7xl">
+              <Outlet />
+            </div>
+          )}
         </main>
       </div>
     </div>
