@@ -177,3 +177,29 @@ def test_le_releve_fige_est_annonce_comme_tel(client: TestClient, monkeypatch, p
     assert charge["instantane"] is True
     assert charge["genere_le"]
     assert charge["evenements"], "le releve livre couvre cette semaine-la"
+
+
+def test_les_reglages_de_salle_traversent_aussi(
+    client: TestClient, pont, super_admin_user, auth_headers
+):
+    """Gestion doit lire le MEME emploi du temps que l'onglet d'ici.
+
+    Le calcul est partage (`services/calendrier.py`), mais la correspondance
+    agenda -> salle vit en base, et `sso_calendrier` etait le seul endpoint du
+    calendrier sans session. L'oublier aurait donne `salle: null` de l'autre
+    cote, pour les memes evenements que l'onglet place dans une colonne : deux
+    chemins de lecture qui repondent differemment a la meme question.
+    """
+    pose = client.put(
+        "/api/v1/calendar/reglages-agendas",
+        json={"reglages": {AGENDA_OUVERT["id"]: {"salle": "zarrouq"}}},
+        headers=auth_headers(super_admin_user),
+    )
+    assert pose.status_code == 200, pose.text
+
+    charge = client.post(URL, json={"token": _jeton()}).json()
+    evenement = charge["evenements"][0]
+    assert evenement["salle"] == "zarrouq"
+    assert evenement["salle_source"] == "correspondance"
+    assert charge["agendas"][0]["salle_par_defaut"] == "zarrouq"
+    assert charge["agendas"][0]["nom_court"] == "Coran ENF 1"

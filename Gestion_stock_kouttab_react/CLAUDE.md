@@ -268,6 +268,7 @@ le démarrage en production. Les valeurs en clair héritées restent lisibles
 | Calendrier — consulter les agendas Google | — | ✅ | ✅ | ✅ |
 | Calendrier — agendas déclarés réservés (`GOOGLE_CALENDAR_RESTRICTED`) | — | — | — | ✅ |
 | Calendrier — état de l'intégration | — | — | — | ✅ |
+| Calendrier — ranger les agendas dans les salles | — | — | — | ✅ |
 | Caisse — lire le catalogue, envoyer une vente | clé `CAISSE_API_KEY` (la tablette), aucun rôle | | | |
 | Caisse — envoyer son état, réappro depuis l'écran « Personnel » | clé `CAISSE_API_KEY` | | | |
 | Caisse — ouvrir la session « tablette » (droits `AdminStock`, nom de l'opérateur) | clé `CAISSE_API_KEY` | | | |
@@ -794,11 +795,40 @@ enseignant et les réservations de salles : même cercle que la buvette —
 AdminBenevoles, Compta, Super Admin (`_ROLES_LECTURE` dans
 `endpoints/calendar.py`, jumelé à `ACTIONS.CALENDAR_VIEW` côté front).
 
-- `GET /calendar/agendas` — agendas visibles par le compte connecté
+- `GET /calendar/agendas` — agendas visibles par le compte connecté, avec
+  `nom_court`, `enseignant` et `salle_par_defaut`
 - `GET /calendar?debut=&fin=&agendas=` — événements de la fenêtre (400 jours max),
-  récurrences déjà développées par Google
+  récurrences déjà développées par Google. Chaque événement porte aussi `salle`,
+  **`salle_source`**, `salle_libelle`, `numero`, `enseignant`, `nom_court`
 - `GET /calendar/etat` — diagnostic (Super Admin) ; `POST /calendar/rafraichir`
   vide le cache mémoire (AdminBenevoles+)
+- `GET|PUT /calendar/reglages-agendas` et `GET /calendar/reglages-agendas/deduire`
+  — **la salle habituelle de chaque agenda** (Super Admin seul)
+
+**L'onglet est un emploi du temps, pas un miroir de Google** (14/10/2026,
+migration **`d1e7f2a4b6c8`**, table `CalendrierAgendaReglages`). Trois colonnes
+de salle par journée — Imam Maziri, Imam Nafi', Imam Zarrouq — plus « Autre ».
+
+La salle d'un cours se résout dans cet ordre : **participant-ressource Google >
+`location` s'il nomme une des trois salles > salle habituelle de l'agenda >
+rien**. `salle_source` dit toujours laquelle des trois : une salle de rang 3
+est une *habitude*, pas une réservation, et la carte la marque en pointillés —
+les confondre enverrait un enseignant devant une porte occupée. Au relevé du
+14/10/2026, **seuls 24 % des événements réservaient une salle**, d'où la table
+de correspondance. Calcul dans `services/calendrier_salles.py` (fonctions
+pures : `salle_reservee`, `nom_court`, `enseignant_de`, `numero_de`).
+
+Le titre Google d'un cours est `cours 19` : la carte affiche le **nom d'agenda
+raccourci** (`Coran ENF 1`), le numéro de séance (lu dans
+`extendedProperties.private.numero`, repli sur le titre) et l'enseignant
+(`U.soundousse` → `U. Soundousse`). La règle de raccourcissement vit **en
+Python seul** — la dupliquer côté front créerait une troisième paire de modules
+jumeaux après `naming` et `money`. Elle tombe juste sur 44 des 45 agendas
+réels ; le dernier se corrige dans l'écran de réglage.
+
+`CalendrierAgendaReglages.agenda_id` est **unique mais pas clé primaire** : un
+`String(255)` utf8mb4 pèse 1020 octets d'index, au-delà des 767 qu'autorise
+InnoDB en format `COMPACT`. Même parti que `CategoriesDepense.nom`.
 - `POST /auth/sso/calendrier` — **le même calendrier, pour l'outil de gestion**
   (jeton `typ: 'sso-calendrier'`, 60 s, secret partagé). `gestion.lekouttab.fr`
   affiche son propre onglet sans second compte de service Google : une seule
@@ -831,7 +861,13 @@ avec ce à quoi le compte a droit, et l'agenda n'est même pas interrogé.
 **Le cache mémoire n'est pas un confort** : 42 agendas font 42 appels à Google
 par fenêtre affichée, et feuilleter les mois épuiserait le quota.
 
-**Un relevé figé tient lieu de source tant que Google n'est pas branché**
+**Le relevé figé est inerte depuis le 13/10/2026** : la clé du compte de
+service est posée en production, `sur_instantane()` rend `false`. Son ménage
+(fichier, service, champs `instantane`/`genere_le`, bannière) touche le contrat
+lu par gestion et attend sa propre PR. Ce qui suit décrit son fonctionnement
+d'alors.
+
+**Un relevé figé tenait lieu de source tant que Google n'était pas branché**
 (`services/calendrier_instantane.py`, `app/ressources/calendrier_instantane.json`,
 195 événements du 20 sept. au 18 oct. 2026). Provisoire : **Google l'emporte dès
 qu'il est configuré**, sinon le fichier masquerait la source vivante. L'écran

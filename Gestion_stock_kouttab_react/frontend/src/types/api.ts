@@ -1006,7 +1006,19 @@ export interface Agenda {
   fuseau?: string | null;
   /** Agenda réservé au Super Admin (rendez-vous de santé, par exemple). */
   restreint: boolean;
+  /** « Coran ENF 1 » plutôt que « Coran - enfants 1 U.soundousse 2026/2027 ». */
+  nom_court: string;
+  /** Lu dans le nom de l'agenda (« U.soundousse »). Tous n'en portent pas. */
+  enseignant?: string | null;
+  /** Salle habituelle saisie dans les réglages. Pas une réservation. */
+  salle_par_defaut?: string | null;
 }
+
+/** Clé de salle : `maziri` · `nafi` · `zarrouq` · `autre`. */
+export type CleSalle = string;
+
+/** D'où vient la salle affichée sur une carte. */
+export type SourceSalle = 'google' | 'correspondance';
 
 /** Une occurrence d'événement : les récurrences sont déjà développées. */
 export interface EvenementCalendrier {
@@ -1025,6 +1037,20 @@ export interface EvenementCalendrier {
   lien?: string | null;
   statut?: string | null;
   recurrent: boolean;
+  /** Colonne de la grille. `null` = la colonne « Autre ». */
+  salle?: CleSalle | null;
+  /**
+   * **Ce qui distingue une salle réservée d'une salle devinée.**
+   * `google` : la pièce est bloquée dans Google Agenda.
+   * `correspondance` : c'est l'habitude de l'agenda, saisie dans l'application
+   * — personne n'a réservé, et l'écran doit le dire.
+   */
+  salle_source?: SourceSalle | null;
+  salle_libelle?: string | null;
+  /** Numéro de séance : « cours 19 » → « 19 ». Absent des permanences. */
+  numero?: string | null;
+  enseignant?: string | null;
+  nom_court: string;
 }
 
 export interface CalendrierReponse {
@@ -1035,6 +1061,29 @@ export interface CalendrierReponse {
   instantane: boolean;
   /** Date du relevé (AAAA-MM-JJ) quand `instantane`. */
   genere_le?: string | null;
+  /** Référentiel des salles, dans l'ordre des colonnes. Servi, jamais recopié. */
+  salles: Record<CleSalle, string>;
+}
+
+/** Une ligne de l'écran *Réglages des agendas*. */
+export interface ReglageAgenda {
+  agenda_id: string;
+  salle?: CleSalle | null;
+  nom_court?: string | null;
+}
+
+export interface ReglagesAgendas {
+  reglages: ReglageAgenda[];
+  salles: Record<CleSalle, string>;
+}
+
+/** Salle *proposée* pour un agenda, d'après les réservations déjà faites. */
+export interface SalleDeduite {
+  agenda_id: string;
+  agenda_nom: string;
+  salle: CleSalle;
+  occurrences: number;
+  total_evenements: number;
 }
 
 export interface EtatCalendrier {
@@ -1044,6 +1093,8 @@ export interface EtatCalendrier {
   compte_impersonne?: string | null;
   nombre_agendas?: number | null;
   agendas_restreints: string[];
+  /** Agendas sans salle habituelle : autant de cours entassés dans « Autre ». */
+  agendas_sans_salle?: number | null;
   erreur?: string | null;
 }
 

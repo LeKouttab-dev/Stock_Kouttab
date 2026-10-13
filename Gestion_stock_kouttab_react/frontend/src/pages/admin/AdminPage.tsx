@@ -30,6 +30,7 @@ import { AnnuaireSection } from './AnnuaireSection';
 import { ExpenseCategoriesManagementSection } from './ExpenseCategoriesManagementSection';
 import { PolesManagementSection } from './PolesManagementSection';
 import { EventsManagementSection } from './EventsManagementSection';
+import { CalendrierSallesSection } from './CalendrierSallesSection';
 import { OutboundEmailsSection } from './OutboundEmailsSection';
 
 const invitationFormSchema = z.object({
@@ -48,6 +49,7 @@ export function AdminPage() {
   const canManagePoles = can(ACTIONS.POLES_MANAGE);
   const canManageEvents = can(ACTIONS.EVENTS_MANAGE);
   const canSuperviseOutbox = can(ACTIONS.COMPTA_RESEND_EMAIL);
+  const canManageCalendarRooms = can(ACTIONS.CALENDAR_ROOMS_MANAGE);
 
   return (
     <div className="space-y-6">
@@ -108,6 +110,11 @@ export function AdminPage() {
           {canManageEvents && <EventsManagementSection />}
         </div>
       )}
+
+      {/* L'emploi du temps : à quelle salle rattacher chaque agenda Google.
+          Sa place est ici et non dans l'onglet Calendrier — c'est un réglage
+          d'installation, fait une fois par rentrée, pas un geste de lecture. */}
+      {canManageCalendarRooms && <CalendrierSallesSection />}
 
       {/* Annuaire : la comptabilité y a accès, la gestion des comptes non. */}
       {canSuperviseOutbox && <AnnuaireSection />}

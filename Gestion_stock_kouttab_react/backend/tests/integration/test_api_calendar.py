@@ -228,3 +228,21 @@ def test_un_benevole_n_a_pas_acces_au_calendrier(
         ).status_code
         == 403
     )
+
+
+def test_un_lieu_en_texte_libre_ne_devient_pas_une_salle(
+    client: TestClient, super_admin_user, auth_headers, google
+):
+    """`lieu` reste servi tel quel, mais ne remplit pas la colonne de salle.
+
+    L'evenement de ce fichier porte `location: "Salle 2"` — un mot tape dans
+    un champ libre, qui ne reserve aucune piece. Le promouvoir en salle ferait
+    apparaitre dans la grille une occupation que personne n'a posee.
+    """
+    reponse = client.get(
+        "/api/v1/calendar", params=FENETRE, headers=auth_headers(super_admin_user)
+    )
+    evenement = next(e for e in reponse.json()["evenements"] if e["id"] == "evt-1")
+    assert evenement["lieu"] == "Salle 2"
+    assert evenement["salle"] is None
+    assert evenement["salle_source"] is None

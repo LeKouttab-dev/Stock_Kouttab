@@ -12,6 +12,7 @@ function evenement(partiel: Partial<EvenementCalendrier>): EvenementCalendrier {
     fin: '2026-09-21T18:30:00+02:00',
     journee_entiere: false,
     recurrent: false,
+    nom_court: 'Agenda',
     ...partiel,
   };
 }

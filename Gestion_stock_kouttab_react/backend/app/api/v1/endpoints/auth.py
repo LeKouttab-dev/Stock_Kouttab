@@ -29,6 +29,7 @@ from app.core.security import (
     verify_password_legacy,
 )
 from app.crud import auth_security
+from app.crud import calendrier as crud_calendrier
 from app.crud import sso as sso_crud
 from app.services import calendrier, calendrier_instantane
 from app.crud import event as event_crud
@@ -698,7 +699,9 @@ def admin_setup(
 # Meme client unique que la pastille et les depenses : l'IP du VPS de gestion,
 # une requete par fenetre consultee, memoisee 60 s la-bas.
 @limiter.limit("120/minute")
-async def sso_calendrier(request: Request, payload: SsoExchangeIn) -> Any:
+async def sso_calendrier(
+    request: Request, payload: SsoExchangeIn, db: Session = Depends(get_db)
+) -> Any:
     """Le calendrier de l'institut, pour l'onglet du meme nom cote gestion.
 
     Jeton dedie (typ 'sso-calendrier', 60 s) signe du secret partage. Lecture
@@ -714,6 +717,11 @@ async def sso_calendrier(request: Request, payload: SsoExchangeIn) -> Any:
 
     Le droit d'ouvrir cet onglet est verifie cote gestion, ou vivent les roles ;
     ici on verifie seulement que la question vient bien de l'outil de gestion.
+
+    **Les reglages de salle traversent, eux.** Sans eux, gestion verrait
+    `salle: null` partout ou l'onglet d'ici affiche une salle : deux chemins de
+    lecture qui repondent differemment a la meme question, ce que le docstring
+    de `services/calendrier.py` interdit explicitement.
     """
     secret = settings.sso_shared_secret.strip()
     if not secret:
@@ -732,13 +740,16 @@ async def sso_calendrier(request: Request, payload: SsoExchangeIn) -> Any:
     debut, fin = calendrier.borner_fenetre(debut, fin)
 
     autorises = calendrier.sans_les_restreints(await calendrier.tous_les_agendas())
-    evenements, _echecs = await calendrier.evenements_de(autorises, debut, fin)
+    reglages = crud_calendrier.reglages_par_agenda(db)
+    evenements, _echecs = await calendrier.evenements_de(
+        autorises, debut, fin, reglages=reglages
+    )
     fige = calendrier.sur_instantane()
     return SsoCalendrierOut(
         # `restreints=set()` : ce qui sort d'ici ne l'est jamais, l'etiquette
         # n'aurait aucun sens de l'autre cote.
         agendas=sorted(
-            (calendrier.en_agenda(a, set()) for a in autorises),
+            (calendrier.en_agenda(a, set(), reglages) for a in autorises),
             key=lambda a: a.nom.lower(),
         ),
         evenements=evenements,
