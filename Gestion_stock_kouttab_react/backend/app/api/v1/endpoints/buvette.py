@@ -49,6 +49,7 @@ from app.schemas.buvette import (
     CaisseEtatOut,
     CaisseJournalIn,
     CaisseOrdreIn,
+    ReprendrePhotoIn,
     CaisseOrdreOut,
     CaisseOrdreVentesOut,
     CaisseProduitOut,
@@ -231,6 +232,21 @@ async def deposer_photo(
     depot = await files_service.lire_en_memoire(file, "expenses")
     product = buvette_crud.enregistrer_photo(db, product_id, depot["contenu"])  # type: ignore[arg-type]
     return _en_produit_out(product)
+
+
+@router.post(
+    "/products/{product_id}/photo/reprendre",
+    response_model=BuvetteProductOut,
+    dependencies=[Depends(require_roles(*_GESTION_ROLES))],
+)
+def reprendre_photo(
+    product_id: int, payload: ReprendrePhotoIn, db: Session = Depends(get_db)
+) -> Any:
+    """Reprend la photo d'un autre produit, sans rien importer (« 2x Expresso »).
+
+    Le produit passe en « edite a la main », comme pour un depot.
+    """
+    return _en_produit_out(buvette_crud.reprendre_photo(db, product_id, payload.source_id))
 
 
 @router.delete(

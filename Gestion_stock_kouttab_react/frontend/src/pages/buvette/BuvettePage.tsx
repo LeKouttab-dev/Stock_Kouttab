@@ -174,6 +174,8 @@ export function BuvettePage() {
   // Pas de `catch` ici : `useSyncBuvette` signale déjà l'échec par un toast,
   // en ajouter un second en affichait deux à l'écran.
   const handleSync = () => {
+    // Un appui par erreur (13/10, depuis la tablette) avait importé deux produits.
+    if (!window.confirm(fr.buvette.syncConfirm)) return;
     sync.mutate(undefined, {
       onSuccess: (r) => {
         const msg = fr.buvette.syncSuccess(r);

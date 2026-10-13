@@ -182,6 +182,12 @@ class CaisseCatalogueOut(BaseModel):
     generated_at: datetime
 
 
+class ReprendrePhotoIn(BaseModel):
+    """Produit dont la photo est reprise (cf. `POST /products/{id}/photo/reprendre`)."""
+
+    source_id: int = Field(ge=1)
+
+
 class CaisseOrdreIn(BaseModel):
     """Ordre complet d'un onglet de la tablette, du premier au dernier produit."""
 
