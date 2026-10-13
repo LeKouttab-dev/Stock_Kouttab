@@ -444,6 +444,10 @@ export interface BuvetteProduct {
   a_une_photo?: boolean;
   /** Dernier prix d'achat unitaire saisi au réappro : pré-remplit le suivant. */
   dernier_prix_achat_cents?: number | null;
+  /** Stock à 0 depuis cet instant (UTC) ; `null` dès qu'il y a du stock. */
+  epuise_depuis?: string | null;
+  /** Retiré de la tablette : épuisé depuis plus de 7 jours (hors cafés). Revient au réappro. */
+  masque_epuise?: boolean;
   /** Rang dans l'onglet de la tablette (1..n) ; `null` = pas encore rangé (en fin). */
   ordre_caisse?: number | null;
   /** Étiquette affichée sur la tablette ; `null` = aucune. */

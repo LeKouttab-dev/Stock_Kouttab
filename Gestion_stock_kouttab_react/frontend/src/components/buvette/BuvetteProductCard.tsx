@@ -38,6 +38,8 @@ export function BuvetteProductCard({
 }: BuvetteProductCardProps) {
   const isHelloAsso = product.helloasso_tier_id !== null;
   const masque = !product.is_active;
+  // Calculé par le serveur, indépendant de l'œil : un réappro le lève seul.
+  const masqueEpuise = !masque && Boolean(product.masque_epuise);
 
   return (
     <Card
@@ -81,7 +83,7 @@ export function BuvetteProductCard({
           {getStockBadge(product)}
         </div>
 
-        {(isHelloAsso || product.caisse_category || masque) && (
+        {(isHelloAsso || product.caisse_category || masque || masqueEpuise) && (
           <div className="flex flex-wrap gap-1.5">
             {isHelloAsso && (
               <Badge variant="outline" className="w-fit text-[10px]">
@@ -95,6 +97,16 @@ export function BuvetteProductCard({
               <Badge variant="outline" className="w-fit text-[10px]">
                 <EyeOff className="h-3.5 w-3.5" aria-hidden />
                 {fr.buvette.masqueTablette}
+              </Badge>
+            ) : masqueEpuise ? (
+              <Badge
+                variant="outline"
+                className="w-fit text-[10px]"
+                title={fr.buvette.masqueEpuiseAide}
+                data-testid="badge-masque-epuise"
+              >
+                <EyeOff className="h-3.5 w-3.5" aria-hidden />
+                {fr.buvette.masqueEpuise}
               </Badge>
             ) : (
               product.caisse_category && (

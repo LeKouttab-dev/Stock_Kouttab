@@ -21,6 +21,8 @@ from app.core.exceptions import AppException
 from app.core.logger import get_logger
 from app.core.security import validate_email_str
 from app.db.models import (
+    CATEGORIES_JAMAIS_MASQUEES,
+    JOURS_AVANT_MASQUAGE_EPUISE,
     Admin,
     BuvetteProduct,
     BuvetteReapprovisionnement,
@@ -186,6 +188,7 @@ def create_product(
                     created_at=_maintenant_utc(),
                 )
             )
+        recaler_epuisement(db, [product.id])
         db.commit()
     except IntegrityError as exc:
         _handle_product_integrity_error(
@@ -630,6 +633,8 @@ def sync_from_helloasso(db: Session, tiers: list[dict[str, Any]]) -> SyncResult:
             result.skipped += 1
 
     try:
+        db.flush()
+        recaler_epuisement(db)
         db.commit()
     except IntegrityError as exc:
         db.rollback()
@@ -641,6 +646,32 @@ def sync_from_helloasso(db: Session, tiers: list[dict[str, Any]]) -> SyncResult:
 # ---------------------------------------------------------------------------
 # Sales
 # ---------------------------------------------------------------------------
+
+
+def recaler_epuisement(db: Session, product_ids: list[int] | set[int] | None = None) -> None:
+    """Pose `epuise_depuis` sur les produits tombes a 0, l'efface sur les autres.
+
+    A appeler apres CHAQUE mouvement de stock (vente, reappro, inventaire,
+    creation, synchronisation). Deux UPDATE conditionnels : une date deja posee
+    n'est jamais avancee (un produit reste « epuise depuis » son premier jour a
+    0), et l'etat se lit en base, pas sur une valeur lue plus tot. `None` =
+    tous les produits.
+    """
+    if product_ids is not None and not product_ids:
+        return
+    cible = [] if product_ids is None else [BuvetteProduct.id.in_(list(product_ids))]
+    db.execute(
+        update(BuvetteProduct)
+        .where(*cible, BuvetteProduct.quantity <= 0, BuvetteProduct.epuise_depuis.is_(None))
+        .values(epuise_depuis=_maintenant_utc())
+        .execution_options(synchronize_session=False)
+    )
+    db.execute(
+        update(BuvetteProduct)
+        .where(*cible, BuvetteProduct.quantity > 0, BuvetteProduct.epuise_depuis.is_not(None))
+        .values(epuise_depuis=None)
+        .execution_options(synchronize_session=False)
+    )
 
 
 def _decrementer(db: Session, produit: BuvetteProduct, quantite: int) -> None:
@@ -662,7 +693,8 @@ def _decrementer(db: Session, produit: BuvetteProduct, quantite: int) -> None:
         )
         .execution_options(synchronize_session=False)
     )
-    db.refresh(produit, attribute_names=["quantity"])
+    recaler_epuisement(db, [produit.id])
+    db.refresh(produit, attribute_names=["quantity", "epuise_depuis"])
 
 
 def _find_existing_sale(
@@ -809,17 +841,31 @@ _ORDRE_ONGLET = (
 )
 
 
-def list_caisse_catalogue(db: Session) -> list[BuvetteProduct]:
+def list_caisse_catalogue(
+    db: Session, *, maintenant: datetime | None = None
+) -> list[BuvetteProduct]:
     """Produits vendus par la tablette : actifs ET ranges dans un onglet.
+
+    Un produit epuise depuis plus de `JOURS_AVANT_MASQUAGE_EPUISE` jours en est
+    retire (hors cafes) : c'est calcule ici, `is_active` n'est pas touche, et le
+    premier reappro le fait revenir (cf. `recaler_epuisement`).
 
     Tries par onglet, puis par rang (`ordre_caisse`, non ranges en fin), puis
     par nom : la tablette garde l'ordre recu, c'est lui qui fait son menu.
     """
+    limite = (maintenant or _maintenant_utc()) - timedelta(days=JOURS_AVANT_MASQUAGE_EPUISE)
+    masque_epuise = and_(
+        BuvetteProduct.quantity <= 0,
+        BuvetteProduct.caisse_category.not_in(CATEGORIES_JAMAIS_MASQUEES),
+        BuvetteProduct.epuise_depuis.is_not(None),
+        BuvetteProduct.epuise_depuis <= limite,
+    )
     stmt = (
         select(BuvetteProduct)
         .where(
             BuvetteProduct.is_active.is_(True),
             BuvetteProduct.caisse_category.is_not(None),
+            ~masque_epuise,
         )
         .order_by(BuvetteProduct.caisse_category.asc(), *_ORDRE_ONGLET)
     )
@@ -1081,6 +1127,8 @@ def reapprovisionner(
         .values(alert_sent=False)
         .execution_options(synchronize_session=False)
     )
+    # Reapprovisionne : il revient sur la tablette au prochain catalogue.
+    recaler_epuisement(db, [product_id])
     nom, stock_apres = db.execute(
         select(BuvetteProduct.name, BuvetteProduct.quantity).where(
             BuvetteProduct.id == product_id
