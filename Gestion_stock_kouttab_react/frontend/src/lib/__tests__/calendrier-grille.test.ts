@@ -253,4 +253,25 @@ describe('disposer', () => {
     const [seul] = disposer([bloc(720, 725, 'seul')]);
     expect(seul).toMatchObject({ gauche: 0, largeur: 100 });
   });
+
+  it('un rendez-vous qui finit pile au début du cours est quand même posé dessus', () => {
+    // 13:25–13:30 est dessiné sur plus de vingt minutes de grille : il déborde
+    // sur le cours de 13:30. Le juger « libre » le mettait pleine largeur
+    // par-dessus le titre « Madrassah N 2 ».
+    const places = disposer([cours(13 * 60 + 30, 17 * 60, 'madrassah'), bloc(13 * 60 + 25, 13 * 60 + 30, 'rdv')]);
+    const rdv = places.find((p) => p.bloc.cle === 'rdv');
+    expect(rdv?.gauche).toBeGreaterThanOrEqual(50);
+  });
+
+  it('le cours sait ce que les créneaux posés couvrent de son haut', () => {
+    // La carte descend son titre d'autant, pour qu'il reste lisible.
+    const places = disposer([cours(13 * 60 + 30, 17 * 60, 'madrassah'), bloc(13 * 60 + 30, 13 * 60 + 35, 'rdv')]);
+    const madrassah = places.find((p) => p.bloc.cle === 'madrassah');
+    expect(madrassah?.retraitHaut).toBeGreaterThan(0);
+  });
+
+  it('un cours sans rien posé dessus ne décale rien', () => {
+    const [seul] = disposer([cours(600, 720, 'seul')]);
+    expect(seul.retraitHaut).toBe(0);
+  });
 });

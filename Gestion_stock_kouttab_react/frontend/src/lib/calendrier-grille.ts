@@ -270,14 +270,40 @@ export interface Disposition {
   largeur: number;
   /** Ordre d'empilement : les créneaux courts passent au-dessus des cours. */
   plan: number;
+  /**
+   * Hauteur, en px, que des créneaux posés couvrent en haut de ce cours. La
+   * carte descend son titre d'autant : sinon « Madrassah N 2 » disparaît sous
+   * deux rendez-vous posés à 13:30.
+   */
+  retraitHaut: number;
 }
 
 function estUnCours(bloc: BlocGrille): boolean {
   return bloc.evenements.length === 1 && bloc.finMinutes - bloc.debutMinutes >= MINUTES_COURS;
 }
 
+/**
+ * La fin **telle qu'elle s'affiche**. Un rendez-vous de cinq minutes est
+ * dessiné sur `HAUTEUR_MIN` pixels, soit plus de vingt minutes de grille : un
+ * créneau 13:25–13:30 déborde visuellement sur le cours qui commence à 13:30.
+ * Le juger « sans cours dessous » sur ses horaires réels le mettait pleine
+ * largeur par-dessus le titre du cours.
+ */
+function finVisuelle(bloc: BlocGrille): number {
+  return Math.max(bloc.finMinutes, bloc.debutMinutes + HAUTEUR_MIN / PX_PAR_MINUTE);
+}
+
 function chevauche(a: BlocGrille, b: BlocGrille): boolean {
-  return a.debutMinutes < b.finMinutes && b.debutMinutes < a.finMinutes;
+  return a.debutMinutes < finVisuelle(b) && b.debutMinutes < finVisuelle(a);
+}
+
+/** Répartit en voies sur l'étendue visuelle, pour que deux cartes ne se recouvrent pas. */
+function enVoiesVisuelles(blocs: BlocGrille[]): EnVoie[] {
+  const parCle = new Map(blocs.map((b) => [b.cle, b]));
+  return repartirEnVoies(blocs.map((b) => ({ ...b, finMinutes: finVisuelle(b) }))).map((p) => ({
+    ...p,
+    bloc: parCle.get(p.bloc.cle) ?? p.bloc,
+  }));
 }
 
 function dansLaZone(places: EnVoie[], debut: number, plan: number): Disposition[] {
@@ -287,6 +313,7 @@ function dansLaZone(places: EnVoie[], debut: number, plan: number): Disposition[
     gauche: debut + (voie / voies) * etendue,
     largeur: etendue / voies,
     plan,
+    retraitHaut: 0,
   }));
 }
 
@@ -312,10 +339,21 @@ export function disposer(blocs: BlocGrille[]): Disposition[] {
   const surUnCours = courts.filter((c) => cours.some((k) => chevauche(c, k)));
   const libres = courts.filter((c) => !surUnCours.includes(c));
 
+  // Ce que les créneaux posés couvrent du haut de chaque cours : ceux qui
+  // commencent avant que le titre ait pu s'afficher (dans ses 30 premières
+  // minutes) et débordent sur son début.
+  const placesCours = dansLaZone(repartirEnVoies(cours), 0, 1).map((place) => {
+    const debut = place.bloc.debutMinutes;
+    const couvert = surUnCours
+      .filter((c) => c.debutMinutes < debut + MINUTES_COURS && finVisuelle(c) > debut)
+      .reduce((max, c) => Math.max(max, (finVisuelle(c) - debut) * PX_PAR_MINUTE), 0);
+    return { ...place, retraitHaut: couvert };
+  });
+
   return [
-    ...dansLaZone(repartirEnVoies(cours), 0, 1),
-    ...dansLaZone(repartirEnVoies(libres), 0, 2),
-    ...dansLaZone(repartirEnVoies(surUnCours), DEBUT_ZONE_SUPERPOSEE, 3),
+    ...placesCours,
+    ...dansLaZone(enVoiesVisuelles(libres), 0, 2),
+    ...dansLaZone(enVoiesVisuelles(surUnCours), DEBUT_ZONE_SUPERPOSEE, 3),
   ].sort((a, b) => a.bloc.debutMinutes - b.bloc.debutMinutes || a.plan - b.plan);
 }
 

@@ -255,7 +255,7 @@ export function GrilleSalles({
                 {/* Les cartes sont posées en absolu : l'ordre du DOM ne suit
                     l'ordre visuel que si on le force. Il est chronologique,
                     pour que la tabulation parcoure la journée dans l'ordre. */}
-                {places.map(({ bloc, gauche, largeur, plan }) => {
+                {places.map(({ bloc, gauche, largeur, plan, retraitHaut }) => {
                   const position = placer(bloc.debutMinutes, bloc.finMinutes);
                   if (!position) return null;
                   return (
@@ -274,6 +274,7 @@ export function GrilleSalles({
                         hauteur={position.hauteur}
                         largeur={largeur}
                         posee={plan > 1}
+                        retraitHaut={retraitHaut}
                         onOuvrir={onOuvrir}
                       />
                     </div>

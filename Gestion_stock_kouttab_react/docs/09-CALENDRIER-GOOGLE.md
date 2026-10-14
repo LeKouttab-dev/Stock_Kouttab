@@ -240,9 +240,11 @@ Points à connaître avant d'y toucher :
   vingtaine de rendez-vous de cinq minutes : rendus un par un, ce sont des
   filets d'un pixel. Ils deviennent un bloc « Perm. admin. ×12 », qui s'ouvre
   sur la liste.
-- **La carte utilise sa hauteur.** Le titre en haut, en entier, sur autant de
-  lignes que la hauteur le permet ; l'enseignant dessous ; le numéro de séance
-  (« 19 », sans « № ») et l'horaire ancrés en bas. Quand la place manque, on
+- **Tout est groupé en haut de la carte.** Le titre en entier, sur autant de
+  lignes que la hauteur le permet, puis l'enseignant, puis le numéro de séance
+  (« 19 », sans « № ») et l'horaire juste dessous. Ancrés tout en bas, ils
+  s'éloignaient du titre de toute la hauteur du cours. Quand des créneaux sont
+  posés en haut d'un cours, le texte commence sous eux (`retraitHaut`). Quand la place manque, on
   sacrifie l'enseignant, puis la ligne du bas — jamais le nom : une carte
   réduite à « 19 18:30 » ne dit rien de ce qui se passe dans la salle.
 - **L'ordre du DOM d'une colonne est chronologique.** Les cartes sont posées en
@@ -253,7 +255,9 @@ Points à connaître avant d'y toucher :
   même moment dans la même salle sont un conflit réel. Les créneaux plus courts
   et les plages fusionnées ne prennent pas de voie : posés sur un cours, ils
   occupent sa moitié droite, au-dessus, avec un liseré blanc ; seuls, ils
-  prennent toute la largeur. Tout mettre côte à côte réduisait un cours de
+  prennent toute la largeur. Le chevauchement se juge sur la hauteur
+  **affichée**, pas sur l'horaire : un rendez-vous de cinq minutes dessiné sur
+  22 px déborde sur le cours qui commence juste après. Tout mettre côte à côte réduisait un cours de
   deux heures à « C… » dès que deux rendez-vous tombaient à son début.
 - **Une salle sans cours ce jour-là n'a pas de colonne.** L'ordre reste celui
   du référentiel. Un jour sans aucun cours garde une colonne étroite, sinon il
