@@ -4,6 +4,7 @@ import {
   MINUTE_DEBUT,
   MINUTE_FIN,
   colonneDe,
+  disposer,
   enHeure,
   fusionnerMicroCreneaux,
   minutesParis,
@@ -203,5 +204,53 @@ describe('enHeure', () => {
   it('formate les minutes depuis minuit', () => {
     expect(enHeure(17 * 60 + 30)).toBe('17:30');
     expect(enHeure(8 * 60)).toBe('08:00');
+  });
+});
+
+describe('disposer', () => {
+  const cours = (d: number, f: number, cle: string) => bloc(d, f, cle);
+  const plage = (d: number, f: number, cle: string): BlocGrille => ({
+    ...bloc(d, f, cle),
+    evenements: [evenement({}), evenement({})],
+  });
+
+  it('pose les rendez-vous courts PAR-DESSUS le cours, qui garde toute la largeur', () => {
+    // Mercredi 14/10, Maziri : Coran 17:30–19:30 et deux rendez-vous à 17:30.
+    // Côte à côte, le cours tombait à « C… ».
+    const places = disposer([
+      cours(17 * 60 + 30, 19 * 60 + 30, 'coran'),
+      bloc(17 * 60 + 30, 17 * 60 + 35, 'rdv1'),
+      plage(17 * 60 + 30, 17 * 60 + 40, 'rdv2'),
+    ]);
+    const parCle = Object.fromEntries(places.map((p) => [p.bloc.cle, p]));
+    expect(parCle.coran).toMatchObject({ gauche: 0, largeur: 100 });
+    for (const cle of ['rdv1', 'rdv2']) {
+      expect(parCle[cle].gauche).toBeGreaterThanOrEqual(50);
+      expect(parCle[cle].plan).toBeGreaterThan(parCle.coran.plan);
+    }
+  });
+
+  it('les créneaux posés sur un cours se partagent la zone de droite sans se recouvrir', () => {
+    const places = disposer([
+      cours(600, 720, 'cours'),
+      bloc(600, 605, 'a'),
+      bloc(600, 605, 'b'),
+    ]).filter((p) => p.bloc.cle !== 'cours');
+    const [a, b] = places.sort((x, y) => x.gauche - y.gauche);
+    expect(a.gauche + a.largeur).toBeLessThanOrEqual(b.gauche + 0.001);
+    expect(b.gauche + b.largeur).toBeLessThanOrEqual(100.001);
+  });
+
+  it('deux vrais cours au même moment restent côte à côte', () => {
+    // Deux cours dans la même salle au même moment est un conflit réel :
+    // le montrer côte à côte est juste.
+    const places = disposer([cours(600, 720, 'x'), cours(630, 750, 'y')]);
+    expect(places.map((p) => p.largeur)).toEqual([50, 50]);
+  });
+
+  it('un créneau court sans cours dessous prend toute la largeur', () => {
+    // Rien à préserver : inutile de perdre la moitié de la place.
+    const [seul] = disposer([bloc(720, 725, 'seul')]);
+    expect(seul).toMatchObject({ gauche: 0, largeur: 100 });
   });
 });

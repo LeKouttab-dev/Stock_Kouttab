@@ -136,7 +136,7 @@ export function CalendarPage() {
         id: `${e.agenda_id}::${e.id}`,
         // Le titre Google est « cours 19 » : c'est le nom d'agenda raccourci
         // qui porte le sens, dans le mois comme dans la grille.
-        title: e.numero ? `${e.nom_court} №${e.numero}` : e.nom_court || e.titre,
+        title: e.numero ? `${e.nom_court} · ${e.numero}` : e.nom_court || e.titre,
         start: e.debut,
         end: e.fin,
         allDay: e.journee_entiere,
