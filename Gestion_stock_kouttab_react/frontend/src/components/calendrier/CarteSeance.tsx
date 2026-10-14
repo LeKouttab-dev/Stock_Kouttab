@@ -6,8 +6,8 @@ const COULEUR_DEFAUT = '#3d4f3d';
 
 /** Hauteur d'une ligne de texte de la carte (11 px, interligne serré). */
 const LIGNE = 14;
-/** Marges verticales de la carte. */
-const MARGES = 4;
+/** Marge haute de la carte. */
+const MARGE_HAUT = 4;
 
 interface CarteSeanceProps {
   bloc: BlocGrille;
@@ -16,6 +16,8 @@ interface CarteSeanceProps {
   largeur: number;
   /** Posée par-dessus un cours (créneau court) : liseré pour s'en détacher. */
   posee?: boolean;
+  /** Hauteur couverte en haut par des créneaux posés : le texte commence dessous. */
+  retraitHaut?: number;
   onOuvrir: (bloc: BlocGrille) => void;
 }
 
@@ -26,15 +28,17 @@ interface CarteSeanceProps {
  * Éducation islamique
  * 6-11ans
  * U. Soundousse
- *
  * 19            17:30–19:30
  * ```
  *
- * **Le titre en haut, en entier ; le numéro et l'horaire en bas.** La première
- * version collait le numéro au titre sur une seule ligne tronquée — « Éduc.
- * isl. … №06 » — alors que la carte faisait deux heures de haut. Le titre
- * s'étend maintenant sur autant de lignes que la hauteur en permet, et la ligne
- * du bas reste ancrée en bas.
+ * **Tout en haut, groupé.** Le titre en entier, sur autant de lignes que la
+ * hauteur en permet, puis l'enseignant, puis le numéro et l'horaire juste
+ * dessous. Ancrer cette dernière ligne tout en bas l'éloignait du titre de
+ * toute la hauteur du cours, et l'œil devait parcourir la carte pour relier
+ * les deux.
+ *
+ * **Le texte commence sous ce qui est posé dessus.** Un rendez-vous posé en
+ * haut d'un cours en masquait le titre ; `retraitHaut` décale le texte d'autant.
  *
  * **Le nom part en dernier.** Quand la place manque, on sacrifie l'enseignant,
  * puis la ligne du bas, jamais le nom : une carte réduite à « 19 18:30 » ne dit
@@ -44,7 +48,14 @@ interface CarteSeanceProps {
  * Google — habitude de l'agenda ou Maziri par défaut —, la carte porte une
  * bordure gauche en pointillés et le dit dans son nom accessible.
  */
-export function CarteSeance({ bloc, hauteur, largeur, posee = false, onOuvrir }: CarteSeanceProps) {
+export function CarteSeance({
+  bloc,
+  hauteur,
+  largeur,
+  posee = false,
+  retraitHaut = 0,
+  onOuvrir,
+}: CarteSeanceProps) {
   const premier = bloc.evenements[0];
   const plage = bloc.evenements.length > 1;
   const fond = premier.couleur ?? COULEUR_DEFAUT;
@@ -65,11 +76,18 @@ export function CarteSeance({ bloc, hauteur, largeur, posee = false, onOuvrir }:
   // Une demi-colonne n'a pas la place d'un horaire complet ni d'un nom
   // d'enseignant : on y garde l'heure de début seule.
   const etroite = largeur < 60;
-  const avecBas = hauteur >= 30;
-  const avecEnseignant = !etroite && !plage && Boolean(premier.enseignant) && hauteur >= 44 + LIGNE;
+  // La place réellement disponible pour le texte, sous ce qui est posé dessus.
+  // Sans place pour le titre, on ne décale pas : mieux vaut un titre à moitié
+  // couvert qu'aucun titre.
+  const decalage = hauteur - retraitHaut >= 30 ? retraitHaut : 0;
+  const utile = hauteur - decalage;
+  const avecBas = utile >= 30;
+  const avecEnseignant = !etroite && !plage && Boolean(premier.enseignant) && utile >= 44 + LIGNE;
   const lignesTitre = Math.max(
     1,
-    Math.floor((hauteur - MARGES - (avecBas ? LIGNE : 0) - (avecEnseignant ? LIGNE : 0)) / LIGNE),
+    Math.floor(
+      (utile - MARGE_HAUT - (avecBas ? LIGNE : 0) - (avecEnseignant ? LIGNE : 0)) / LIGNE,
+    ),
   );
 
   const numero = plage ? `×${bloc.evenements.length}` : premier.numero;
@@ -97,7 +115,7 @@ export function CarteSeance({ bloc, hauteur, largeur, posee = false, onOuvrir }:
       aria-label={description}
       title={description}
       className={cn(
-        'flex w-full flex-col overflow-hidden rounded px-1 py-0.5 text-left text-[11px] leading-tight',
+        'flex w-full flex-col overflow-hidden rounded px-1 pb-0.5 text-left text-[11px] leading-tight',
         'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1',
         devinee && 'border-l-2 border-dashed',
         // Posée sur un cours : le liseré blanc la détache de la carte dessous.
@@ -108,6 +126,7 @@ export function CarteSeance({ bloc, hauteur, largeur, posee = false, onOuvrir }:
         color: encre,
         borderLeftColor: devinee ? encre : undefined,
         height: `${hauteur}px`,
+        paddingTop: MARGE_HAUT + decalage,
       }}
     >
       <span
@@ -129,7 +148,7 @@ export function CarteSeance({ bloc, hauteur, largeur, posee = false, onOuvrir }:
       {avecEnseignant && <span className="truncate opacity-90">{premier.enseignant}</span>}
 
       {avecBas && (
-        <span className="mt-auto flex items-baseline justify-between gap-1 opacity-80">
+        <span className="mt-0.5 flex items-baseline justify-between gap-1 opacity-80">
           <span className="shrink-0 tabular-nums">{numero}</span>
           <span className="truncate tabular-nums">{horaire}</span>
         </span>
