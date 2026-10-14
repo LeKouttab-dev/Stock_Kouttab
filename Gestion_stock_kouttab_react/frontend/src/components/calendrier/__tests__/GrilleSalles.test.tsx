@@ -45,13 +45,23 @@ function afficher(evenements: EvenementCalendrier[], options: { parSalle?: boole
 }
 
 describe('GrilleSalles', () => {
-  it('rend une colonne par salle, dans l’ordre du référentiel', () => {
-    afficher([]);
+  it('ne montre que les salles occupées ce jour-là, dans l’ordre du référentiel', () => {
+    afficher([
+      evenement({ salle: 'zarrouq', salle_source: 'google' }),
+      evenement({ salle: 'maziri', salle_source: 'google' }),
+    ]);
     const colonnes = screen.getAllByRole('region');
-    // Trois salles, plus de colonne « Autre ».
-    expect(colonnes).toHaveLength(3);
+    // Nafi' n'a aucun cours : pas de colonne vide qui prendrait la place.
+    expect(colonnes).toHaveLength(2);
     expect(colonnes[0]).toHaveAccessibleName(/Imam Maziri/);
-    expect(colonnes[2]).toHaveAccessibleName(/Imam Zarrouq/);
+    expect(colonnes[1]).toHaveAccessibleName(/Imam Zarrouq/);
+  });
+
+  it('un jour sans aucun cours garde une colonne', () => {
+    // Sinon il disparaîtrait de la semaine : jour vide ou jour manquant ?
+    afficher([]);
+    expect(screen.getAllByRole('region')).toHaveLength(1);
+    expect(screen.getByRole('region')).toHaveAccessibleName(/aucun cours/);
   });
 
   it('place un cours dans la salle réservée', () => {
@@ -76,7 +86,11 @@ describe('GrilleSalles', () => {
     // Le titre Google est « cours 19 » : illisible seul.
     afficher([evenement({ salle: 'maziri' })]);
     expect(screen.getByText('Coran ENF 1')).toBeInTheDocument();
-    expect(screen.getByText('№19')).toBeInTheDocument();
+    // Le numéro seul, sans « № » — cherché dans la carte, la gouttière des
+    // heures affichant elle aussi « 19 ».
+    const carte = screen.getByRole('button');
+    expect(within(carte).getByText('19')).toBeInTheDocument();
+    expect(carte.textContent).not.toContain('№');
     expect(screen.getByText('U. Soundousse')).toBeInTheDocument();
   });
 

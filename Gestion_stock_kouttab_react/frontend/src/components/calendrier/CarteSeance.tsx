@@ -4,10 +4,18 @@ import { cn } from '@/lib/utils';
 
 const COULEUR_DEFAUT = '#3d4f3d';
 
+/** Hauteur d'une ligne de texte de la carte (11 px, interligne serré). */
+const LIGNE = 14;
+/** Marges verticales de la carte. */
+const MARGES = 4;
+
 interface CarteSeanceProps {
   bloc: BlocGrille;
   hauteur: number;
-  voies: number;
+  /** Largeur occupée, en % de la colonne. */
+  largeur: number;
+  /** Posée par-dessus un cours (créneau court) : liseré pour s'en détacher. */
+  posee?: boolean;
   onOuvrir: (bloc: BlocGrille) => void;
 }
 
@@ -15,34 +23,33 @@ interface CarteSeanceProps {
  * Une séance dans la grille.
  *
  * ```
- * Coran ENF 1        №19
+ * Éducation islamique
+ * 6-11ans
  * U. Soundousse
- *               17:30–18:30
+ *
+ * 19            17:30–19:30
  * ```
  *
- * Le titre Google d'un cours est `cours 19` : c'est le **nom d'agenda
- * raccourci** qui porte le sens, et c'est lui qu'on met en tête.
+ * **Le titre en haut, en entier ; le numéro et l'horaire en bas.** La première
+ * version collait le numéro au titre sur une seule ligne tronquée — « Éduc.
+ * isl. … №06 » — alors que la carte faisait deux heures de haut. Le titre
+ * s'étend maintenant sur autant de lignes que la hauteur en permet, et la ligne
+ * du bas reste ancrée en bas.
  *
- * **La densité suit la hauteur réelle, pas la vue.** Une colonne large en vue
- * Jour et une colonne étroite en vue Semaine n'ont pas la même place, et un
- * créneau de trente minutes n'a pas celle d'un cours d'une heure. Rien ne doit
- * jamais déborder de la carte.
+ * **Le nom part en dernier.** Quand la place manque, on sacrifie l'enseignant,
+ * puis la ligne du bas, jamais le nom : une carte réduite à « 19 18:30 » ne dit
+ * rien de ce qui se passe dans la salle.
  *
- * **Une salle devinée se voit.** Quand elle vient de la correspondance saisie
- * dans l'application et non d'une réservation Google, la carte porte une
- * bordure gauche en pointillés et le dit dans son nom accessible : les trois
- * quarts des cours sont dans ce cas, et les présenter comme des réservations
- * enverrait quelqu'un devant une porte occupée.
+ * **Une salle devinée se voit.** Quand elle ne vient pas d'une réservation
+ * Google — habitude de l'agenda ou Maziri par défaut —, la carte porte une
+ * bordure gauche en pointillés et le dit dans son nom accessible.
  */
-export function CarteSeance({ bloc, hauteur, voies, onOuvrir }: CarteSeanceProps) {
+export function CarteSeance({ bloc, hauteur, largeur, posee = false, onOuvrir }: CarteSeanceProps) {
   const premier = bloc.evenements[0];
   const plage = bloc.evenements.length > 1;
   const fond = premier.couleur ?? COULEUR_DEFAUT;
   const encre = contrasteSur(premier.couleur);
 
-  const horaire = `${enHeure(bloc.debutMinutes)}–${enHeure(bloc.finMinutes)}`;
-  // Tout ce qui n'est pas réservé dans Google est une supposition, et se voit
-  // comme telle : la salle habituelle de l'agenda, ou Maziri par défaut.
   const devinee = premier.salle_source !== 'google';
   const precision =
     premier.salle_source === 'correspondance'
@@ -55,22 +62,27 @@ export function CarteSeance({ bloc, hauteur, voies, onOuvrir }: CarteSeanceProps
     ? premier.nom_court || premier.agenda_nom
     : premier.nom_court || premier.titre;
 
-  // Trois paliers : tout, l'essentiel, le strict minimum.
-  //
-  // **Le nom part en dernier.** Une carte réduite à « №19 18:30 » ne dit rien
-  // de ce qui se passe dans la salle ; le numéro de séance et l'horaire, eux,
-  // se retrouvent au clic. L'ordre de sacrifice est donc l'inverse de l'ordre
-  // de lecture : l'horaire, puis l'enseignant, puis le numéro, jamais le nom.
-  const large = hauteur >= 44 && voies === 1;
-  const moyen = hauteur >= 30 && voies === 1;
+  // Une demi-colonne n'a pas la place d'un horaire complet ni d'un nom
+  // d'enseignant : on y garde l'heure de début seule.
+  const etroite = largeur < 60;
+  const avecBas = hauteur >= 30;
+  const avecEnseignant = !etroite && !plage && Boolean(premier.enseignant) && hauteur >= 44 + LIGNE;
+  const lignesTitre = Math.max(
+    1,
+    Math.floor((hauteur - MARGES - (avecBas ? LIGNE : 0) - (avecEnseignant ? LIGNE : 0)) / LIGNE),
+  );
+
+  const numero = plage ? `×${bloc.evenements.length}` : premier.numero;
+  const horaire = etroite
+    ? enHeure(bloc.debutMinutes)
+    : `${enHeure(bloc.debutMinutes)}–${enHeure(bloc.finMinutes)}`;
 
   const description = [
     plage
       ? `${premier.agenda_nom}, ${bloc.evenements.length} créneaux`
       : `${premier.agenda_nom}${premier.numero ? `, séance ${premier.numero}` : ''}`,
     premier.enseignant,
-    premier.salle_libelle &&
-      `${premier.salle_libelle}${precision}`,
+    premier.salle_libelle && `${premier.salle_libelle}${precision}`,
     `de ${enHeure(bloc.debutMinutes)} à ${enHeure(bloc.finMinutes)}`,
   ]
     .filter(Boolean)
@@ -81,13 +93,15 @@ export function CarteSeance({ bloc, hauteur, voies, onOuvrir }: CarteSeanceProps
       type="button"
       onClick={() => onOuvrir(bloc)}
       // Le nom accessible porte la vérité entière : la carte visible est
-      // tronquée sur trois lignes, pas ce que lit un lecteur d'écran.
+      // tronquée, pas ce que lit un lecteur d'écran.
       aria-label={description}
       title={description}
       className={cn(
-        'block w-full overflow-hidden rounded px-1 py-0.5 text-left text-[11px] leading-tight',
+        'flex w-full flex-col overflow-hidden rounded px-1 py-0.5 text-left text-[11px] leading-tight',
         'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1',
         devinee && 'border-l-2 border-dashed',
+        // Posée sur un cours : le liseré blanc la détache de la carte dessous.
+        posee && 'shadow-sm ring-1 ring-white',
       )}
       style={{
         backgroundColor: fond,
@@ -96,21 +110,30 @@ export function CarteSeance({ bloc, hauteur, voies, onOuvrir }: CarteSeanceProps
         height: `${hauteur}px`,
       }}
     >
-      <span className="flex items-baseline justify-between gap-1">
-        <span className="min-w-0 flex-1 truncate font-semibold">{titre}</span>
-        {plage && <span className="shrink-0 opacity-80">×{bloc.evenements.length}</span>}
-        {premier.numero && !plage && moyen && (
-          <span className="shrink-0 opacity-80">№{premier.numero}</span>
-        )}
-        {!large && moyen && (
-          <span className="shrink-0 opacity-80">{enHeure(bloc.debutMinutes)}</span>
-        )}
+      <span
+        className={cn('font-semibold', lignesTitre === 1 ? 'truncate' : 'break-words')}
+        style={
+          lignesTitre > 1
+            ? {
+                display: '-webkit-box',
+                WebkitLineClamp: lignesTitre,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+              }
+            : undefined
+        }
+      >
+        {titre}
       </span>
 
-      {large && premier.enseignant && (
-        <span className="block truncate opacity-90">{premier.enseignant}</span>
+      {avecEnseignant && <span className="truncate opacity-90">{premier.enseignant}</span>}
+
+      {avecBas && (
+        <span className="mt-auto flex items-baseline justify-between gap-1 opacity-80">
+          <span className="shrink-0 tabular-nums">{numero}</span>
+          <span className="truncate tabular-nums">{horaire}</span>
+        </span>
       )}
-      {large && <span className="block text-right opacity-80">{horaire}</span>}
     </button>
   );
 }

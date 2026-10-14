@@ -256,6 +256,69 @@ export function repartirEnVoies(blocs: BlocGrille[]): EnVoie[] {
   return resultat;
 }
 
+/** En dessous, ce n'est pas un cours : c'est un créneau qui se pose par-dessus. */
+export const MINUTES_COURS = 30;
+
+/** Où commence la zone des créneaux posés sur un cours, en % de la colonne. */
+const DEBUT_ZONE_SUPERPOSEE = 50;
+
+export interface Disposition {
+  bloc: BlocGrille;
+  /** Bord gauche, en % de la colonne. */
+  gauche: number;
+  /** Largeur, en % de la colonne. */
+  largeur: number;
+  /** Ordre d'empilement : les créneaux courts passent au-dessus des cours. */
+  plan: number;
+}
+
+function estUnCours(bloc: BlocGrille): boolean {
+  return bloc.evenements.length === 1 && bloc.finMinutes - bloc.debutMinutes >= MINUTES_COURS;
+}
+
+function chevauche(a: BlocGrille, b: BlocGrille): boolean {
+  return a.debutMinutes < b.finMinutes && b.debutMinutes < a.finMinutes;
+}
+
+function dansLaZone(places: EnVoie[], debut: number, plan: number): Disposition[] {
+  const etendue = 100 - debut;
+  return places.map(({ bloc, voie, voies }) => ({
+    bloc,
+    gauche: debut + (voie / voies) * etendue,
+    largeur: etendue / voies,
+    plan,
+  }));
+}
+
+/**
+ * Dispose une colonne comme Google Agenda : **le long dessous, le court
+ * par-dessus**.
+ *
+ * Tout mettre côte à côte réduisait un cours de deux heures à « C… » dès que
+ * deux rendez-vous de cinq minutes tombaient à son début (mercredi 14/10,
+ * 17:30, Maziri). Deux couches, donc :
+ *
+ * - **les cours** (30 min et plus) se partagent la largeur en voies, comme
+ *   avant — deux vrais cours au même moment dans la même salle sont un conflit
+ *   réel, et côte à côte est la bonne façon de le montrer ;
+ * - **les créneaux courts** et les plages fusionnées ne prennent pas de voie.
+ *   Posés sur un cours, ils occupent sa moitié droite, au-dessus : le titre du
+ *   cours reste lisible à gauche. Sans cours dessous, ils prennent toute la
+ *   largeur — rien à préserver, inutile de perdre la moitié de la place.
+ */
+export function disposer(blocs: BlocGrille[]): Disposition[] {
+  const cours = blocs.filter(estUnCours);
+  const courts = blocs.filter((b) => !estUnCours(b));
+  const surUnCours = courts.filter((c) => cours.some((k) => chevauche(c, k)));
+  const libres = courts.filter((c) => !surUnCours.includes(c));
+
+  return [
+    ...dansLaZone(repartirEnVoies(cours), 0, 1),
+    ...dansLaZone(repartirEnVoies(libres), 0, 2),
+    ...dansLaZone(repartirEnVoies(surUnCours), DEBUT_ZONE_SUPERPOSEE, 3),
+  ].sort((a, b) => a.bloc.debutMinutes - b.bloc.debutMinutes || a.plan - b.plan);
+}
+
 /**
  * La clé de colonne d'un événement : sa salle, ou la première du référentiel.
  *

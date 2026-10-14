@@ -844,6 +844,9 @@ défilement recopié en JS) ; **`minutesParis` lit `formatToParts`**, jamais
 `new Date().getHours()` (fuseau du navigateur, CI en UTC) ni un découpage de
 chaîne (`fr-CA` rend « 17 h 30 ») ; **les micro-créneaux fusionnent** (les
 permanences sont vingt rendez-vous de 5 min, soit vingt filets d'un pixel) ;
+**le long dessous, le court par-dessus** (`disposer` : les cours ≥ 30 min en
+voies côte à côte, les créneaux plus courts posés sur leur moitié droite) ;
+**une salle sans cours ce jour-là n'a pas de colonne** ;
 **l'ordre du DOM d'une colonne est chronologique**, sans quoi la tabulation
 part dans le désordre et aucun test visuel ne le voit. Vue par défaut :
 3 jours sur grand écran, Jour sous `lg`. Le cap `max-w-7xl` d'`AppLayout` est

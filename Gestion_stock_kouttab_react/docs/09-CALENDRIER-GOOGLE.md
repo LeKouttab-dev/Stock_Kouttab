@@ -240,18 +240,28 @@ Points à connaître avant d'y toucher :
   vingtaine de rendez-vous de cinq minutes : rendus un par un, ce sont des
   filets d'un pixel. Ils deviennent un bloc « Perm. admin. ×12 », qui s'ouvre
   sur la liste.
-- **Le nom part en dernier.** Quand la carte rétrécit, on sacrifie l'horaire,
-  puis l'enseignant, puis le numéro — jamais le nom. Une carte réduite à
-  « №19 18:30 » ne dit rien de ce qui se passe dans la salle.
+- **La carte utilise sa hauteur.** Le titre en haut, en entier, sur autant de
+  lignes que la hauteur le permet ; l'enseignant dessous ; le numéro de séance
+  (« 19 », sans « № ») et l'horaire ancrés en bas. Quand la place manque, on
+  sacrifie l'enseignant, puis la ligne du bas — jamais le nom : une carte
+  réduite à « 19 18:30 » ne dit rien de ce qui se passe dans la salle.
 - **L'ordre du DOM d'une colonne est chronologique.** Les cartes sont posées en
   absolu : sans cela, la tabulation parcourrait la journée dans le désordre, et
   aucun test visuel ne le verrait.
-- **Jusqu'à huit événements simultanés** ont été observés dans la colonne
-  par défaut. Les blocs qui se recouvrent forment une grappe et se partagent sa
-  largeur — la même pour tous ses membres, sinon l'œil lit un bug.
+- **Le long dessous, le court par-dessus** (`disposer`), comme Google Agenda.
+  Les cours de 30 min et plus se partagent la largeur en voies : deux cours au
+  même moment dans la même salle sont un conflit réel. Les créneaux plus courts
+  et les plages fusionnées ne prennent pas de voie : posés sur un cours, ils
+  occupent sa moitié droite, au-dessus, avec un liseré blanc ; seuls, ils
+  prennent toute la largeur. Tout mettre côte à côte réduisait un cours de
+  deux heures à « C… » dès que deux rendez-vous tombaient à son début.
+- **Une salle sans cours ce jour-là n'a pas de colonne.** L'ordre reste celui
+  du référentiel. Un jour sans aucun cours garde une colonne étroite, sinon il
+  disparaîtrait de la semaine. Avec la gouttière réduite à « 15 », la semaine
+  tient d'ordinaire sans défilement horizontal.
 
-Les vues par défaut : **3 jours** sur un écran large (sept jours fois quatre
-salles font vingt-huit colonnes, soit une cinquantaine de pixels chacune),
+Les vues par défaut : **3 jours** sur un écran large (sept jours fois trois
+salles peuvent faire vingt et une colonnes),
 **Jour** en dessous de `lg`, sans écraser la préférence enregistrée.
 
 ### Le pont SSO transporte aussi les réglages
