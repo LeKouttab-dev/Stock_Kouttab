@@ -40,7 +40,6 @@ const SALLES = {
   maziri: 'Imam Maziri',
   nafi: "Imam Nafi'",
   zarrouq: 'Imam Zarrouq',
-  autre: 'Autre',
 };
 
 const REGLAGES: ReglagesAgendas = { reglages: [], salles: SALLES };
@@ -84,7 +83,7 @@ describe('Salles de l’emploi du temps', () => {
 
   it('avertit quand des agendas n’ont pas de salle', async () => {
     await afficher();
-    // Sans ce signal, la grille entasse tout dans « Autre » et l'écran paraît
+    // Sans ce signal, la grille entasse tout en Maziri et l'écran paraît
     // cassé sans qu'on sache pourquoi.
     expect(screen.getByText(/2 agenda\(s\) sur 2 n'ont pas de salle/)).toBeInTheDocument();
   });

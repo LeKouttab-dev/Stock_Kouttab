@@ -7,7 +7,6 @@ const SALLES = {
   maziri: 'Imam Maziri',
   nafi: "Imam Nafi'",
   zarrouq: 'Imam Zarrouq',
-  autre: 'Autre',
 };
 
 let compteur = 0;
@@ -49,9 +48,10 @@ describe('GrilleSalles', () => {
   it('rend une colonne par salle, dans l’ordre du référentiel', () => {
     afficher([]);
     const colonnes = screen.getAllByRole('region');
-    expect(colonnes).toHaveLength(4);
+    // Trois salles, plus de colonne « Autre ».
+    expect(colonnes).toHaveLength(3);
     expect(colonnes[0]).toHaveAccessibleName(/Imam Maziri/);
-    expect(colonnes[3]).toHaveAccessibleName(/Autre/);
+    expect(colonnes[2]).toHaveAccessibleName(/Imam Zarrouq/);
   });
 
   it('place un cours dans la salle réservée', () => {
@@ -60,12 +60,16 @@ describe('GrilleSalles', () => {
     expect(within(colonne).getByRole('button')).toBeInTheDocument();
   });
 
-  it('range dans « Autre » ce qui n’a pas de salle', () => {
-    // Les trois quarts des cours sont dans ce cas tant que la correspondance
-    // n'est pas remplie : ils doivent rester visibles, pas disparaître.
-    afficher([evenement({ salle: null })]);
-    const colonne = screen.getByRole('region', { name: /Autre/ });
-    expect(within(colonne).getByRole('button')).toBeInTheDocument();
+  it('range en Maziri, en pointillés, ce qui n’a pas de salle', () => {
+    // Le serveur envoie `salle: maziri, salle_source: defaut`. La carte doit
+    // être là — et dire qu'elle n'y est que par défaut.
+    afficher([
+      evenement({ salle: 'maziri', salle_libelle: 'Imam Maziri', salle_source: 'defaut' }),
+    ]);
+    const colonne = screen.getByRole('region', { name: /Imam Maziri/ });
+    expect(within(colonne).getByRole('button')).toHaveAccessibleName(
+      /par défaut, aucune salle renseignée/,
+    );
   });
 
   it('affiche le nom d’agenda raccourci, pas le titre Google', () => {

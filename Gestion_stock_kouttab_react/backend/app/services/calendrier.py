@@ -122,11 +122,16 @@ def en_evenement(
 
     # L'ordre decide de ce que l'ecran affiche comme certain. Une salle
     # reservee dans Google est un fait ; la salle habituelle de l'agenda est
-    # une habitude. On sert les deux, en disant toujours laquelle c'est.
+    # une habitude ; la salle par defaut n'est rien de plus qu'une place dans
+    # la grille. On sert les trois, en disant toujours laquelle c'est.
     salle = calendrier_salles.salle_reservee(brut)
     salle_source = "google" if salle else None
-    if salle is None and reglage.salle:
+    # Une valeur stockee hors referentiel (l'ancienne colonne « autre ») ne
+    # doit pas creer de colonne fantome : elle vaut absence de reglage.
+    if salle is None and reglage.salle in calendrier_salles.SALLES:
         salle, salle_source = reglage.salle, "correspondance"
+    if salle is None:
+        salle, salle_source = calendrier_salles.SALLE_PAR_DEFAUT, "defaut"
 
     return EvenementOut(
         id=brut.get("id", ""),

@@ -18,15 +18,23 @@ import re
 import unicodedata
 from typing import Any, NamedTuple
 
-# Les trois salles de cours de l'institut, plus la case de repli. Référentiel
-# figé : ce ne sont pas des données, ce sont les colonnes de la grille, et en
-# ajouter une relève d'un changement d'écran, pas d'un réglage.
+# Les trois salles de cours de l'institut. Référentiel figé : ce ne sont pas
+# des données, ce sont les colonnes de la grille, et en ajouter une relève d'un
+# changement d'écran, pas d'un réglage.
 SALLES: dict[str, str] = {
     "maziri": "Imam Maziri",
     "nafi": "Imam Nafi'",
     "zarrouq": "Imam Zarrouq",
-    "autre": "Autre",
 }
+
+# Où va un cours dont personne ne connaît la salle. Il y avait une colonne
+# « Autre » ; elle mangeait une place de colonne pour trois quarts de cours que
+# l'équipe sait de toute façon se tenir en Maziri, la grande salle.
+#
+# **Ce n'est ni une réservation ni une habitude**, et l'API le dit :
+# `salle_source = "defaut"`. La carte garde ses pointillés — sans eux, la
+# colonne Maziri afficherait comme bloqués des créneaux que personne n'a posés.
+SALLE_PAR_DEFAUT = "maziri"
 
 # Longueur visée pour le nom court. C'est ce qui tient dans une colonne de
 # salle sur un écran de bureau, panneaux repliés.
@@ -109,16 +117,16 @@ def _salle_nommee(libelle: str | None) -> str | None:
 
 
 def salle_de_ressource(libelle: str | None) -> str | None:
-    """La colonne où ranger une **ressource Google** réservée.
+    """La colonne d'une **ressource Google** réservée, si c'est une des trois.
 
-    Une ressource est une salle déclarée dans Workspace : si ce n'est aucune
-    des trois salles de cours, c'est quand même une pièce de l'institut — la
-    salle de conférence — et elle va dans « Autre ».
+    Une ressource qui n'est aucune des salles de cours — la salle de
+    conférence — rend `None`. Il n'y a plus de colonne « Autre » où la ranger,
+    et la classer en Maziri avec `salle_source = "google"` ferait passer une
+    réservation de la salle de conférence pour une réservation de Maziri. Elle
+    retombe donc sur la salle par défaut, en pointillés, et le lieu réel reste
+    lisible dans la fiche (`lieu`).
     """
-    nommee = _salle_nommee(libelle)
-    if nommee is not None:
-        return nommee
-    return "autre" if "salle" in _sans_accents(libelle) else None
+    return _salle_nommee(libelle)
 
 
 def salle_reservee(brut: dict[str, Any]) -> str | None:
@@ -218,6 +226,7 @@ __all__ = [
     "LONGUEUR_NOM_COURT",
     "MINUTES_MICRO_CRENEAU",
     "SALLES",
+    "SALLE_PAR_DEFAUT",
     "ReglageAgenda",
     "enseignant_de",
     "nom_court",

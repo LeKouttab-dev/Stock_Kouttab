@@ -50,12 +50,14 @@ class EvenementOut(BaseModel):
     statut: str | None = None
     recurrent: bool = False
     # --- Lecture « emploi du temps » ------------------------------------
-    # La colonne de la grille : cle de `calendrier_salles.SALLES`, ou None.
+    # La colonne de la grille : cle de `calendrier_salles.SALLES`. Toujours
+    # renseignee pour un evenement Google — au pire, la salle par defaut.
     salle: str | None = None
     # **D'ou vient cette salle**, et c'est tout sauf un detail : `google`, elle
-    # est reservee ; `correspondance`, c'est l'habitude de l'agenda, devinee
-    # par l'application. Une habitude affichee comme une reservation enverrait
-    # quelqu'un devant une porte fermee.
+    # est reservee ; `correspondance`, c'est l'habitude de l'agenda, saisie
+    # dans l'application ; `defaut`, personne ne sait et le cours est range en
+    # Maziri faute de mieux. Les deux derniers affiches comme une reservation
+    # enverraient quelqu'un devant une porte fermee.
     salle_source: str | None = None
     salle_libelle: str | None = None
     # Le numero de seance : « cours 19 » -> « 19 ». Absent des permanences.
@@ -88,7 +90,7 @@ class ReglageAgendaIn(BaseModel):
 
     Les deux champs sont facultatifs et `null` les rend a leur calcul : vider
     le nom court fait revenir l'abreviation automatique, vider la salle fait
-    retomber l'agenda dans « Autre ».
+    retomber l'agenda sur la salle par defaut (Maziri).
     """
 
     salle: str | None = None
@@ -141,7 +143,7 @@ class EtatCalendrierOut(BaseModel):
     nombre_agendas: int | None = None
     agendas_restreints: list[str] = []
     # Combien d'agendas n'ont pas encore de salle habituelle. Tant que ce
-    # nombre est eleve, la grille entasse les cours dans « Autre » et l'ecran
+    # nombre est eleve, la grille entasse les cours en Maziri, la salle par defaut, et l'ecran
     # parait casse sans qu'on sache pourquoi.
     agendas_sans_salle: int | None = None
     erreur: str | None = None

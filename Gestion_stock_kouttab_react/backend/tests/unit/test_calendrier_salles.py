@@ -111,8 +111,14 @@ class TestSalleDeRessource:
         """Google écrit « Zarruq », l'agenda du même nom écrit « Zarrouq »."""
         assert salle_de_ressource("Salle Imam Zarruq") == salle_de_ressource("Salle Imam Zarrouq")
 
-    def test_une_autre_salle_de_l_institut_tombe_dans_autre(self):
-        assert salle_de_ressource("Le Kouttâb-3-Salle de conférence (60)") == "autre"
+    def test_une_salle_hors_des_trois_ne_vaut_aucune_colonne(self):
+        """La salle de conférence n'a plus de colonne « Autre » où aller.
+
+        La ranger en Maziri avec `salle_source = "google"` ferait passer sa
+        réservation pour une réservation de Maziri. Elle rend None, et c'est
+        la salle par défaut — en pointillés — qui la recueille.
+        """
+        assert salle_de_ressource("Le Kouttâb-3-Salle de conférence (60)") is None
 
     def test_ce_qui_n_est_pas_une_salle_ne_rend_rien(self):
         # Sinon « 55 rue Charles Delescluze » deviendrait une colonne.
@@ -121,8 +127,11 @@ class TestSalleDeRessource:
         assert salle_de_ressource(None) is None
 
     def test_toutes_les_cles_rendues_sont_des_colonnes_connues(self):
-        for libelle in ("Salle Imam Maziri", "Salle de conférence", "Salle Imam Nafi'"):
+        for libelle in ("Salle Imam Maziri", "Salle Imam Zarruq", "Salle Imam Nafi'"):
             assert salle_de_ressource(libelle) in SALLES
+
+    def test_il_n_y_a_plus_de_colonne_autre(self):
+        assert list(SALLES) == ["maziri", "nafi", "zarrouq"]
 
 
 class TestSalleReservee:
@@ -152,16 +161,15 @@ class TestSalleReservee:
     def test_une_salle_inconnue_ecrite_a_la_main_ne_vaut_pas_reservation(self):
         """« Salle 2 » est un mot tapé dans un champ libre, pas une pièce réservée.
 
-        La nuance porte : une ressource Google inconnue tombe dans « Autre »
-        parce que quelqu'un a bel et bien bloqué une pièce ; un texte libre ne
-        bloque rien, et le présenter comme une réservation enverrait un
-        enseignant devant une porte occupée.
+        Le présenter comme une réservation enverrait un enseignant devant une
+        porte occupée. Une ressource Google hors des trois salles ne vaut pas
+        davantage : elle n'a pas de colonne.
         """
         assert salle_reservee({"location": "Salle 2"}) is None
         ressource = {
             "attendees": [{"displayName": "Le Kouttâb-3-Salle de réunion", "resource": True}]
         }
-        assert salle_reservee(ressource) == "autre"
+        assert salle_reservee(ressource) is None
 
     def test_un_participant_humain_n_est_jamais_une_salle(self):
         evenement = {"attendees": [{"displayName": "Salle Imam Maziri", "email": "a@b.fr"}]}

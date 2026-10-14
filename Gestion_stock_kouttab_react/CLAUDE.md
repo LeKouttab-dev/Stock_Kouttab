@@ -807,7 +807,12 @@ AdminBenevoles, Compta, Super Admin (`_ROLES_LECTURE` dans
 
 **L'onglet est un emploi du temps, pas un miroir de Google** (14/10/2026,
 migration **`d1e7f2a4b6c8`**, table `CalendrierAgendaReglages`). Trois colonnes
-de salle par journée — Imam Maziri, Imam Nafi', Imam Zarrouq — plus « Autre ».
+de salle par journée — Imam Maziri, Imam Nafi', Imam Zarrouq. **Plus de colonne
+« Autre »** (14/10/2026) : un cours sans salle connue va en Maziri, avec
+`salle_source = "defaut"` et la carte en pointillés comme une salle devinée —
+sans quoi Maziri afficherait comme bloqués des créneaux que personne n'a posés.
+Les jours sont séparés par un trait sombre, les salles d'un même jour par un
+trait clair.
 
 La salle d'un cours se résout dans cet ordre : **participant-ressource Google >
 `location` s'il nomme une des trois salles > salle habituelle de l'agenda >

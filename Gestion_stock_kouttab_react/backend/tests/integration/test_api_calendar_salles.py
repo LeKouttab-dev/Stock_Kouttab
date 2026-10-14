@@ -109,12 +109,18 @@ class TestOrdreDeResolution:
         assert evt["salle_source"] == "google"
         assert evt["salle_libelle"] == "Imam Maziri"
 
-    def test_sans_reservation_ni_reglage_il_n_y_a_pas_de_salle(
+    def test_sans_reservation_ni_reglage_le_cours_va_en_maziri_par_defaut(
         self, client: TestClient, super_admin_user, auth_headers, google
     ):
+        """Il n'y a plus de colonne « Autre » : le défaut est Maziri.
+
+        Mais l'API dit `defaut`, jamais `google` ni `correspondance` — sans
+        quoi la colonne Maziri afficherait comme bloqués des créneaux que
+        personne n'a posés.
+        """
         evt = _evenements(client, super_admin_user, auth_headers)["evt-coran"]
-        assert evt["salle"] is None
-        assert evt["salle_source"] is None
+        assert evt["salle"] == "maziri"
+        assert evt["salle_source"] == "defaut"
 
     def test_le_reglage_comble_les_evenements_sans_reservation(
         self, client: TestClient, super_admin_user, auth_headers, google
@@ -250,7 +256,7 @@ class TestEcritureDesReglages:
         etat = client.get(
             "/api/v1/calendar/reglages-agendas", headers=auth_headers(super_admin_user)
         ).json()
-        assert list(etat["salles"]) == ["maziri", "nafi", "zarrouq", "autre"]
+        assert list(etat["salles"]) == ["maziri", "nafi", "zarrouq"]
 
         evenements = client.get(
             "/api/v1/calendar", params=FENETRE, headers=auth_headers(super_admin_user)
