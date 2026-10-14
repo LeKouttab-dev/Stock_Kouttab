@@ -17,7 +17,11 @@ import { useToast } from '@/hooks/useToast';
 interface Brouillon {
   salle: string;
   nom_court: string;
+  categorie: string;
+  sous_categorie: string;
 }
+
+const CHAMPS: (keyof Brouillon)[] = ['salle', 'nom_court', 'categorie', 'sous_categorie'];
 
 /**
  * Ranger chaque agenda Google dans une salle.
@@ -32,7 +36,8 @@ interface Brouillon {
  * réellement bloquée dans Google l'emporte toujours sur ce qui est saisi ici.
  * Confondre les deux enverrait quelqu'un devant une porte occupée.
  *
- * Le nom court est facultatif : vide, c'est la règle d'abréviation qui parle.
+ * Le nom court, la catégorie et la sous-catégorie sont facultatifs : vides,
+ * c'est le calcul depuis le nom de l'agenda qui parle.
  */
 export function CalendrierSallesSection() {
   const { data: agendas = [], isLoading: agendasEnCours } = useAgendas();
@@ -54,18 +59,27 @@ export function CalendrierSallesSection() {
   const valeur = (agendaId: string, champ: keyof Brouillon): string => {
     const brouillon = brouillons[agendaId];
     if (brouillon) return brouillon[champ];
-    const pose = poses[agendaId];
-    return (champ === 'salle' ? pose?.salle : pose?.nom_court) ?? '';
+    return poses[agendaId]?.[champ] ?? '';
   };
 
   const modifier = (agendaId: string, champ: keyof Brouillon, nouvelle: string) =>
-    setBrouillons((actuels) => ({
-      ...actuels,
-      [agendaId]: {
-        salle: champ === 'salle' ? nouvelle : valeur(agendaId, 'salle'),
-        nom_court: champ === 'nom_court' ? nouvelle : valeur(agendaId, 'nom_court'),
-      },
-    }));
+    setBrouillons((actuels) => {
+      const suite = Object.fromEntries(
+        CHAMPS.map((c) => [c, c === champ ? nouvelle : valeur(agendaId, c)]),
+      ) as unknown as Brouillon;
+      return { ...actuels, [agendaId]: suite };
+    });
+
+  // Les catégories déjà connues, proposées à la saisie : retaper « Coran »
+  // à la main finirait en « coran », « Coran » et « Coran  » côte à côte.
+  const categoriesConnues = useMemo(
+    () => [...new Set(agendas.map((a) => a.categorie).filter(Boolean))].sort(),
+    [agendas],
+  );
+  const sousCategoriesConnues = useMemo(
+    () => [...new Set(agendas.map((a) => a.sous_categorie).filter(Boolean) as string[])].sort(),
+    [agendas],
+  );
 
   const proposer = () => {
     deduction.refetch().then(({ data }) => {
@@ -79,6 +93,8 @@ export function CalendrierSallesSection() {
           suite[p.agenda_id] = {
             salle: p.salle,
             nom_court: valeur(p.agenda_id, 'nom_court'),
+            categorie: valeur(p.agenda_id, 'categorie'),
+            sous_categorie: valeur(p.agenda_id, 'sous_categorie'),
           };
         }
         return suite;
@@ -96,7 +112,12 @@ export function CalendrierSallesSection() {
     const lot = Object.fromEntries(
       Object.entries(brouillons).map(([agendaId, b]) => [
         agendaId,
-        { salle: b.salle || null, nom_court: b.nom_court.trim() || null },
+        {
+          salle: b.salle || null,
+          nom_court: b.nom_court.trim() || null,
+          categorie: b.categorie.trim() || null,
+          sous_categorie: b.sous_categorie.trim() || null,
+        },
       ]),
     );
     enregistrer.mutate(lot, {
@@ -165,7 +186,9 @@ export function CalendrierSallesSection() {
                 <tr className="border-b border-sand-200 text-left text-xs text-forest/60">
                   <th className="py-2 pr-3 font-medium">Agenda Google</th>
                   <th className="py-2 pr-3 font-medium">Salle habituelle</th>
-                  <th className="py-2 font-medium">Nom court (vide = automatique)</th>
+                  <th className="py-2 pr-3 font-medium">Nom court (vide = automatique)</th>
+                  <th className="py-2 pr-3 font-medium">Catégorie</th>
+                  <th className="py-2 font-medium">Sous-catégorie</th>
                 </tr>
               </thead>
               <tbody>
@@ -206,10 +229,42 @@ export function CalendrierSallesSection() {
                         onChange={(e) => modifier(agenda.id, 'nom_court', e.target.value)}
                       />
                     </td>
+                    <td className="py-1.5 pr-3">
+                      <Input
+                        aria-label={`Catégorie de ${agenda.nom}`}
+                        className="h-8 w-40 text-sm"
+                        list="calendrier-categories"
+                        maxLength={64}
+                        placeholder={agenda.categorie}
+                        value={valeur(agenda.id, 'categorie')}
+                        onChange={(e) => modifier(agenda.id, 'categorie', e.target.value)}
+                      />
+                    </td>
+                    <td className="py-1.5">
+                      <Input
+                        aria-label={`Sous-catégorie de ${agenda.nom}`}
+                        className="h-8 w-40 text-sm"
+                        list="calendrier-sous-categories"
+                        maxLength={64}
+                        placeholder={agenda.sous_categorie ?? '—'}
+                        value={valeur(agenda.id, 'sous_categorie')}
+                        onChange={(e) => modifier(agenda.id, 'sous_categorie', e.target.value)}
+                      />
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            <datalist id="calendrier-categories">
+              {categoriesConnues.map((c) => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
+            <datalist id="calendrier-sous-categories">
+              {sousCategoriesConnues.map((c) => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
           </div>
         )}
       </CardContent>

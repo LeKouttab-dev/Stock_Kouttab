@@ -11,6 +11,8 @@ from __future__ import annotations
 import pytest
 
 from app.services.calendrier_salles import (
+    ORDRE_CATEGORIES,
+    categorie_de,
     LONGUEUR_NOM_COURT,
     SALLES,
     enseignant_de,
@@ -205,3 +207,43 @@ class TestNumeroDeSeance:
     def test_une_propriete_vide_retombe_sur_le_titre(self):
         evenement = {"summary": "cours 12", "extendedProperties": {"private": {"numero": "  "}}}
         assert numero_de(evenement) == "12"
+
+
+# Les 45 agendas réels et leur place dans le filtre : par matière, puis public.
+CATEGORIES_REELLES = [
+    ("Coran - enfants 1 U.soundousse 2026/2027", "Coran", "Coran enfants"),
+    ("Coran - enfants 1+2 U.soundousse 2026/2027", "Coran", "Coran enfants"),
+    ("Coran - femmes niveau 1 semaine 2026/2027", "Coran", "Coran femmes"),
+    ("Coran - hommes niveau 2 2026/2027", "Coran", "Coran hommes"),
+    ("Hafiz famille 2026/2027", "Coran", "Hafiz"),
+    ("SI - Adorations 2026/2027", "Sciences islamiques", None),
+    ("SI - Coran / Hadith / Fondements de la jurisprudence", "Sciences islamiques", None),
+    ("Hors cursus - SI - avancé 2026/2027", "Sciences islamiques", "Hors cursus"),
+    ("Arabe immersion - primaire 1 2026/2027", "Arabe", "Arabe primaire"),
+    ("Arabe immersion - éveil 2 2026/2027", "Arabe", "Arabe éveil"),
+    ("Education islamique 6-11ans 2026/2027", "Éducation islamique", None),
+    ("Madrassah niveau 2 2026/2027", "Madrassah", None),
+    ("Alphabétisation - femmes U.isabelle 2026/2027", "Alphabétisation", None),
+    ("Permanence administrative 2026/2027", "Permanences", None),
+    ("Permanence pédagogique 2026/2027", "Permanences", None),
+    ("Non classé", "Autres", None),
+    ("Salle - Imam Maziri", "Autres", None),
+]
+
+
+@pytest.mark.parametrize("nom, categorie, sous_categorie", CATEGORIES_REELLES)
+def test_categorie_sur_les_agendas_reels(nom: str, categorie: str, sous_categorie: str | None):
+    assert categorie_de(nom) == (categorie, sous_categorie)
+
+
+def test_le_coran_d_un_si_reste_aux_sciences_islamiques():
+    """« SI - Coran / Hadith … » parle du Coran, mais c'est un cours de SI."""
+    assert categorie_de("SI - Coran / Hadith / Fondements de la jurisprudence")[0] == (
+        "Sciences islamiques"
+    )
+
+
+def test_toute_categorie_calculee_a_sa_place_dans_l_ordre():
+    for nom, _, _ in CATEGORIES_REELLES:
+        assert categorie_de(nom)[0] in ORDRE_CATEGORIES
+    assert ORDRE_CATEGORIES[-1] == "Autres"

@@ -30,7 +30,12 @@ def reglages_par_agenda(db: Session) -> dict[str, ReglageAgenda]:
     """
     lignes = db.query(CalendrierAgendaReglage).all()
     return {
-        ligne.agenda_id: ReglageAgenda(salle=ligne.salle, nom_court=ligne.nom_court)
+        ligne.agenda_id: ReglageAgenda(
+            salle=ligne.salle,
+            nom_court=ligne.nom_court,
+            categorie=ligne.categorie,
+            sous_categorie=ligne.sous_categorie,
+        )
         for ligne in lignes
     }
 
@@ -38,6 +43,21 @@ def reglages_par_agenda(db: Session) -> dict[str, ReglageAgenda]:
 def lignes_par_agenda(db: Session) -> dict[str, CalendrierAgendaReglage]:
     """Les lignes brutes, pour l'ecran de reglage (qui affiche aussi l'auteur)."""
     return {ligne.agenda_id: ligne for ligne in db.query(CalendrierAgendaReglage).all()}
+
+
+LONGUEUR_CATEGORIE = 64
+
+
+def _texte(valeur: str | None, longueur: int, libelle: str) -> str | None:
+    texte = (valeur or "").strip()
+    if len(texte) > longueur:
+        raise AppException(
+            ErrorCode.VALIDATION_ERROR,
+            detail=f"{libelle} ne depasse pas {longueur} caracteres.",
+        )
+    # Vider un champ le rend a son calcul automatique, plutot que de figer une
+    # chaine vide qui effacerait le libelle.
+    return texte or None
 
 
 def _valider(
@@ -78,19 +98,23 @@ def enregistrer_reglages(
     quarante-cinq et enregistre ; un remplacement global effacerait les
     trente-cinq autres.
 
-    Une ligne dont la salle **et** le nom court sont vides est supprimee : elle
+    Une ligne dont tous les champs sont vides est supprimee : elle
     ne dit plus rien, et la garder ferait croire a un reglage existant.
     """
     valides = {
-        agenda_id: _valider(agenda_id, champs.get("salle"), champs.get("nom_court"))
+        agenda_id: (
+            *_valider(agenda_id, champs.get("salle"), champs.get("nom_court")),
+            _texte(champs.get("categorie"), LONGUEUR_CATEGORIE, "La categorie"),
+            _texte(champs.get("sous_categorie"), LONGUEUR_CATEGORIE, "La sous-categorie"),
+        )
         for agenda_id, champs in reglages.items()
     }
 
     existantes = lignes_par_agenda(db)
     maintenant = datetime.utcnow()
-    for agenda_id, (salle, court) in valides.items():
+    for agenda_id, (salle, court, categorie, sous_categorie) in valides.items():
         ligne = existantes.get(agenda_id)
-        if salle is None and court is None:
+        if salle is None and court is None and categorie is None and sous_categorie is None:
             if ligne is not None:
                 db.delete(ligne)
             continue
@@ -99,6 +123,8 @@ def enregistrer_reglages(
             db.add(ligne)
         ligne.salle = salle
         ligne.nom_court = court
+        ligne.categorie = categorie
+        ligne.sous_categorie = sous_categorie
         ligne.agenda_nom = (noms_agendas or {}).get(agenda_id) or ligne.agenda_nom
         ligne.modifie_par = auteur
         ligne.modifie_le = maintenant

@@ -172,4 +172,37 @@ describe('GrilleSalles', () => {
     expect(textes[0]).toContain('Tot');
     expect(textes[1]).toContain('Tard');
   });
+
+  it('ce qui n’est pas un cours affiche son propre titre, pas le nom de l’agenda', () => {
+    // « Non classé » ne disait rien ; « RDV eden » dit ce qui se passe.
+    afficher([
+      evenement({
+        agenda_nom: 'Non classé',
+        nom_court: 'Non classé',
+        titre: 'RDV eden',
+        numero: null,
+        enseignant: null,
+        salle: 'maziri',
+        salle_source: 'defaut',
+      }),
+    ]);
+    expect(screen.getByText('RDV eden')).toBeInTheDocument();
+    expect(screen.queryByText('Non classé')).toBeNull();
+  });
+
+  it('une plage fusionnée dit ce qu’elle contient, sans les noms', () => {
+    const permanence = (debut: string, fin: string, nom: string) =>
+      evenement({
+        agenda_nom: 'Non classé',
+        nom_court: 'Non classé',
+        numero: null,
+        enseignant: null,
+        titre: `Permanence administrative (paiement) (${nom})`,
+        debut: `2026-10-14T${debut}:00+02:00`,
+        fin: `2026-10-14T${fin}:00+02:00`,
+      });
+    afficher([permanence('12:00', '12:05', 'A. B.'), permanence('12:05', '12:10', 'C. D.')]);
+    expect(screen.getByText('Permanence administrative')).toBeInTheDocument();
+    expect(screen.queryByText('Non classé')).toBeNull();
+  });
 });

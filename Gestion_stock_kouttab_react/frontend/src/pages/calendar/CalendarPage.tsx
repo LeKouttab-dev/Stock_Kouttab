@@ -74,7 +74,7 @@ export function CalendarPage() {
     }
   });
 
-  const { vue, choisir, ancre, decaler, aujourdhui } = useCalendrierVue();
+  const { vue, choisie, choisir, ancre, decaler, aujourdhui } = useCalendrierVue();
   const { masquees: sallesMasquees, basculer: basculerSalle } = useSallesMasquees();
   const maintenant = useMaintenant();
 
@@ -136,7 +136,9 @@ export function CalendarPage() {
         id: `${e.agenda_id}::${e.id}`,
         // Le titre Google est « cours 19 » : c'est le nom d'agenda raccourci
         // qui porte le sens, dans le mois comme dans la grille.
-        title: e.numero ? `${e.nom_court} · ${e.numero}` : e.nom_court || e.titre,
+        // Un cours se lit par son agenda (« Coran ENF 1 · 19 ») ; ce qui n'est
+        // pas un cours — un atelier, un rendez-vous — par son propre titre.
+        title: e.numero ? `${e.nom_court} · ${e.numero}` : e.titre,
         start: e.debut,
         end: e.fin,
         allDay: e.journee_entiere,
@@ -192,6 +194,7 @@ export function CalendarPage() {
     <div className="flex h-full min-h-0 flex-col">
       <BarreCalendrier
         vue={vue}
+        choisie={choisie}
         titre={titre}
         parSalle={parSalle}
         panneauOuvert={panneauOuvert}
@@ -243,13 +246,14 @@ export function CalendarPage() {
             sallesMasquees={sallesMasquees}
             parSalle={parSalle && grille}
             onRecherche={setRecherche}
-            onBasculerAgenda={(id) =>
+            onReglerAgendas={(ids, afficher) =>
               setMasques((actuels) =>
-                actuels.includes(id) ? actuels.filter((m) => m !== id) : [...actuels, id],
+                afficher
+                  ? actuels.filter((m) => !ids.includes(m))
+                  : [...new Set([...actuels, ...ids])],
               )
             }
             onBasculerSalle={basculerSalle}
-            onTousAgendas={(tous) => setMasques(tous ? [] : agendas.map((a) => a.id))}
           />
         )}
 
@@ -268,7 +272,10 @@ export function CalendarPage() {
             <FullCalendar
               plugins={[dayGridPlugin, listPlugin]}
               initialView={vue === 'mois' ? 'dayGridMonth' : 'listWeek'}
-              key={vue}
+              // FullCalendar ne relit `initialDate` qu'au montage : sans la date
+              // dans la clé, les flèches précédent / suivant ne faisaient rien
+              // en vues Mois et Liste.
+              key={`${vue}-${ancre.toISOString().slice(0, 10)}`}
               locale={frLocale}
               timeZone="Europe/Paris"
               headerToolbar={false}

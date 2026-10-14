@@ -30,6 +30,13 @@ class AgendaOut(BaseModel):
     # La salle habituelle, saisie dans les reglages. Ce n'est pas une
     # reservation : cf. `salle_source` sur l'evenement.
     salle_par_defaut: str | None = None
+    # Sa place dans le filtre en arbre : par matiere, puis par public.
+    # Calculee depuis le nom, ou saisie dans les reglages.
+    categorie: str = "Autres"
+    sous_categorie: str | None = None
+    # Rang de la categorie dans le filtre. Servi plutot que recopie cote front :
+    # une categorie saisie a la main se range avant « Autres », qui ferme la marche.
+    categorie_rang: int = 0
 
 
 class EvenementOut(BaseModel):
@@ -95,6 +102,8 @@ class ReglageAgendaIn(BaseModel):
 
     salle: str | None = None
     nom_court: str | None = Field(default=None, max_length=64)
+    categorie: str | None = Field(default=None, max_length=64)
+    sous_categorie: str | None = Field(default=None, max_length=64)
 
 
 class ReglagesAgendasIn(BaseModel):
@@ -107,6 +116,8 @@ class ReglageAgendaOut(BaseModel):
     agenda_id: str
     salle: str | None = None
     nom_court: str | None = None
+    categorie: str | None = None
+    sous_categorie: str | None = None
 
 
 class ReglagesAgendasOut(BaseModel):

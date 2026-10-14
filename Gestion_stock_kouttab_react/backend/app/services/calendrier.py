@@ -75,6 +75,14 @@ def borner_fenetre(debut: datetime, fin: datetime) -> tuple[datetime, datetime]:
     return debut, fin
 
 
+def _rang_categorie(categorie: str) -> int:
+    """Les categories connues dans leur ordre, les saisies ensuite, « Autres » a la fin."""
+    ordre = calendrier_salles.ORDRE_CATEGORIES
+    if categorie == "Autres":
+        return len(ordre) + 1
+    return ordre.index(categorie) if categorie in ordre else len(ordre)
+
+
 def en_agenda(
     brut: dict[str, Any],
     restreints: set[str],
@@ -83,6 +91,8 @@ def en_agenda(
     identifiant = brut.get("id", "")
     nom = brut.get("summaryOverride") or brut.get("summary") or identifiant
     reglage = (reglages or {}).get(identifiant) or ReglageAgenda()
+    categorie_calculee, sous_categorie_calculee = calendrier_salles.categorie_de(nom)
+    categorie = reglage.categorie or categorie_calculee
     return AgendaOut(
         id=identifiant,
         nom=nom,
@@ -95,6 +105,16 @@ def en_agenda(
         nom_court=reglage.nom_court or calendrier_salles.nom_court(nom),
         enseignant=calendrier_salles.enseignant_de(nom),
         salle_par_defaut=reglage.salle,
+        # Saisi dans les reglages, sinon deduit du nom. La sous-categorie
+        # saisie ne vaut qu'avec sa categorie : seule, elle rangerait l'agenda
+        # sous une branche qui n'est pas la sienne.
+        categorie=categorie,
+        categorie_rang=_rang_categorie(categorie),
+        sous_categorie=(
+            reglage.sous_categorie
+            if reglage.categorie or reglage.sous_categorie
+            else sous_categorie_calculee
+        ),
     )
 
 

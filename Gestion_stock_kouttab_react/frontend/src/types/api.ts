@@ -1012,6 +1012,12 @@ export interface Agenda {
   enseignant?: string | null;
   /** Salle habituelle saisie dans les réglages. Pas une réservation. */
   salle_par_defaut?: string | null;
+  /** Place dans le filtre : par matière (« Coran »)… */
+  categorie: string;
+  /** …puis par public (« Coran enfants »). */
+  sous_categorie?: string | null;
+  /** Ordre de la catégorie dans le filtre, servi par l'API. */
+  categorie_rang: number;
 }
 
 /** Clé de salle : `maziri` · `nafi` · `zarrouq`. */
@@ -1077,6 +1083,8 @@ export interface ReglageAgenda {
   agenda_id: string;
   salle?: CleSalle | null;
   nom_court?: string | null;
+  categorie?: string | null;
+  sous_categorie?: string | null;
 }
 
 export interface ReglagesAgendas {

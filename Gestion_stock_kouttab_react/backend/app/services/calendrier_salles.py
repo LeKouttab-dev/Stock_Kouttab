@@ -88,6 +88,8 @@ class ReglageAgenda(NamedTuple):
 
     salle: str | None = None
     nom_court: str | None = None
+    categorie: str | None = None
+    sous_categorie: str | None = None
 
 
 def _sans_accents(texte: str | None) -> str:
@@ -150,6 +152,58 @@ def salle_reservee(brut: dict[str, Any]) -> str | None:
             if salle is not None:
                 return salle
     return _salle_nommee(brut.get("location"))
+
+
+# L'ordre des catégories dans le filtre. « Autres » ferme toujours la marche.
+ORDRE_CATEGORIES: tuple[str, ...] = (
+    "Coran",
+    "Sciences islamiques",
+    "Arabe",
+    "Éducation islamique",
+    "Madrassah",
+    "Alphabétisation",
+    "Permanences",
+    "Autres",
+)
+
+
+def categorie_de(nom_agenda: str | None) -> tuple[str, str | None]:
+    """La place d'un agenda dans le filtre : (catégorie, sous-catégorie).
+
+    Regroupement **par matière, puis par public** — c'est ainsi que l'équipe
+    pense ses cours : « le Coran des enfants », pas « les enfants, en Coran ».
+
+    Déduit du nom, comme le nom court ; un agenda mal rangé se corrige dans
+    *Réglages des agendas*. Ce qui ne ressemble à rien de connu va dans
+    « Autres » plutôt que de créer une catégorie d'un seul agenda.
+    """
+    plie = _sans_accents(nom_agenda)
+    if plie.startswith("hors cursus"):
+        return "Sciences islamiques", "Hors cursus"
+    if plie.startswith("coran"):
+        for public in ("enfants", "femmes", "hommes"):
+            if public in plie:
+                return "Coran", f"Coran {public}"
+        return "Coran", None
+    if plie.startswith("hafiz"):
+        return "Coran", "Hafiz"
+    if plie.startswith("si -") or plie.startswith("si "):
+        return "Sciences islamiques", None
+    if plie.startswith("arabe"):
+        if "primaire" in plie:
+            return "Arabe", "Arabe primaire"
+        if "eveil" in plie:
+            return "Arabe", "Arabe éveil"
+        return "Arabe", None
+    if plie.startswith("education islamique"):
+        return "Éducation islamique", None
+    if plie.startswith("madrassah"):
+        return "Madrassah", None
+    if plie.startswith("alphabetisation"):
+        return "Alphabétisation", None
+    if plie.startswith("permanence"):
+        return "Permanences", None
+    return "Autres", None
 
 
 def enseignant_de(nom_agenda: str | None) -> str | None:
@@ -224,6 +278,8 @@ def numero_de(brut: dict[str, Any]) -> str | None:
 
 __all__ = [
     "LONGUEUR_NOM_COURT",
+    "ORDRE_CATEGORIES",
+    "categorie_de",
     "MINUTES_MICRO_CRENEAU",
     "SALLES",
     "SALLE_PAR_DEFAUT",

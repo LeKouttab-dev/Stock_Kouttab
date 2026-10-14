@@ -1220,6 +1220,10 @@ class CalendrierAgendaReglage(Base):
     agenda_nom: Mapped[str | None] = mapped_column(String(255), nullable=True)
     salle: Mapped[str | None] = mapped_column(String(16), nullable=True)
     nom_court: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # La place de l'agenda dans le filtre en arbre, quand le calcul depuis le
+    # nom (`calendrier_salles.categorie_de`) tombe mal. Vide = calcule.
+    categorie: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    sous_categorie: Mapped[str | None] = mapped_column(String(64), nullable=True)
     # Nom fige, comme ailleurs : un compte supprime ne doit pas rendre le
     # reglage anonyme.
     modifie_par: Mapped[str | None] = mapped_column(String(255), nullable=True)

@@ -203,3 +203,9 @@ def test_les_reglages_de_salle_traversent_aussi(
     assert evenement["salle_source"] == "correspondance"
     assert charge["agendas"][0]["salle_par_defaut"] == "zarrouq"
     assert charge["agendas"][0]["nom_court"] == "Coran ENF 1"
+
+
+def test_le_pont_sert_aussi_les_categories(client: TestClient, pont):
+    """Gestion range ses agendas comme l'onglet d'ici : même calcul, même réponse."""
+    agenda = client.post(URL, json={"token": _jeton()}).json()["agendas"][0]
+    assert (agenda["categorie"], agenda["sous_categorie"]) == ("Coran", "Coran enfants")

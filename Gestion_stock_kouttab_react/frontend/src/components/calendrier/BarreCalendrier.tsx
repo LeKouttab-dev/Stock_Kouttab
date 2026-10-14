@@ -11,11 +11,16 @@ const LIBELLES: Record<VueCalendrier, string> = {
   liste: 'Liste',
 };
 
-/** Les vues de grille ne tiennent pas sur un téléphone : 12 colonnes minimum. */
-const LARGES: VueCalendrier[] = ['semaine', 'trois-jours'];
+/**
+ * Masqué sur téléphone : « Semaine » y sert déjà la liste de la semaine, un
+ * bouton « Liste » ferait doublon.
+ */
+const BUREAU_SEULEMENT: VueCalendrier[] = ['liste'];
 
 interface BarreCalendrierProps {
   vue: VueCalendrier;
+  /** La vue choisie, avant adaptation au téléphone : c'est elle qui s'affiche active. */
+  choisie?: VueCalendrier;
   titre: string;
   parSalle: boolean;
   panneauOuvert: boolean;
@@ -30,6 +35,7 @@ interface BarreCalendrierProps {
 
 export function BarreCalendrier({
   vue,
+  choisie = vue,
   titre,
   parSalle,
   panneauOuvert,
@@ -90,14 +96,12 @@ export function BarreCalendrier({
             <button
               key={cle}
               type="button"
-              aria-pressed={vue === cle}
+              aria-pressed={choisie === cle}
               onClick={() => onVue(cle)}
               className={cn(
                 'px-2 py-1 text-xs first:rounded-l-md last:rounded-r-md',
-                // Douze colonnes au minimum : ces vues n'ont pas de sens sur
-                // un téléphone, où la vue Jour prend le relais.
-                LARGES.includes(cle) && 'hidden lg:inline-block',
-                vue === cle ? 'bg-forest text-cream-100' : 'text-forest hover:bg-cream-100',
+                BUREAU_SEULEMENT.includes(cle) && 'hidden lg:inline-block',
+                choisie === cle ? 'bg-forest text-cream-100' : 'text-forest hover:bg-cream-100',
               )}
             >
               {LIBELLES[cle]}

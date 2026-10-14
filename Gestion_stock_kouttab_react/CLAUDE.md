@@ -813,6 +813,10 @@ de salle par journée — Imam Maziri, Imam Nafi', Imam Zarrouq. **Plus de colon
 sans quoi Maziri afficherait comme bloqués des créneaux que personne n'a posés.
 Les jours sont séparés par un trait sombre, les salles d'un même jour par un
 trait clair.
+Le filtre est un **arbre** catégorie → sous-catégorie → agendas
+(`calendrier_salles.categorie_de`, corrigeable par `CalendrierAgendaReglages.categorie`
+/ `sous_categorie`, migration **`e2f8a3b5c7d9`**). Un événement **sans numéro
+de séance** affiche son titre Google, pas le nom de l'agenda.
 
 La salle d'un cours se résout dans cet ordre : **participant-ressource Google >
 `location` s'il nomme une des trois salles > salle habituelle de l'agenda >
@@ -850,8 +854,8 @@ voies côte à côte, les créneaux plus courts posés sur leur moitié droite) 
 **l'ordre du DOM d'une colonne est chronologique**, sans quoi la tabulation
 part dans le désordre et aucun test visuel ne le voit. Vue par défaut :
 3 jours sur grand écran, Jour sous `lg`. Le cap `max-w-7xl` d'`AppLayout` est
-levé par route (`lib/layout.ts`), et la barre latérale se replie en rail
-d'icônes (`hooks/useSidebarRepliee.ts`, état **dérivé** — aucun effet, sinon il
+levé par route (`lib/layout.ts`), et la barre latérale disparaît entièrement
+(bouton hamburger, comme Google Agenda) (`hooks/useSidebarRepliee.ts`, état **dérivé** — aucun effet, sinon il
 se bat contre le clic de l'utilisateur).
 - `POST /auth/sso/calendrier` — **le même calendrier, pour l'outil de gestion**
   (jeton `typ: 'sso-calendrier'`, 60 s, secret partagé). `gestion.lekouttab.fr`

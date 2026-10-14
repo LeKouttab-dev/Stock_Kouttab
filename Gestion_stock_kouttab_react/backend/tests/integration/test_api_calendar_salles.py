@@ -307,3 +307,59 @@ class TestEtat:
         _regler(client, super_admin_user, auth_headers, AGENDA_CORAN["id"], salle="nafi")
         etat = client.get("/api/v1/calendar/etat", headers=auth_headers(super_admin_user)).json()
         assert etat["agendas_sans_salle"] == 1
+
+
+class TestCategories:
+    def _agendas(self, client, user, auth_headers) -> dict[str, dict]:
+        reponse = client.get("/api/v1/calendar/agendas", headers=auth_headers(user))
+        return {a["id"]: a for a in reponse.json()}
+
+    def test_la_categorie_est_deduite_du_nom(
+        self, client: TestClient, super_admin_user, auth_headers, google
+    ):
+        agendas = self._agendas(client, super_admin_user, auth_headers)
+        assert agendas[AGENDA_CORAN["id"]]["categorie"] == "Coran"
+        assert agendas[AGENDA_CORAN["id"]]["sous_categorie"] == "Coran enfants"
+        assert agendas[AGENDA_SI["id"]]["categorie"] == "Sciences islamiques"
+        # Le rang est servi : le front n'a pas à recopier l'ordre des catégories.
+        assert (
+            agendas[AGENDA_CORAN["id"]]["categorie_rang"]
+            < agendas[AGENDA_SI["id"]]["categorie_rang"]
+        )
+
+    def test_une_categorie_saisie_l_emporte_et_vider_rend_la_main(
+        self, client: TestClient, super_admin_user, auth_headers, google
+    ):
+        _regler(
+            client,
+            super_admin_user,
+            auth_headers,
+            AGENDA_SI["id"],
+            categorie="Coran",
+            sous_categorie="Coran adultes",
+        )
+        agenda = self._agendas(client, super_admin_user, auth_headers)[AGENDA_SI["id"]]
+        assert (agenda["categorie"], agenda["sous_categorie"]) == ("Coran", "Coran adultes")
+
+        _regler(client, super_admin_user, auth_headers, AGENDA_SI["id"], categorie=None)
+        agenda = self._agendas(client, super_admin_user, auth_headers)[AGENDA_SI["id"]]
+        assert agenda["categorie"] == "Sciences islamiques"
+
+    def test_une_categorie_saisie_inconnue_se_range_avant_autres(
+        self, client: TestClient, super_admin_user, auth_headers, google
+    ):
+        _regler(client, super_admin_user, auth_headers, AGENDA_SI["id"], categorie="Événements")
+        agenda = self._agendas(client, super_admin_user, auth_headers)[AGENDA_SI["id"]]
+        assert agenda["categorie"] == "Événements"
+        # Après les catégories connues, avant « Autres ».
+        from app.services.calendrier_salles import ORDRE_CATEGORIES
+
+        assert agenda["categorie_rang"] == len(ORDRE_CATEGORIES)
+
+    def test_une_categorie_trop_longue_est_refusee(
+        self, client: TestClient, super_admin_user, auth_headers, google
+    ):
+        reponse = _regler(
+            client, super_admin_user, auth_headers, AGENDA_SI["id"], categorie="x" * 65
+        )
+        assert reponse.status_code == 422
