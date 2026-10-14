@@ -110,7 +110,13 @@ def _en_reglages(reglages: dict[str, Any]) -> ReglagesAgendasOut:
     return ReglagesAgendasOut(
         reglages=sorted(
             (
-                ReglageAgendaOut(agenda_id=aid, salle=r.salle, nom_court=r.nom_court)
+                ReglageAgendaOut(
+                    agenda_id=aid,
+                    salle=r.salle,
+                    nom_court=r.nom_court,
+                    categorie=r.categorie,
+                    sous_categorie=r.sous_categorie,
+                )
                 for aid, r in reglages.items()
             ),
             key=lambda r: r.agenda_id,

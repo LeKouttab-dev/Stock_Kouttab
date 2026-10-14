@@ -9,6 +9,24 @@ const LIGNE = 14;
 /** Marge haute de la carte. */
 const MARGE_HAUT = 4;
 
+/**
+ * Le titre d'une plage de créneaux fusionnés : ce qu'ils ont en commun.
+ *
+ * « Permanence administrative (paiement) (Karima T.) », « … (Junaid M.) » :
+ * sans les précisions entre parenthèses, tous disent « Permanence
+ * administrative ». C'est ce titre-là qu'il faut, et non le nom de l'agenda —
+ * « Non classé ×6 » ne disait pas de quoi il s'agissait.
+ */
+function titreDePlage(bloc: BlocGrille): string {
+  const communs = new Set(
+    bloc.evenements.map((e) => e.titre.replace(/\s*\([^)]*\)/g, '').trim()),
+  );
+  const [seul] = communs;
+  if (communs.size === 1 && seul) return seul;
+  const premier = bloc.evenements[0];
+  return premier.nom_court || premier.agenda_nom;
+}
+
 interface CarteSeanceProps {
   bloc: BlocGrille;
   hauteur: number;
@@ -69,9 +87,15 @@ export function CarteSeance({
         ? ' (par défaut, aucune salle renseignée)'
         : '';
 
+  // Un cours se lit par le nom de son agenda — son titre Google est « cours
+  // 19 ». Ce qui n'est pas un cours (pas de numéro de séance) a un vrai titre :
+  // « RDV eden », un atelier des vacances. Afficher « Non classé » à la place
+  // ne disait rien.
   const titre = plage
-    ? premier.nom_court || premier.agenda_nom
-    : premier.nom_court || premier.titre;
+    ? titreDePlage(bloc)
+    : premier.numero
+      ? premier.nom_court || premier.titre
+      : premier.titre;
 
   // Une demi-colonne n'a pas la place d'un horaire complet ni d'un nom
   // d'enseignant : on y garde l'heure de début seule.

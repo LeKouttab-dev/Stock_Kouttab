@@ -1,4 +1,4 @@
-import { LogOut, Menu, ChevronDown, PanelLeftClose } from 'lucide-react';
+import { LogOut, Menu, ChevronDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
@@ -35,18 +35,18 @@ export function TopBar({ onMenuClick, sidebarRepliee, onBasculerSidebar }: TopBa
 
   return (
     <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-border bg-card/90 px-4 text-forest backdrop-blur lg:px-6">
+      {/* Un seul bouton, tout à gauche, comme Google Agenda. Sur téléphone il
+          ouvre le tiroir ; sur ordinateur il fait disparaître ou revenir le
+          menu entier, pour un agenda en pleine largeur. */}
       <Button
         variant="ghost"
         size="icon"
         onClick={onMenuClick}
-        className="lg:hidden"
+        className={cn(onBasculerSidebar && 'lg:hidden')}
         aria-label="Ouvrir le menu"
       >
         <Menu className="h-5 w-5" />
       </Button>
-
-      {/* Replier la navigation : sur l'emploi du temps, les 192 px gagnés
-          valent presque deux colonnes de salle. */}
       {onBasculerSidebar && (
         <Button
           variant="ghost"
@@ -54,11 +54,9 @@ export function TopBar({ onMenuClick, sidebarRepliee, onBasculerSidebar }: TopBa
           onClick={onBasculerSidebar}
           className="hidden lg:inline-flex"
           aria-expanded={!sidebarRepliee}
-          aria-label={sidebarRepliee ? 'Déplier le menu' : 'Replier le menu'}
+          aria-label={sidebarRepliee ? 'Afficher le menu' : 'Masquer le menu'}
         >
-          <PanelLeftClose
-            className={cn('h-5 w-5 transition-transform', sidebarRepliee && 'rotate-180')}
-          />
+          <Menu className="h-5 w-5" />
         </Button>
       )}
 

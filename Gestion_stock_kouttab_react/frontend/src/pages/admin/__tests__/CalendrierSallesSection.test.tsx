@@ -25,6 +25,9 @@ const AGENDAS: Agenda[] = [
     nom_court: 'Coran ENF 1',
     enseignant: 'U. Soundousse',
     salle_par_defaut: null,
+    categorie: 'Coran',
+    sous_categorie: 'Coran enfants',
+    categorie_rang: 0,
   },
   {
     id: 'si@g',
@@ -33,6 +36,9 @@ const AGENDAS: Agenda[] = [
     nom_court: 'SI Adorations',
     enseignant: null,
     salle_par_defaut: null,
+    categorie: 'Sciences islamiques',
+    sous_categorie: null,
+    categorie_rang: 1,
   },
 ];
 
@@ -97,7 +103,7 @@ describe('Salles de l’emploi du temps', () => {
 
     expect(enregistrer).toHaveBeenCalledTimes(1);
     expect(enregistrer.mock.calls[0][0]).toEqual({
-      'coran@g': { salle: 'nafi', nom_court: null },
+      'coran@g': { salle: 'nafi', nom_court: null, categorie: null, sous_categorie: null },
     });
   });
 
@@ -114,7 +120,7 @@ describe('Salles de l’emploi du temps', () => {
     await user.click(screen.getByRole('button', { name: /Enregistrer/ }));
 
     expect(enregistrer.mock.calls[0][0]).toEqual({
-      'si@g': { salle: null, nom_court: 'SI Ador.' },
+      'si@g': { salle: null, nom_court: 'SI Ador.', categorie: null, sous_categorie: null },
     });
   });
 
@@ -134,5 +140,16 @@ describe('Salles de l’emploi du temps', () => {
   it('rien n’est envoyé tant que rien n’a été touché', async () => {
     await afficher();
     expect(screen.getByRole('button', { name: /Enregistrer/ })).toBeDisabled();
+  });
+
+  it('une catégorie corrigée part avec le lot', async () => {
+    const user = userEvent.setup();
+    await afficher();
+    const champ = screen.getByLabelText(/^Catégorie de SI - Adorations/);
+    // La valeur calculée est montrée : vider le champ y revient.
+    expect(champ).toHaveAttribute('placeholder', 'Sciences islamiques');
+    await user.type(champ, 'Événements');
+    await user.click(screen.getByRole('button', { name: /Enregistrer/ }));
+    expect(enregistrer.mock.calls[0][0]['si@g']).toMatchObject({ categorie: 'Événements' });
   });
 });

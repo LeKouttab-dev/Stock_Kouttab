@@ -268,6 +268,34 @@ Les vues par défaut : **3 jours** sur un écran large (sept jours fois trois
 salles peuvent faire vingt et une colonnes),
 **Jour** en dessous de `lg`, sans écraser la préférence enregistrée.
 
+### Le filtre en arbre, et les titres de ce qui n'est pas un cours
+
+**Le filtre est un arbre replié** : par matière (*Coran*, *Sciences
+islamiques*, *Arabe*…), puis par public (*Coran enfants*, *Coran femmes*…),
+puis les agendas. Une case par nœud coche ou décoche tout ce qu'elle contient,
+et passe à l'état partiel quand une partie seulement l'est. L'état déplié est
+mémorisé ; une recherche déplie ce qui contient un résultat.
+
+La place de chaque agenda est **calculée par le serveur** depuis son nom
+(`calendrier_salles.categorie_de`, testée sur les 45 noms réels) et
+**corrigeable** dans l'écran de réglage (colonnes *Catégorie* et
+*Sous-catégorie*, migration `e2f8a3b5c7d9`). L'ordre des catégories est servi
+(`categorie_rang`) : une catégorie saisie à la main se range avant *Autres*.
+Même parti que le nom court : la règle vit en Python seul.
+
+**Ce qui n'est pas un cours affiche son propre titre.** Un cours se reconnaît à
+son numéro de séance et se lit par son agenda (« Coran ENF 1 ») ; le reste —
+un atelier des vacances, « RDV eden » — par son titre Google. Une plage de
+créneaux fusionnés affiche leur titre commun, débarrassé des précisions entre
+parenthèses : « Permanence administrative », pas « Non classé ×6 ».
+
+**Sur téléphone**, « Semaine » ouvre la liste de la semaine, et la vue 3 jours
+est disponible (elle défile sur le côté quand les salles ne tiennent pas).
+
+**Le menu latéral disparaît entièrement** sur ordinateur, comme dans Google
+Agenda, par le bouton en haut à gauche de la barre du haut. Il est masqué par
+défaut sur le calendrier ; le premier clic fixe la préférence partout.
+
 ### Le pont SSO transporte aussi les réglages
 
 `POST /auth/sso/calendrier` charge la même correspondance. L'oublier aurait

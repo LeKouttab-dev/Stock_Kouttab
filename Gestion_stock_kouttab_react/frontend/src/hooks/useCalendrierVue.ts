@@ -66,8 +66,9 @@ const VUES: readonly VueCalendrier[] = ['mois', 'semaine', 'trois-jours', 'jour'
  * un écran de bureau — une carte de cours n'y tient pas. Trois jours en font
  * douze, largement lisibles une fois les panneaux repliés.
  *
- * Sur un écran étroit, on sert `jour` **sans écraser la préférence** : le
- * réglage du poste de travail doit survivre à une consultation sur téléphone.
+ * Sur un écran étroit, « Semaine » sert la liste de la semaine, **sans écraser
+ * la préférence** : le réglage du poste de travail doit survivre à une
+ * consultation sur téléphone.
  */
 export function useCalendrierVue() {
   const compact = useEstCompact();
@@ -76,8 +77,9 @@ export function useCalendrierVue() {
   );
   const [ancre, setAncre] = useState(() => new Date());
 
-  const vue: VueCalendrier =
-    compact && (memorisee === 'semaine' || memorisee === 'trois-jours') ? 'jour' : memorisee;
+  // Sur téléphone, une grille de sept jours n'a pas la place d'une carte :
+  // « Semaine » y sert la LISTE de la semaine. Trois jours tiennent, eux.
+  const vue: VueCalendrier = compact && memorisee === 'semaine' ? 'liste' : memorisee;
 
   const choisir = useCallback((suivante: VueCalendrier) => {
     setMemorisee(suivante);
@@ -100,7 +102,16 @@ export function useCalendrierVue() {
     [vue],
   );
 
-  return { vue, choisir, ancre, setAncre, decaler, aujourdhui: () => setAncre(new Date()) };
+  return {
+    vue,
+    /** La vue choisie, avant l'adaptation au téléphone : c'est elle que la barre montre active. */
+    choisie: memorisee,
+    choisir,
+    ancre,
+    setAncre,
+    decaler,
+    aujourdhui: () => setAncre(new Date()),
+  };
 }
 
 /** Les salles décochées, retenues d'une visite à l'autre. */
