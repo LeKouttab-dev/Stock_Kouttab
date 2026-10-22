@@ -13,7 +13,7 @@ export const mockUser: User = {
   prenom: 'John',
   email: 'john@example.com',
   telephone: null,
-  rib: null,
+  rib_transmis_le: null,
 };
 
 export const mockLoginResponse: LoginResponse = {

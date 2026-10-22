@@ -1,20 +1,16 @@
-import { useRef } from 'react';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Download, Trash2, Upload } from 'lucide-react';
+import { CheckCircle2, Send } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
-import {
-  useDeleteRibDocument,
-  useProfile,
-  useUpdateProfile,
-  useUploadRibDocument,
-} from '@/api/endpoints/auth';
+import { useProfile, useTransmettreRib, useUpdateProfile } from '@/api/endpoints/auth';
 import { profileSchema, type ProfileFormValues } from '@/lib/schemas/auth';
-import { useDownloadAttachment } from '@/hooks/useDownloadAttachment';
+import { formatDate } from '@/lib/format';
+import { ibanValide } from '@/lib/iban';
 import { useToast } from '@/hooks/useToast';
 import { fr } from '@/lib/i18n/fr';
 
@@ -38,7 +34,6 @@ export function ProfileForm() {
           prenom: profile.prenom,
           email: profile.email,
           telephone: profile.telephone ?? '',
-          rib: profile.rib ?? '',
         }
       : undefined,
   });
@@ -73,113 +68,113 @@ export function ProfileForm() {
             <Input type="tel" {...form.register('telephone')} />
           </div>
           <div className="md:col-span-2">
-            <Label>{fr.expenses.iban}</Label>
-            <Input placeholder="FR76 …" {...form.register('rib')} />
-          </div>
-          <div className="md:col-span-2">
             <Button type="submit" loading={update.isPending}>
               {fr.common.update}
             </Button>
           </div>
         </form>
 
-        {/* Hors du formulaire : le dépôt est immédiat et n'attend pas
-            « Mettre à jour ». Imbriquer un envoi de fichier dans la soumission
-            du profil obligerait à re-téléverser le RIB à chaque correction de
-            numéro de téléphone. */}
-        <RibDocument nom={profile?.rib_document_nom ?? null} />
+        {/* Hors du formulaire : l'envoi est immédiat et n'attend pas
+            « Mettre à jour ». */}
+        <Rib
+          transmisLe={profile?.rib_transmis_le ?? null}
+          ibanFin={profile?.rib_iban_fin ?? null}
+        />
       </CardContent>
     </Card>
   );
 }
 
 /**
- * Le RIB en document, à côté de l'IBAN saisi.
+ * Le RIB : IBAN et relevé, envoyés ensemble au trésorier.
  *
- * L'IBAN sert au virement, le document sert de preuve — la comptabilité le
- * réclamait par messages privés faute de pouvoir le récupérer ici.
+ * Rien n'est conservé dans l'application — le serveur transmet par courriel et
+ * ne garde que la date et la fin de l'IBAN. Une fois transmis, on n'affiche donc
+ * que ce constat, et un bouton pour en envoyer un nouveau (changement de banque).
  */
-function RibDocument({ nom }: { nom: string | null }) {
-  const upload = useUploadRibDocument();
-  const remove = useDeleteRibDocument();
+function Rib({ transmisLe, ibanFin }: { transmisLe: string | null; ibanFin: string | null }) {
+  const transmettre = useTransmettreRib();
   const toast = useToast();
-  const { download, downloadingId } = useDownloadAttachment();
-  const champ = useRef<HTMLInputElement>(null);
+  const [ouvert, setOuvert] = useState(!transmisLe);
+  const [iban, setIban] = useState('');
+  const [fichier, setFichier] = useState<File | null>(null);
+  const [erreur, setErreur] = useState<string | null>(null);
 
-  const onChoisir = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const fichier = e.target.files?.[0];
-    // Réinitialisé tout de suite : sans cela, redéposer le même fichier après
-    // une suppression ne déclenche aucun `change`.
-    e.target.value = '';
-    if (!fichier) return;
-    upload.mutate(fichier, { onSuccess: () => toast.success(fr.expenses.ribDocumentEnvoye) });
+  const envoyer = () => {
+    if (!ibanValide(iban)) {
+      setErreur(fr.expenses.ribIbanInvalide);
+      return;
+    }
+    if (!fichier) {
+      setErreur(fr.expenses.ribFichierRequis);
+      return;
+    }
+    setErreur(null);
+    transmettre.mutate(
+      { iban, file: fichier },
+      {
+        onSuccess: () => {
+          toast.success(fr.expenses.ribEnvoye);
+          setIban('');
+          setFichier(null);
+          setOuvert(false);
+        },
+      },
+    );
   };
 
   return (
-    <div className="mt-6 space-y-2 border-t pt-4">
-      <Label>{fr.expenses.ribDocument}</Label>
-      <p className="text-xs text-muted-foreground">{fr.expenses.ribDocumentAide}</p>
+    <div className="mt-6 space-y-3 border-t pt-4" data-testid="rib">
+      <Label>{fr.expenses.ribTitre}</Label>
+      {transmisLe && (
+        <p className="flex items-center gap-2 text-sm">
+          <CheckCircle2 className="h-4 w-4 text-green-600" />
+          {fr.expenses.ribTransmisLe(formatDate(transmisLe), ibanFin)}
+        </p>
+      )}
 
-      <input
-        ref={champ}
-        type="file"
-        // Memes formats que les justificatifs, HEIC compris : c'est le format
-        // par defaut d'iOS depuis « Fichiers », et le depot le convertit en PDF.
-        accept=".pdf,.png,.jpg,.jpeg,.heic,.heif,.webp,application/pdf,image/*"
-        className="hidden"
-        onChange={onChoisir}
-        data-testid="rib-document-input"
-      />
-
-      {nom ? (
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <button
-            type="button"
-            onClick={() => download('/users/me/rib-document', nom, 0)}
-            disabled={downloadingId === 0}
-            className="inline-flex items-center gap-1 text-primary hover:underline disabled:opacity-60"
-          >
-            <Download className="h-3.5 w-3.5" />
-            {nom}
-          </button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => champ.current?.click()}
-            loading={upload.isPending}
-          >
-            {fr.expenses.ribDocumentRemplacer}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() =>
-              remove.mutate(undefined, {
-                onSuccess: () => toast.success(fr.expenses.ribDocumentSupprime),
-              })
-            }
-            loading={remove.isPending}
-          >
-            <Trash2 className="mr-1 h-3.5 w-3.5" />
-            {fr.expenses.ribDocumentSupprimer}
-          </Button>
+      {ouvert ? (
+        <div className="space-y-3">
+          <p className="text-xs text-muted-foreground">{fr.expenses.ribAide}</p>
+          <div>
+            <Label htmlFor="rib-iban">{fr.expenses.iban}</Label>
+            <Input
+              id="rib-iban"
+              placeholder="FR76 …"
+              autoComplete="off"
+              value={iban}
+              onChange={(e) => setIban(e.target.value)}
+            />
+          </div>
+          <div>
+            <Label htmlFor="rib-fichier">{fr.expenses.ribDocument}</Label>
+            <Input
+              id="rib-fichier"
+              type="file"
+              // Mêmes formats que les justificatifs, HEIC compris : c'est le
+              // format par défaut d'iOS, et le serveur convertit en PDF.
+              accept=".pdf,.png,.jpg,.jpeg,.heic,.heif,.webp,application/pdf,image/*"
+              onChange={(e) => setFichier(e.target.files?.[0] ?? null)}
+              data-testid="rib-document-input"
+            />
+          </div>
+          {erreur && <p className="text-sm text-destructive">{erreur}</p>}
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" onClick={envoyer} loading={transmettre.isPending}>
+              <Send className="mr-1 h-3.5 w-3.5" />
+              {fr.expenses.ribEnvoyer}
+            </Button>
+            {transmisLe && (
+              <Button type="button" variant="ghost" onClick={() => setOuvert(false)}>
+                {fr.expenses.ribAnnuler}
+              </Button>
+            )}
+          </div>
         </div>
       ) : (
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="text-sm text-muted-foreground">{fr.expenses.ribDocumentAucun}</p>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => champ.current?.click()}
-            loading={upload.isPending}
-          >
-            <Upload className="mr-1 h-3.5 w-3.5" />
-            {fr.expenses.ribDocumentDeposer}
-          </Button>
-        </div>
+        <Button type="button" variant="outline" size="sm" onClick={() => setOuvert(true)}>
+          {fr.expenses.ribNouveau}
+        </Button>
       )}
     </div>
   );

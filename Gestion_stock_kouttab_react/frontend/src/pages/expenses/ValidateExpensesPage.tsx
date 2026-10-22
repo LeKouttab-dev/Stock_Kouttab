@@ -6,7 +6,6 @@ import {
   ChevronDown,
   ChevronRight,
   ClipboardCheck,
-  Copy,
   Download,
   Archive,
   Trash2,
@@ -14,7 +13,6 @@ import {
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -45,7 +43,7 @@ import {
 import { expenseValidateSchema, type ExpenseValidateFormValues } from '@/lib/schemas/expense';
 import { EXPENSE_STATUS, normaliserStatut } from '@/lib/constants';
 import type { Expense, Reimbursement } from '@/types/api';
-import { cn, copyToClipboard } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { buildAttachmentFilename, deduplicateFilenames } from '@/lib/naming';
 import { useDownloadAttachment } from '@/hooks/useDownloadAttachment';
 import { useAuth } from '@/hooks/useAuth';
@@ -432,12 +430,6 @@ function ValidateExpenseDetail({ expense, total }: DetailProps) {
     );
   };
 
-  const onCopyRib = async () => {
-    if (!expense.user_rib) return;
-    await copyToClipboard(expense.user_rib);
-    toast.success(fr.expenses.ribCopie);
-  };
-
   const onArchiver = () => {
     archiver.mutate(expense.id, { onSuccess: () => toast.success(fr.expenses.noteArchivee) });
   };
@@ -479,47 +471,21 @@ function ValidateExpenseDetail({ expense, total }: DetailProps) {
         </p>
       </div>
 
-      {/* L'IBAN et le document sont DEUX choses, et cet encart les confondait :
-          tout était accroché à `user_rib`, si bien qu'un IBAN vide masquait
-          jusqu'au bouton de téléchargement du document déposé. La pièce était
-          là, et personne ne pouvait l'atteindre — d'où des notes signalées
-          « RIB non renseigné » alors que la banque du bénévole était au dossier.
-          Le dépôt exige désormais les deux, mais les notes antérieures restent
-          à traiter. */}
-      <div className="flex flex-wrap items-end gap-2">
-        {expense.user_rib ? (
-          <>
-            <div className="flex-1 min-w-[200px]">
-              <Label>{fr.expenses.ribUtilisateur}</Label>
-              <Input value={expense.user_rib} disabled />
-            </div>
-            <Button variant="outline" onClick={onCopyRib}>
-              <Copy className="h-4 w-4" />
-              {fr.expenses.copierRib}
-            </Button>
-          </>
-        ) : (
-          <Alert variant="warning" className="flex-1 min-w-[200px]">
-            <AlertDescription>{fr.expenses.ribAbsent}</AlertDescription>
-          </Alert>
-        )}
-        {/* Le document de la banque, dès que le bénévole l'a déposé — même sans
-            IBAN saisi : c'est alors la seule façon de retrouver ses coordonnées. */}
-        {expense.user_rib_document_nom && (
-          <Button
-            variant="outline"
-            onClick={() =>
-              download(
-                `/users/${expense.id_user}/rib-document`,
-                expense.user_rib_document_nom as string,
-              )
-            }
-          >
-            <Download className="h-4 w-4" />
-            {fr.expenses.ribDocumentTelecharger}
-          </Button>
-        )}
-      </div>
+      {/* Le RIB n'est plus dans l'application : il est chez le trésorier, qui
+          l'a enregistré dans la banque. On dit seulement s'il a été transmis,
+          et la fin de l'IBAN pour retrouver le bon bénéficiaire. */}
+      {expense.user_rib_transmis_le ? (
+        <p className="text-muted-foreground" data-testid="rib-transmis">
+          {fr.expenses.ribTransmisCompta(
+            formatDate(expense.user_rib_transmis_le),
+            expense.user_rib_iban_fin ?? null,
+          )}
+        </p>
+      ) : (
+        <Alert variant="warning">
+          <AlertDescription>{fr.expenses.ribAbsent}</AlertDescription>
+        </Alert>
+      )}
 
       {expense.files && expense.files.length > 0 ? (
         <div className="space-y-1">

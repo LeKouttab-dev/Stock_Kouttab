@@ -181,7 +181,7 @@ Gestion_stock_kouttab_react/
 | **Stock** | Articles : `nom` UNIQUE, `categorie`, `sous_categorie`, `quantite`, `seuil_alerte`, `emoji`, **`image_url`** (photo du produit, récupérée au scan ; l'emoji sert de repli), `barcode` UNIQUE, `alert_sent` | — |
 | **Categories** | Référentiel des catégories : `nom` UNIQUE, `is_default` | — |
 | **SousCategories** | Hiérarchie cat→sous-cat : UNIQUE (`nom_categorie`, `nom_sous_categorie`) | (logique) |
-| **Admins** | Utilisateurs : `username` UNIQUE, `password_hash` bcrypt, `role`, `validation_status`, profil (nom, prenom, email, telephone, **rib**) | — |
+| **Admins** | Utilisateurs : `username` UNIQUE, `password_hash` bcrypt, `role`, `validation_status`, profil (nom, prenom, email, telephone), **`rib_transmis_le`**, **`rib_iban_fin`** (le RIB lui-même n'est plus conservé) | — |
 | **AdminInvitations** | Tokens email : `email` UNIQUE, `token_hash` SHA256, `expires_at`, `used`, `attempts` | — |
 | **NotesDeFrais** | Notes de frais avec workflow validation | `id_user → Admins.id` (CASCADE) |
 | **FichiersNotesDeFrais** | Pièces jointes notes | `id_note_de_frais` (CASCADE) |
@@ -213,15 +213,18 @@ Gestion_stock_kouttab_react/
 - `Factures.status` : `En attente` · `En cours de traitement` · `Validée` · `Refusée`
 - `StockModifications.status` : `En attente` · `Approuvée` · `Refusée`
 
-**Champs sensibles** : `password_hash`, `email`, `telephone`, **`rib`** (TRÈS sensible : accès Super Admin et Compta uniquement), `token_hash`.
+**Champs sensibles** : `password_hash`, `email`, `telephone`, `token_hash`.
 
-**`rib` est chiffré au repos** (AES-256-GCM) par le type de colonne
-`ChampChiffre` (`app/db/types.py`), et non par le CRUD : tout ce qui lit ou
-écrit `Admin.rib` traverse le chiffrement, y compris le code écrit plus tard.
-Ne rien chiffrer ni déchiffrer à la main. La clé vit dans `RIB_ENCRYPTION_KEY`
-et **la perdre rend les RIB définitivement illisibles** ; son absence empêche
-le démarrage en production. Les valeurs en clair héritées restent lisibles
-(préfixe `gcm1:` absent), ce qui rend le déploiement sans coupure.
+**Le RIB n'est plus conservé** (22/10/2026, migration `f3a9b6c8d0e1`). Le
+bénévole envoie son IBAN et son relevé par `POST /users/me/rib` : les deux
+partent **directement** par courriel à `RIB_DESTINATAIRE_EMAIL` (le trésorier),
+sans passer par la file d'envoi (qui garde corps et pièces), le PDF n'existant
+sur disque que dans un dossier temporaire le temps de l'envoi
+(`services/rib.py`). La base ne garde que `rib_transmis_le` et `rib_iban_fin`
+(4 derniers caractères), écrits **après** un envoi réussi. Les colonnes héritées
+`rib` (toujours `ChampChiffre`), `rib_document*` restent dans le schéma
+(partagé avec la legacy) mais **vides** : `scripts/transmettre_et_purger_rib.py`
+transmet puis efface ce qui y restait. Ne jamais y réécrire.
 
 ---
 
@@ -246,9 +249,8 @@ le démarrage en production. Les valeurs en clair héritées restent lisibles
 | Remboursements — consulter les siens | ✅ | ✅ | ✅ | ✅ |
 | Justificatifs — demander, relancer, clore | — | — | ✅ | ✅ |
 | Justificatifs — voir ce qu'on me demande | ✅ | ✅ | ✅ | ✅ |
-| Notes de frais — voir RIB utilisateur | — | — | ✅ | ✅ |
-| RIB en document — déposer le sien (converti en PDF) | ✅ | ✅ | ✅ | ✅ |
-| RIB en document — télécharger celui d'un autre | — | — | ✅ | ✅ |
+| Notes de frais — voir si le RIB a été transmis (date, fin de l'IBAN) | — | — | ✅ | ✅ |
+| RIB — le transmettre au trésorier (IBAN + relevé, rien n'est conservé) | ✅ | ✅ | ✅ | ✅ |
 | Contact — ouvrir un fil, répondre au sien | ✅ | ✅ | ✅ | ✅ |
 | Contact — boîte de l'équipe, statuts | — | — | ✅ (compta) | ✅ (les deux) |
 | Factures — déposer | ✅ | ✅ | ✅ | ✅ |
@@ -306,19 +308,15 @@ Préfixe : `/api/v1`. Auth : header `Authorization: Bearer <jwt>` (sauf `/auth/*
   supprime le compte (comportement hérité) et n'envoie rien.
 - `PATCH /users/{id}/role` — changer rôle (Super Admin)
 - `DELETE /users/{id}` — supprimer (Super Admin)
-- `GET /users/me/profile` — profil + RIB
-- `PATCH /users/me/profile` — modifier profil + RIB
+- `GET /users/me/profile` — profil (avec `rib_transmis_le`, `rib_iban_fin`)
+- `PATCH /users/me/profile` — modifier le profil (le RIB n'y passe plus)
 - `GET /users/annuaire` — bénévoles inscrits, **lecture seule** (Compta+), sans RIB
-- `POST|GET|DELETE /users/me/rib-document` — le RIB en document. **Tout dépôt est
-  converti en PDF à l'enregistrement** (`lire_en_memoire(..., convertir_en_pdf=True)`) :
-  les formats d'entrée restent tous acceptés — refuser la photo aurait bloqué ceux
-  qui n'ont que leur téléphone —, mais la comptabilité reçoit une pièce et non une
-  capture d'écran. Un PDF déposé reste identique octet pour octet. Le profil expose
-  `rib_document_nom` **et** `rib_document_type`, pour que l'écran puisse prévenir
-  avant la saisie d'une note.
-- `GET /users/{id}/rib-document` — téléchargement par le propriétaire, la
-  Compta ou le Super Admin. Le contrôle porte sur le rôle **et** sur la
-  propriété : les identifiants se devinent, ils se suivent.
+- `POST /users/me/rib` — multipart `iban` + `file` : IBAN validé (clé modulo 97,
+  sinon 422 `VAL_5013`), relevé converti en PDF en mémoire, **courriel direct**
+  au trésorier, puis `rib_transmis_le` / `rib_iban_fin`. 503 si
+  `RIB_DESTINATAIRE_EMAIL` est vide, 502 si l'envoi échoue (rien n'est alors
+  écrit), 10/heure. Accusé de réception au bénévole, sans chiffre bancaire. Les
+  routes `…/rib-document` ont disparu : il n'y a plus rien à télécharger.
 
 ### Invitations
 - `POST /invitations` — créer invitation admin (Super Admin)
@@ -355,16 +353,9 @@ Préfixe : `/api/v1`. Auth : header `Authorization: Bearer <jwt>` (sauf `/auth/*
   | Condition | Code | Pourquoi |
   |---|---|---|
   | Au moins un justificatif | `VAL_5014` | `compta_dispatch` ne part **que** s'il y a des pièces : sans ticket, la note créait une ligne, envoyait un courriel « nouvelle note de frais », et s'arrêtait là. Le comptable se voyait annoncer une dépense dont il ne verrait jamais la preuve. |
-  | RIB en document PDF | `VAL_5012` | La comptabilité rembourse par virement et réclamait les coordonnées par messages privés au moment de payer. Le contrôle lit `rib_document_type`, jamais `rib_document` (colonne `deferred`, base distante). |
-  | IBAN renseigné | `VAL_5013` | **Autre chose que le document.** Le contrôle ne portait que sur ce dernier, alors que l'écran comptable lit `user_rib` — l'IBAN. Un compte ayant déposé sa photo sans saisir son IBAN passait, et sa note s'affichait sous « L'utilisateur n'a pas encore renseigné son RIB », qui masquait jusqu'au bouton de téléchargement du document. |
+  | RIB transmis au trésorier | `VAL_5012` | La comptabilité rembourse par virement. Le contrôle lit `rib_transmis_le` : le RIB lui-même n'est plus en base. |
 
-  **Le format n'est pas l'affaire du déposant** : `POST /users/me/rib-document`
-  accepte photo, HEIC, PNG, WEBP, PDF et convertit. Les messages ne réclament
-  donc jamais « un PDF » — ils demandent le relevé, en disant qu'une photo
-  suffit. Aucune migration ne peut rattraper un IBAN manquant, contrairement au
-  document (`e8b2f4a7c1d5`) : il ne se déduit pas d'un PDF scanné.
-
-  Les factures ne sont soumises à aucune des trois : elles n'engagent aucun
+  Les factures ne sont soumises à aucune des deux : elles n'engagent aucun
   versement au déposant.
 - `PATCH /expenses/{id}` — éditer (si "En attente" et propriétaire)
 - `DELETE /expenses/{id}` — **archiver**, non supprimer (Compta+, note "Remboursée")
@@ -1037,7 +1028,10 @@ EMAIL_FROM=no-reply@lekouttab.fr
 FRONTEND_URL=https://stock.lekouttab.fr
 BACKEND_URL=https://stock.lekouttab.fr/api
 
-# Chiffrement du RIB au repos — base64 de 32 octets, IRREMPLAÇABLE
+# Le trésorier : reçoit les RIB, qui ne sont plus conservés. Vide = dépôt refusé.
+RIB_DESTINATAIRE_EMAIL=
+
+# Chiffrement des RIB HÉRITÉS (lus une dernière fois par le script de purge)
 RIB_ENCRYPTION_KEY=
 
 # Sauvegarde des justificatifs vers O2Switch (service `backup` du compose)
@@ -1458,15 +1452,11 @@ objet ici, l'application existe et tourne.
   enchaînent les requêtes et du lazy-loading des relations.
 - **Le schéma DB est partagé avec la version legacy Streamlit.** Toute migration
   se fait sur une base de production réelle : sauvegarde d'abord.
-- **Le RIB en document** (`Admins.rib_document`, `deferred`) est en base et
-  **sans copie disque**, contrairement aux justificatifs : rien ne l'envoie par
-  courriel, donc rien n'a besoin d'un chemin, et une copie de plus d'une donnée
-  bancaire serait une surface de fuite de plus. `files.lire_en_memoire` valide
-  **et convertit en PDF** sans écrire : la conversion des justificatifs, elle,
-  passe par le disque, et recopier ce chemin ici aurait posé le fichier
-  intermédiaire que tout le reste s'applique à éviter. Le contenu n'est pas
-  chiffré — `ChampChiffre` travaille sur du texte, et la protection utile ici est
-  le contrôle d'accès.
+- **Le RIB ne se stocke pas** : il part chez le trésorier (`services/rib.py`)
+  et la base n'en garde que la date et la fin de l'IBAN. Ne pas le faire passer
+  par `outbox` (corps en base, pièces sur disque) ni par `save_upload_file`
+  (copie dans `uploads/`). `files.lire_en_memoire` valide et convertit sans
+  écrire.
 - **Les justificatifs sont stockés EN BASE** (`FichiersNotesDeFrais.contenu`,
   `FichiersFactures.contenu`, `LONGBLOB`), et non plus seulement sur le disque
   du VPS : la base est sauvegardée par O2Switch, pas le disque. Décision prise

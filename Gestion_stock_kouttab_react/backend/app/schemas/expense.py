@@ -78,8 +78,8 @@ class ExpenseOut(ExpenseBase):
     non_lu_demandeur: bool = False
     archived_at: datetime | None = None
     archived_by_name: str | None = None
-    user_rib: str | None = None
-    user_rib_document_nom: str | None = None
+    user_rib_transmis_le: datetime | None = None
+    user_rib_iban_fin: str | None = None
     files: list[ExpenseFileOut] = []
 
     model_config = ConfigDict(from_attributes=True)

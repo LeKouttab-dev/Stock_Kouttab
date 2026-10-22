@@ -189,35 +189,27 @@ export const fr = {
       'Cette note est marquée remboursée sans versement enregistré : aucun justificatif ' +
       'n’existe. Repassez-la en « Approuvée » ci-dessous, puis utilisez le bouton ' +
       '« Rembourser » pour produire le document.',
-    iban: 'IBAN (RIB)',
-    ribDocument: 'Votre RIB en document',
-    ribDocumentAide:
-      'Le PDF de votre banque, ou une photo nette : tout dépôt est converti en PDF à ' +
-      'l’enregistrement. L’IBAN ci-dessus sert au virement, ce document sert de preuve.',
-    ribDocumentDepose: 'Document déposé',
-    ribDocumentAucun: 'Aucun document déposé pour l’instant.',
-    ribDocumentDeposer: 'Déposer mon RIB',
-    ribDocumentRemplacer: 'Remplacer',
-    ribDocumentSupprimer: 'Supprimer',
-    ribDocumentEnvoye: 'RIB enregistré.',
-    ribDocumentSupprime: 'RIB supprimé.',
-    ribDocumentTelecharger: 'Télécharger le RIB',
+    iban: 'IBAN',
+    ribTitre: 'Votre RIB',
+    ribAide:
+      'Votre IBAN et le relevé de votre banque (le PDF, ou une photo nette) sont envoyés ' +
+      'directement au trésorier. Ils ne sont pas conservés dans l’application.',
+    ribTransmisLe: (date: string, fin: string | null) =>
+      `RIB transmis au trésorier le ${date}${fin ? ` — IBAN se terminant par ${fin}` : ''}.`,
+    ribDocument: 'Relevé d’identité bancaire',
+    ribEnvoyer: 'Envoyer au trésorier',
+    ribNouveau: 'Transmettre un nouveau RIB',
+    ribAnnuler: 'Annuler',
+    ribEnvoye: 'RIB transmis au trésorier.',
+    ribIbanInvalide: 'IBAN invalide : vérifiez-le sur votre relevé bancaire.',
+    ribFichierRequis: 'Joignez le relevé de votre banque.',
     ribRequisTitre: 'Votre RIB est indispensable',
-    // La consigne, et rien de plus. Le format est l'affaire du serveur, qui
-    // convertit tout dépôt en PDF, et l'écran de profil le dit déjà là où c'est
-    // utile (`ribDocumentAide`) : le répéter ici alourdissait un encart dont on
-    // attend qu'il se lise d'un coup d'œil.
-    ribRequisTexte: 'Déposez votre RIB sur votre espace.',
-    // L'IBAN est une autre chose que le document, et manque souvent seul : le
-    // dépôt de la photo se voit, la saisie de l'IBAN s'oublie. Le message doit
-    // donc nommer précisément celui qui manque.
-    ibanRequisTexte: 'Renseignez votre IBAN sur votre espace.',
-    ribRequisTexteLesDeux: 'Renseignez votre IBAN et déposez votre RIB sur votre espace.',
+    ribRequisTexte: 'Transmettez votre RIB depuis votre profil.',
     ticketRequisTexte:
       'Joignez au moins un justificatif : sans ticket ni facture, la comptabilité ne ' +
       'peut pas rembourser cette dépense.',
-    ribRequisAction: 'Déposer mon RIB',
-    ribRequisRetour: 'RIB enregistré : vous pouvez envoyer votre note.',
+    ribRequisAction: 'Transmettre mon RIB',
+    ribRequisRetour: 'RIB transmis : vous pouvez envoyer votre note.',
     brouillonRestaure:
       'Votre saisie précédente a été restaurée. Les justificatifs sont à joindre à nouveau.',
     viderFormulaire: 'Vider le formulaire',
@@ -226,10 +218,9 @@ export const fr = {
     aucuneATraiter: 'Aucune note de frais à traiter pour le moment.',
     montantBrut: 'Montant brut',
     totalARembourser: 'TOTAL À REMBOURSER',
-    ribUtilisateur: "IBAN (RIB) de l'utilisateur",
-    copierRib: 'Copier le RIB',
-    ribCopie: 'RIB copié dans le presse-papiers !',
-    ribAbsent: "L'utilisateur n'a pas encore renseigné son RIB.",
+    ribTransmisCompta: (date: string, fin: string | null) =>
+      `RIB transmis au trésorier le ${date}${fin ? ` — IBAN ••${fin}` : ''}.`,
+    ribAbsent: "L'utilisateur n'a pas encore transmis son RIB.",
     aucunTicket: 'Aucun ticket fourni.',
     commentaireCompta: "Commentaire (visible par l'utilisateur)",
     changerStatut: 'Changer le statut',

@@ -88,7 +88,6 @@ export const profileSchema = z.object({
   prenom: z.string().min(1, 'Prénom obligatoire'),
   email: z.string().email('Email invalide'),
   telephone: z.string().optional().or(z.literal('')),
-  rib: z.string().optional().or(z.literal('')),
 });
 
 export type ProfileFormValues = z.infer<typeof profileSchema>;

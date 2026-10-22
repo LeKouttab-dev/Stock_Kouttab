@@ -21,11 +21,13 @@ export interface User {
   prenom: string;
   email: string;
   telephone?: string | null;
-  rib?: string | null;
-  /** Nom du RIB déposé, ou `null`. Le contenu s'obtient par son endpoint. */
-  rib_document_nom?: string | null;
-  /** Type du RIB déposé. Toujours `application/pdf` depuis la conversion à l'enregistrement. */
-  rib_document_type?: string | null;
+  /**
+   * Date de la dernière transmission du RIB au trésorier, ou `null`. Le RIB
+   * lui-même n'est pas conservé : il part par courriel au dépôt.
+   */
+  rib_transmis_le?: string | null;
+  /** Les 4 derniers caractères de l'IBAN transmis. */
+  rib_iban_fin?: string | null;
   password_must_change?: boolean;
   created_at?: string;
   /** Session tablette : nom saisi sur la tablette (`GET /auth/me`), `null` sinon. */
@@ -66,7 +68,6 @@ export interface ProfileUpdateRequest {
   prenom?: string;
   email?: string;
   telephone?: string;
-  rib?: string;
 }
 
 /* Stock */
@@ -171,9 +172,10 @@ export interface Expense {
   /** Renseigné si la note a été rangée par la comptabilité. Réversible. */
   archived_at?: string | null;
   archived_by_name?: string | null;
-  user_rib?: string | null;
-  /** Nom du RIB déposé par le bénévole ; même visibilité que `user_rib`. */
-  user_rib_document_nom?: string | null;
+  /** RIB transmis au trésorier le… (Compta et propriétaire seulement). */
+  user_rib_transmis_le?: string | null;
+  /** Fin de l'IBAN transmis, pour retrouver le bénéficiaire dans la banque. */
+  user_rib_iban_fin?: string | null;
   date_depense: string;
   /** Champ libre historique, remplacé par pôle + événement + date. */
   rattachement?: string | null;

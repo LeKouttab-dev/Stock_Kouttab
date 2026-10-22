@@ -141,8 +141,7 @@ def test_un_depot_sans_rib_est_refuse_et_ne_cree_rien(
 ) -> None:
     """La comptabilite rembourse par virement : sans RIB, elle ne peut pas payer.
 
-    Elle le reclamait par messages prives, exactement le travers que le RIB en
-    document devait supprimer. Le refus tombe **avant toute ecriture** : une note
+    Tant que le RIB n'a pas ete transmis au tresorier, rien ne part. Le refus tombe **avant toute ecriture** : une note
     creee puis abandonnee laisserait une ligne que personne ne traite.
     """
     reponse = client.post(
@@ -155,51 +154,6 @@ def test_un_depot_sans_rib_est_refuse_et_ne_cree_rien(
     assert reponse.status_code == 422
     assert reponse.json()["code"] == "VAL_5012"
     assert expense_crud.list_expenses_for_user(db_session, benevole_sans_rib.id) == []
-
-
-def test_un_rib_encore_en_image_ne_vaut_pas_depot(
-    client: TestClient, benevole_user, auth_headers, db_session
-) -> None:
-    """Le controle porte sur le format, pas seulement sur la presence.
-
-    Un compte dont le RIB serait reste une photo — migration non passee, depot
-    anterieur — doit s'entendre dire de le redeposer, plutot que d'envoyer a la
-    comptabilite une piece qu'elle refuse.
-    """
-    benevole_user.rib_document_type = "image/png"
-    db_session.commit()
-
-    reponse = client.post(
-        "/api/v1/expenses",
-        data=_create_expense_payload(),
-        files=justificatif_jpeg(),
-        headers=auth_headers(benevole_user),
-    )
-
-    assert reponse.status_code == 422
-    assert reponse.json()["code"] == "VAL_5012"
-
-
-def test_un_depot_sans_iban_est_refuse(
-    client: TestClient, benevole_sans_iban, auth_headers, db_session
-) -> None:
-    """Le document ne remplace pas l'IBAN : c'est ce dernier qui sert au virement.
-
-    Ce compte-la passait le depot, le controle ne regardant que le document.
-    Cote comptabilite, la note s'affichait sous « L'utilisateur n'a pas encore
-    renseigne son RIB » — un message qui masquait jusqu'au bouton de
-    telechargement de la piece deposee.
-    """
-    reponse = client.post(
-        "/api/v1/expenses",
-        data=_create_expense_payload(),
-        files=justificatif_jpeg(),
-        headers=auth_headers(benevole_sans_iban),
-    )
-
-    assert reponse.status_code == 422
-    assert reponse.json()["code"] == "VAL_5013"
-    assert expense_crud.list_expenses_for_user(db_session, benevole_sans_iban.id) == []
 
 
 def test_un_depot_sans_justificatif_est_refuse_et_ne_cree_rien(

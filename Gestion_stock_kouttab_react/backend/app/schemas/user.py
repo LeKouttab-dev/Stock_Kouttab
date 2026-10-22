@@ -38,17 +38,15 @@ class UserOut(UserBase):
 
 
 class UserDetailOut(UserOut):
-    """Includes RIB, restricted to Super Admin / Compta."""
+    """Profil detaille. Le RIB n'y figure plus : il n'est pas conserve.
 
-    rib: str | None = None
-    # Nom du document depose, et non son contenu : l'ecran a besoin de savoir
-    # s'il y a une piece et laquelle, pas de recevoir les octets a chaque
-    # affichage du profil. Le telechargement a son propre endpoint.
-    rib_document_nom: str | None = None
-    # Le format compte autant que la presence : le depot d'une note de frais
-    # exige un PDF, et l'ecran doit pouvoir le dire avant la saisie plutot que
-    # de laisser l'API refuser apres coup.
-    rib_document_type: str | None = None
+    Seules restent la date de sa derniere transmission au tresorier et la fin
+    de l'IBAN — de quoi dire au benevole qu'il peut deposer une note de frais,
+    et a la comptabilite quel beneficiaire payer.
+    """
+
+    rib_transmis_le: datetime | None = None
+    rib_iban_fin: str | None = None
 
 
 class UserCreate(BaseModel):
@@ -80,7 +78,6 @@ class ProfileUpdate(BaseModel):
     prenom: str | None = None
     email: EmailStr | None = None
     telephone: str | None = None
-    rib: str | None = None
 
 
 class PasswordChangeIn(BaseModel):

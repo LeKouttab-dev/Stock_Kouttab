@@ -109,20 +109,17 @@ class Admin(Base):
     prenom: Mapped[str | None] = mapped_column(String(255), nullable=True)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     telephone: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    # Chiffre au repos : c'est le champ le plus sensible de la base, et les
-    # permissions applicatives ne protegent rien de ce qui contourne
-    # l'application (export, sauvegarde, acces MySQL direct).
+    # **Le RIB n'est plus conserve** (22/10/2026) : il part par courriel au
+    # tresorier au moment du depot (`POST /users/me/rib`), et seules restent
+    # ici la date de transmission et la fin de l'IBAN. Ce qui n'est pas en
+    # base ne fuit pas avec elle.
+    rib_transmis_le: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    rib_iban_fin: Mapped[str | None] = mapped_column(String(4), nullable=True)
+    # Colonnes HERITEES, vides depuis `scripts/transmettre_et_purger_rib.py`.
+    # Gardees parce que le schema est partage avec la version legacy ; plus
+    # rien ne les ecrit. `rib` reste `ChampChiffre` le temps que le script
+    # dechiffre ce qui y etait.
     rib: Mapped[str | None] = mapped_column(ChampChiffre(255), nullable=True)
-    # Releve d'identite bancaire depose par le benevole : le document de sa
-    # banque, que la comptabilite telecharge au moment de payer. L'IBAN saisi
-    # ci-dessus sert au virement, ce document sert de preuve.
-    #
-    # En base comme les justificatifs, et `deferred` pour la meme raison :
-    # lister les utilisateurs ne doit pas rapatrier les pieces de chacun.
-    #
-    # Le contenu n'est pas chiffre, contrairement a `rib` : un BLOB traverserait
-    # mal `ChampChiffre`, concu pour du texte, et la protection utile ici est le
-    # controle d'acces — proprietaire, Compta, Super Admin.
     rib_document: Mapped[bytes | None] = mapped_column(
         LargeBinary().with_variant(LONGBLOB(), "mysql"), nullable=True, deferred=True
     )

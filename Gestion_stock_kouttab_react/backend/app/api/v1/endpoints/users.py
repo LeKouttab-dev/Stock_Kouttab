@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Response, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Request, UploadFile
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_roles
 from app.core.errors import ErrorCode
 from app.core.exceptions import AppException
 from app.core.logger import get_logger
+from app.core.rate_limit import limiter
 from app.core.tablette import ROLE_TABLETTE, est_compte_tablette
 from app.crud import user as user_crud
 from app.db.models import Admin
@@ -24,6 +25,7 @@ from app.schemas.user import (
     UserValidate,
 )
 from app.services import email_layout, liens, outbox
+from app.services import rib as rib_service
 from app.services.files import lire_en_memoire
 
 
@@ -86,88 +88,44 @@ def update_my_profile(
         prenom=payload.prenom,
         email=str(payload.email) if payload.email else None,
         telephone=payload.telephone,
-        rib=payload.rib,
     )
     return UserDetailOut.model_validate(user)
 
 
-# --- Releve d'identite bancaire en document ---------------------------------
+# --- RIB : transmis au tresorier, jamais conserve ---------------------------
 #
-# L'IBAN saisi dans le profil sert au virement, ce document sert de preuve : la
-# comptabilite le reclamait par messages prives faute de pouvoir le recuperer
-# ici. Acces identique a celui du RIB (CLAUDE.md §5) : le proprietaire, la
-# Compta, le Super Admin. Personne d'autre, c'est une donnee bancaire.
+# Cf. `services/rib.py`. Le benevole donne son IBAN et son releve en un seul
+# geste ; les deux partent par courriel au tresorier, et la base ne garde que
+# la date de transmission et la fin de l'IBAN. Plus rien a telecharger ici :
+# il n'y a plus rien a servir.
 
 
-def _peut_voir_le_rib(demandeur: Admin, proprietaire_id: int) -> bool:
-    return demandeur.role in ("Compta", "Super Admin") or demandeur.id == proprietaire_id
-
-
-def _servir_rib(user: Admin) -> Response:
-    if not user.rib_document:
-        raise AppException(ErrorCode.NOT_FOUND, detail="Aucun RIB depose.")
-    nom = (user.rib_document_nom or "rib.pdf").replace('"', "")
-    return Response(
-        content=user.rib_document,
-        media_type=user.rib_document_type or "application/octet-stream",
-        headers={"Content-Disposition": f'attachment; filename="{nom}"'},
-    )
-
-
-@router.post("/me/rib-document", response_model=UserDetailOut)
-async def upload_my_rib_document(
+@router.post("/me/rib", response_model=UserDetailOut)
+@limiter.limit("10/hour")
+async def transmettre_mon_rib(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    iban: str = Form(...),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: Admin = Depends(get_current_user),
 ) -> Any:
-    # Converti en PDF quel qu'ait ete le format depose : la comptabilite
-    # attend une piece bancaire, et le depot d'une note de frais exige
-    # desormais un RIB en PDF. Refuser la photo aurait bloque ceux qui n'ont
-    # que leur telephone ; on convertit, comme pour les justificatifs.
+    # Destination verifiee d'abord : inutile de lire un releve bancaire qu'on
+    # ne saura envoyer nulle part.
+    rib_service.destinataire()
+    iban_net = rib_service.normaliser_iban(iban)
+    if not rib_service.iban_valide(iban_net):
+        raise AppException(ErrorCode.IBAN_INVALIDE)
+    # Converti en PDF quel qu'ait ete le format depose, et sans passer par le
+    # disque : refuser la photo bloquerait ceux qui n'ont que leur telephone.
     depot = await lire_en_memoire(file, "rib", convertir_en_pdf=True)
-    current_user.rib_document = depot["contenu"]
-    current_user.rib_document_nom = str(depot["filename"])[:255]
-    current_user.rib_document_type = str(depot["mime"])[:100]
+    await rib_service.envoyer_au_tresorier(current_user, iban=iban_net, pdf=depot["contenu"])
+    rib_service.marquer_transmis(current_user, iban_net)
     db.commit()
     db.refresh(current_user)
+    logger.info("RIB transmis au tresorier (compte %s)", current_user.id)
+    background_tasks.add_task(rib_service.confirmer_au_benevole, current_user)
     return UserDetailOut.model_validate(current_user)
-
-
-@router.get("/me/rib-document")
-def download_my_rib_document(current_user: Admin = Depends(get_current_user)) -> Response:
-    return _servir_rib(current_user)
-
-
-@router.delete("/me/rib-document", response_model=MessageOut)
-def delete_my_rib_document(
-    db: Session = Depends(get_db),
-    current_user: Admin = Depends(get_current_user),
-) -> Any:
-    current_user.rib_document = None
-    current_user.rib_document_nom = None
-    current_user.rib_document_type = None
-    db.commit()
-    return MessageOut(message="RIB supprime.")
-
-
-@router.get("/{user_id}/rib-document")
-def download_rib_document(
-    user_id: int,
-    db: Session = Depends(get_db),
-    current_user: Admin = Depends(get_current_user),
-) -> Response:
-    """Telechargement par la comptabilite, au moment de payer.
-
-    Le controle porte sur le role **et** sur la propriete : un benevole qui
-    devine l'identifiant d'un collegue ne doit pas recuperer ses coordonnees
-    bancaires. C'est exactement la regle de `_can_see_rib` cote notes de frais.
-    """
-    if not _peut_voir_le_rib(current_user, user_id):
-        raise AppException(ErrorCode.FORBIDDEN)
-    user = user_crud.get_user(db, user_id)
-    if user is None:
-        raise AppException(ErrorCode.NOT_FOUND, detail="Utilisateur introuvable.")
-    return _servir_rib(user)
 
 
 @router.patch(

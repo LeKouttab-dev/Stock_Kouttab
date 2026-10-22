@@ -52,10 +52,11 @@ def _serialize(expense: Expense) -> dict[str, Any]:
         # Sert la salutation des courriels : « Assalamu alaykum Omar » plutot
         # qu'une formule anonyme.
         "user_prenom": user.prenom if user else None,
-        "user_rib": user.rib if user else None,
-        # Presence du document, pas son contenu : la colonne est `deferred`,
-        # et lister les notes ne doit pas rapatrier les RIB de tout le monde.
-        "user_rib_document_nom": user.rib_document_nom if user else None,
+        # Le RIB n'est plus conserve : la comptabilite voit quand il a ete
+        # transmis au tresorier, et la fin de l'IBAN pour retrouver le
+        # beneficiaire dans la banque.
+        "user_rib_transmis_le": user.rib_transmis_le if user else None,
+        "user_rib_iban_fin": user.rib_iban_fin if user else None,
         "files": [
             {
                 "id": f.id,

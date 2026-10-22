@@ -71,6 +71,11 @@ class Settings(BaseSettings):
     # Destinataires des pieces comptables (factures, tickets), separes par des
     # virgules. Vide = les envois restent en file d'attente sans etre perdus.
     compta_email_raw: str = Field(default="", alias="COMPTA_EMAIL")
+    # La boite qui recoit les RIB des benevoles, et la seule : ils n'en sont
+    # plus conserves en base. Volontairement distincte de COMPTA_EMAIL, et sans
+    # repli sur elle — un RIB ne doit pas partir vers une boite que personne
+    # n'a choisie pour ca. Vide = le depot d'un RIB est refuse (503).
+    rib_destinataire_email: str = Field(default="", alias="RIB_DESTINATAIRE_EMAIL")
 
     # URLs
     frontend_url: str = Field(default="http://localhost:5173", alias="FRONTEND_URL")

@@ -97,12 +97,8 @@ export function MyExpensesPage() {
   const { data: profil } = useProfile();
   const toast = useToast();
   const [retourApresRib, setRetourApresRib] = useState(false);
-  // Meme critere que le bandeau et que l'API : un document depose mais illisible
-  // ne debloque rien, et renvoyer sur le formulaire ferait croire le contraire.
-  // L'IBAN compte autant — c'est lui qui sert au virement —, sans quoi le retour
-  // annoncerait « vous pouvez envoyer votre note » à qui sera refusé ensuite.
-  const ribDepose =
-    profil?.rib_document_type === 'application/pdf' && Boolean(profil?.rib?.trim());
+  // Même critère que le bandeau et que l'API : le RIB a été transmis au trésorier.
+  const ribDepose = Boolean(profil?.rib_transmis_le);
   useEffect(() => {
     if (!retourApresRib || !ribDepose) return;
     setRetourApresRib(false);
@@ -223,23 +219,11 @@ function SubmitExpenseTab({
   const [scanOpen, setScanOpen] = useState(false);
 
   // Le RIB conditionne le dépôt : la comptabilité rembourse par virement, et
-  // l'API refuse la note sans lui (VAL_5012). On le dit **avant** la saisie
-  // plutôt qu'après, et le brouillon ci-dessous fait le reste.
-  //
-  // Deux conditions distinctes, et le message doit dire laquelle manque : le
-  // document est la preuve, l'IBAN est ce qui sert au virement. Confondus, celui
-  // qui avait déjà déposé sa photo redéposait la même photo sans comprendre.
-  const documentManquant =
-    Boolean(profil) && profil?.rib_document_type !== 'application/pdf';
-  const ibanManquant = Boolean(profil) && !profil?.rib?.trim();
-  const ribManquant = documentManquant || ibanManquant;
-  // Ce qui manque vraiment, dit dans ces termes-là. Les deux à la fois arrive
-  // au premier dépôt d'un compte neuf : un seul message les couvre.
-  const texteRibManquant = documentManquant
-    ? ibanManquant
-      ? fr.expenses.ribRequisTexteLesDeux
-      : fr.expenses.ribRequisTexte
-    : fr.expenses.ibanRequisTexte;
+  // l'API refuse la note tant qu'il n'a pas été transmis au trésorier
+  // (VAL_5012). On le dit **avant** la saisie plutôt qu'après, et le brouillon
+  // ci-dessous fait le reste.
+  const ribManquant = Boolean(profil) && !profil?.rib_transmis_le;
+  const texteRibManquant = fr.expenses.ribRequisTexte;
 
   const form = useForm<ExpenseFormValues>({
     resolver: zodResolver(expenseSchema),
