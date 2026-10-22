@@ -69,8 +69,8 @@ _SUITE_STATUT = {
 def _to_out(row: dict[str, Any], *, requester: Admin) -> ExpenseOut:
     if not _can_see_rib(requester, row["id_user"]):
         row = dict(row)
-        row["user_rib"] = None
-        row["user_rib_document_nom"] = None
+        row["user_rib_transmis_le"] = None
+        row["user_rib_iban_fin"] = None
     return ExpenseOut(**row)
 
 
@@ -212,25 +212,10 @@ async def create_expense(
     # payer. Le refus tombe **avant toute ecriture** — une note creee puis
     # abandonnee laisserait une ligne que personne ne traite.
     #
-    # Le controle porte sur `rib_document_type`, jamais sur `rib_document` :
-    # cette derniere colonne est `deferred`, la lire rapatrierait le document
-    # entier depuis une base distante a chaque depot.
-    if (current_user.rib_document_type or "") != "application/pdf":
+    # Le RIB lui-meme n'est plus en base (22/10/2026) : il est parti chez le
+    # tresorier, et seule sa date de transmission dit qu'on peut payer.
+    if current_user.rib_transmis_le is None:
         raise AppException(ErrorCode.RIB_MANQUANT)
-
-    # ... et l'IBAN, qui est une AUTRE chose que le document. Le controle ne
-    # portait que sur ce dernier, alors que l'ecran de la comptabilite lit
-    # `user_rib` — l'IBAN. Un compte ayant depose sa photo sans jamais saisir
-    # son IBAN passait donc le depot, et la note s'affichait cote comptable
-    # sous un « L'utilisateur n'a pas encore renseigne son RIB » qui masquait
-    # jusqu'au bouton de telechargement du document. La piece etait la, et
-    # personne ne pouvait l'atteindre.
-    #
-    # Aucune migration ne peut rattraper l'existant, contrairement au document
-    # (`e8b2f4a7c1d5`) : un IBAN ne se deduit pas d'un PDF scanne. Ceux a qui
-    # il manque le renseigneront au prochain depot, guides par le message.
-    if not (current_user.rib or "").strip():
-        raise AppException(ErrorCode.IBAN_MANQUANT)
 
     rattachement_resolu = rattachement_crud.resoudre(
         db,

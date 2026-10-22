@@ -11,7 +11,6 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core import crypto
-from app.crud import user as user_crud
 from app.db.models import Admin
 
 
@@ -26,7 +25,8 @@ def _rib_brut(db: Session, user_id: int) -> str | None:
 
 
 def test_le_rib_est_chiffre_dans_la_colonne(db_session: Session, benevole_user: Admin):
-    user_crud.update_profile(db_session, benevole_user.id, rib=RIB)
+    benevole_user.rib = RIB
+    db_session.commit()
 
     brut = _rib_brut(db_session, benevole_user.id)
     assert brut is not None
@@ -37,7 +37,8 @@ def test_le_rib_est_chiffre_dans_la_colonne(db_session: Session, benevole_user: 
 def test_le_rib_revient_en_clair_par_l_orm(db_session: Session, benevole_user: Admin):
     """Le chiffrement ne doit rien changer au code appelant : la comptabilite
     a besoin du RIB lisible pour rembourser."""
-    user_crud.update_profile(db_session, benevole_user.id, rib=RIB)
+    benevole_user.rib = RIB
+    db_session.commit()
     db_session.expire_all()
 
     relu = db_session.get(Admin, benevole_user.id)
@@ -70,32 +71,10 @@ def test_modifier_un_rib_herite_le_chiffre(db_session: Session, benevole_user: A
     db_session.commit()
     db_session.expire_all()
 
-    user_crud.update_profile(db_session, benevole_user.id, rib="FR76 1234 5678 9012 3456 7890 123")
+    benevole_user.rib = "FR76 1234 5678 9012 3456 7890 123"
+    db_session.commit()
 
     assert crypto.est_chiffre(_rib_brut(db_session, benevole_user.id) or "")
-
-
-def test_reecrire_le_meme_rib_ne_convertit_pas_l_existant(
-    db_session: Session, benevole_user: Admin
-):
-    """Limite assumee, et raison d'etre de la migration.
-
-    L'ORM compare la valeur DECHIFFREE a celle qu'on lui donne : identiques, il
-    n'emet aucun UPDATE, et le clair reste en base. Compter sur les
-    enregistrements du profil pour convertir l'existant laisserait donc en clair
-    le RIB de tous ceux qui ne le retouchent jamais — c'est la migration
-    Alembic `2026_08_12_1200` qui s'en charge, une fois pour toutes.
-    """
-    db_session.execute(
-        text("UPDATE Admins SET rib = :rib WHERE id = :id"),
-        {"rib": RIB, "id": benevole_user.id},
-    )
-    db_session.commit()
-    db_session.expire_all()
-
-    user_crud.update_profile(db_session, benevole_user.id, rib=RIB)
-
-    assert _rib_brut(db_session, benevole_user.id) == RIB
 
 
 def test_un_rib_abime_ne_fait_pas_tomber_la_lecture(

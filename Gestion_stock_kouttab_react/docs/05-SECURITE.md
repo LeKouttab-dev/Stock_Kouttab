@@ -261,6 +261,30 @@ de la note (`expenses.py:473-480`).
 
 ## 3. Données sensibles
 
+### 3.0 Le RIB n'est plus conservé (22/10/2026)
+
+**Ce qui suit (§3.1, §3.2) décrit l'état antérieur**, gardé pour l'historique et
+parce que `ChampChiffre` lit encore les colonnes héritées le temps de la purge.
+
+Depuis la migration `f3a9b6c8d0e1`, `POST /users/me/rib` envoie l'IBAN et le
+relevé **directement** au trésorier (`RIB_DESTINATAIRE_EMAIL`) et la base ne
+garde que `rib_transmis_le` et `rib_iban_fin`. Motif : une donnée bancaire en
+base l'est aussi dans chaque sauvegarde, chaque export, et pour toute autre
+application qui lit la base ; chiffrée avec une clé posée sur le même serveur,
+elle tombe avec lui. L'application n'a pas besoin du RIB : la banque paie, et
+le trésorier y enregistre le bénéficiaire.
+
+- L'envoi **ne passe pas par `outbox`** (qui conserve corps et pièces jointes) ;
+  le PDF n'existe sur disque que dans un `TemporaryDirectory` le temps de
+  l'envoi.
+- La base n'est écrite **qu'après** un envoi réussi : un échec SMTP (502) ne
+  laisse rien, et le bénévole redépose.
+- `scripts/transmettre_et_purger_rib.py` transmet puis efface les RIB hérités,
+  compte par compte (à sec par défaut, `--envoyer` pour agir).
+- **Risques résiduels** : la boîte du trésorier (d'où la consigne de supprimer le
+  courriel une fois le bénéficiaire enregistré) et les sauvegardes O2Switch
+  antérieures à la purge, pendant leur durée de rétention.
+
 ### 3.1 `Admins.rib` chiffré au repos
 
 La colonne est déclarée `ChampChiffre(255)` (`models.py:108`). Le chiffrement

@@ -105,21 +105,17 @@ async function updateProfile(payload: ProfileUpdateRequest): Promise<User> {
 }
 
 /**
- * Relevé d'identité bancaire déposé en document.
+ * Transmet le RIB (IBAN + relevé) au trésorier, par courriel.
  *
- * L'IBAN saisi sert au virement, ce document sert de preuve. Il ne transite
- * jamais dans le profil : `GET /users/me/profile` n'en donne que le nom, le
- * contenu a son propre endpoint.
+ * Rien n'est conservé côté serveur : le profil ne rend ensuite que la date de
+ * transmission et la fin de l'IBAN.
  */
-async function uploadRibDocument(file: File): Promise<User> {
+async function transmettreRib({ iban, file }: { iban: string; file: File }): Promise<User> {
   const formData = new FormData();
+  formData.append('iban', iban);
   formData.append('file', file);
-  const { data } = await api.post<User>('/users/me/rib-document', formData);
+  const { data } = await api.post<User>('/users/me/rib', formData);
   return data;
-}
-
-async function deleteRibDocument(): Promise<void> {
-  await api.delete('/users/me/rib-document');
 }
 
 async function logoutApi(): Promise<void> {
@@ -239,20 +235,10 @@ export function useLogout() {
   });
 }
 
-export function useUploadRibDocument() {
+export function useTransmettreRib() {
   const qc = useQueryClient();
   return useApiMutation({
-    mutationFn: uploadRibDocument,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: authQueryKeys.profile });
-    },
-  });
-}
-
-export function useDeleteRibDocument() {
-  const qc = useQueryClient();
-  return useApiMutation({
-    mutationFn: deleteRibDocument,
+    mutationFn: transmettreRib,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: authQueryKeys.profile });
     },

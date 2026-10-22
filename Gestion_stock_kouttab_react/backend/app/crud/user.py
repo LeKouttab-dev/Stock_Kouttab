@@ -176,7 +176,6 @@ def update_profile(
     prenom: str | None = None,
     email: str | None = None,
     telephone: str | None = None,
-    rib: str | None = None,
 ) -> Admin:
     user = get_user(db, user_id)
     if not user:
@@ -191,10 +190,6 @@ def update_profile(
         user.prenom = prenom
     if telephone is not None:
         user.telephone = telephone
-    if rib is not None:
-        # Le chiffrement est porte par le type de colonne (`ChampChiffre`) :
-        # rien a faire ici, et rien a oublier ailleurs.
-        user.rib = rib
     db.commit()
     db.refresh(user)
     return user

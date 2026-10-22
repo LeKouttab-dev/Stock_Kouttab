@@ -81,10 +81,8 @@ export const ERROR_MESSAGES: Record<string, string> = {
   // (photo, HEIC, PNG, PDF). Réclamer un PDF envoyait chercher un convertisseur
   // à celui qui n'a que son téléphone — et le préciser ici n'apporte rien de
   // plus que la consigne elle-même.
-  VAL_5012: 'Déposez votre RIB sur votre espace avant de soumettre une note de frais.',
-  // Distinct du document : celui qui a déjà déposé sa photo doit comprendre que
-  // c'est l'IBAN qu'on lui demande, sans quoi il redépose la même photo.
-  VAL_5013: 'Renseignez votre IBAN sur votre espace avant de soumettre une note de frais.',
+  VAL_5012: 'Transmettez votre RIB depuis votre profil avant de soumettre une note de frais.',
+  VAL_5013: 'IBAN invalide : vérifiez-le sur votre relevé bancaire.',
   VAL_5014:
     'Joignez au moins un justificatif : sans ticket ni facture, la comptabilité ne ' +
     'peut pas rembourser cette dépense.',

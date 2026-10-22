@@ -95,7 +95,7 @@ class ErrorCode(str, Enum):
     FILE_PHYSICALLY_MISSING = "VAL_5010"
     BARCODE_INVALID = "VAL_5011"
     RIB_MANQUANT = "VAL_5012"
-    IBAN_MANQUANT = "VAL_5013"
+    IBAN_INVALIDE = "VAL_5013"
     JUSTIFICATIF_MANQUANT = "VAL_5014"
 
     # ---- External services (6xxx) -----------------------------------------
@@ -264,21 +264,14 @@ ERROR_MESSAGES: dict[ErrorCode, tuple[int, str]] = {
     ),
     ErrorCode.RIB_MANQUANT: (
         422,
-        # « au format PDF » disait le message d'origine — un detail
-        # d'implementation echappe dans le texte utilisateur. Le depot accepte
-        # la photo, le HEIC de l'iPhone, le PNG, et convertit lui-meme (cf.
-        # `POST /users/me/rib-document`). Reclamer un PDF envoyait chercher un
-        # convertisseur a celui qui n'a que son telephone — exactement la
-        # personne que la conversion automatique etait censee depanner.
-        "Deposez votre RIB sur votre espace avant de soumettre une note de frais.",
+        # Le RIB n'est plus conserve : ce qui compte est qu'il ait ete transmis
+        # au tresorier (`POST /users/me/rib`). Le message ne reclame jamais
+        # « un PDF » — une photo suffit, le depot convertit.
+        "Transmettez votre RIB depuis votre profil avant de soumettre une note de frais.",
     ),
-    ErrorCode.IBAN_MANQUANT: (
+    ErrorCode.IBAN_INVALIDE: (
         422,
-        # Distinct du document, et le message le dit : les deux se corrigent
-        # au meme endroit mais pas du tout de la meme facon. Confondus sous un
-        # seul libelle, celui qui avait deja depose sa photo redeposait la meme
-        # photo en boucle sans comprendre ce qu'on lui reclamait.
-        "Renseignez votre IBAN sur votre espace avant de soumettre une note de frais.",
+        "IBAN invalide : verifiez-le sur votre releve bancaire.",
     ),
     ErrorCode.JUSTIFICATIF_MANQUANT: (
         422,

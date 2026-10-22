@@ -7,6 +7,7 @@ import io
 import os
 import uuid
 from collections.abc import Callable, Generator
+from datetime import datetime
 from typing import Any
 
 # ---------------------------------------------------------------------------
@@ -244,17 +245,6 @@ def _unique_username(prefix: str) -> str:
     return f"{prefix}{uuid.uuid4().hex[:8]}"
 
 
-# Un PDF minimal mais reel : le depot d'une note de frais exige desormais un RIB
-# au format PDF, et c'est l'etat normal d'un compte qui depose. Les tests qui
-# verifient le refus prennent la fixture `benevole_sans_rib`.
-_RIB_PDF = b"%PDF-1.4 fixture de test"
-
-# L'IBAN est une AUTRE condition que le document, et le depot exige les deux :
-# c'est lui qui sert au virement, le document n'en est que la preuve. Un compte
-# de test complet porte donc les deux. Voir `benevole_sans_iban` pour le refus.
-_IBAN = "FR7630001007941234567890185"
-
-
 def justificatif_jpeg(nom: str = "ticket.jpg") -> dict:
     """Une piece jointe valide, pour un depot de note de frais.
 
@@ -277,7 +267,6 @@ def _make_user(
     validation_status: str = "active",
     prefix: str | None = None,
     avec_rib: bool = True,
-    avec_iban: bool = True,
 ):
     username = _unique_username(prefix or role.lower().replace(" ", "_"))
     user = user_crud.create_user(
@@ -288,13 +277,11 @@ def _make_user(
         email=f"{username}@example.com",
         validation_status=validation_status,
     )
+    # Un compte de test a transmis son RIB : c'est l'etat normal de qui depose
+    # une note de frais. Le RIB lui-meme n'est jamais en base.
     if avec_rib:
-        user.rib_document = _RIB_PDF
-        user.rib_document_nom = "rib.pdf"
-        user.rib_document_type = "application/pdf"
-    if avec_iban:
-        user.rib = _IBAN
-    if avec_rib or avec_iban:
+        user.rib_transmis_le = datetime(2026, 10, 1, 9, 0)
+        user.rib_iban_fin = "0185"
         db.commit()
         db.refresh(user)
     # Stash the plaintext password on the instance so tests can log in with it.
@@ -334,20 +321,9 @@ def benevole_user(db_session: Session):
 
 @pytest.fixture()
 def benevole_sans_rib(db_session: Session):
-    """Benevole qui n'a jamais depose son RIB — le cas que le depot doit refuser."""
+    """Benevole qui n'a jamais transmis son RIB — le cas que le depot doit refuser."""
     return _make_user(db_session, role="Benevole", prefix="sr", avec_rib=False)
 
-
-@pytest.fixture()
-def benevole_sans_iban(db_session: Session):
-    """Le document est la, l'IBAN manque — et c'est un refus different.
-
-    Ce compte-la passait le depot : le controle ne regardait que le document.
-    Cote comptabilite, la note s'affichait alors sous « L'utilisateur n'a pas
-    encore renseigne son RIB », qui masquait jusqu'au bouton de telechargement
-    du document. La piece etait deposee, et personne ne pouvait l'atteindre.
-    """
-    return _make_user(db_session, role="Benevole", prefix="si", avec_iban=False)
 
 
 @pytest.fixture()
